@@ -1,5 +1,6 @@
 import type {
   BloqueoExcepcion,
+  Horario,
   Negocio,
   Reserva,
   Servicio,
@@ -20,7 +21,7 @@ export const mockNegocios: Negocio[] = [
     id: "11111111-1111-4111-8111-111111111111",
     user_id: MOCK_USER_ID,
     nombre: "Escuela de Surf Pura Vida",
-    slug: "mi-escuela-de-surf",
+    slug: "surf-tamarindo",
     cuenta_iban: "CR00000000000000000000",
     descripcion:
       "Clases de surf para todos los niveles frente a la playa. ¡Reserva tu cupo!",
@@ -58,7 +59,39 @@ export const mockReservas: Reserva[] = [
     email_cliente: "turista.demo@example.com",
     estado: "pagada",
     trx_id: "trx_mock_demo_1",
+    monto_usd: 45,
   },
 ];
 
 export const mockBloqueos: BloqueoExcepcion[] = [];
+
+function horarioSemilla(
+  n: number,
+  servicio_id: string,
+  dias: number,
+  hora: number,
+  minutos = 0,
+): Horario {
+  const fecha = new Date();
+  fecha.setDate(fecha.getDate() + dias);
+  fecha.setHours(hora, minutos, 0, 0);
+  return {
+    id: `44444444-4444-4444-8444-${String(n).padStart(12, "0")}`,
+    negocio_id: "11111111-1111-4111-8111-111111111111",
+    servicio_id,
+    fecha_hora: fecha.toISOString(),
+    cupos_totales: 6,
+  };
+}
+
+const SERVICIO_CLASE = "22222222-2222-4222-8222-222222222221";
+const SERVICIO_TABLA = "22222222-2222-4222-8222-222222222222";
+
+export const mockHorarios: Horario[] = [
+  horarioSemilla(1, SERVICIO_CLASE, 1, 8),
+  horarioSemilla(2, SERVICIO_CLASE, 1, 11),
+  horarioSemilla(3, SERVICIO_CLASE, 1, 15),
+  horarioSemilla(4, SERVICIO_CLASE, 2, 9),
+  horarioSemilla(5, SERVICIO_TABLA, 1, 9),
+  horarioSemilla(6, SERVICIO_TABLA, 2, 9),
+];

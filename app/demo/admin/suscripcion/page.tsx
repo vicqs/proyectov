@@ -67,11 +67,11 @@ export default function AdminSuscripcionDemoPage() {
   });
 
   return (
-    <main className="mx-auto min-h-screen max-w-lg bg-white px-6 py-16 sm:px-8">
+    <main className="mx-auto max-w-6xl px-6 py-12 sm:px-10 2xl:max-w-7xl">
       <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
         Proyecto V — sin Supabase ni Tilopay
       </p>
-      <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
+      <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
         Suscripción de {mockNegocio.nombre}
       </h1>
       <p className="mt-2 text-sm leading-relaxed text-gray-500">

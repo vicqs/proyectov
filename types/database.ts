@@ -3,7 +3,7 @@
  * Arquitectura multi-tenant: todo dato de dominio está aislado por `negocio_id`.
  */
 
-export type EstadoReserva = "pendiente" | "pagada";
+export type EstadoReserva = "pendiente" | "pagada" | "cancelada";
 
 /** Estado de la suscripción SaaS de la pyme (cobro de $15 USD/mes). */
 export type EstadoSuscripcion = "activa" | "inactiva" | "prueba";
@@ -18,6 +18,7 @@ export type Negocio = {
   color_tema: string | null; // HEX, ej. "#0284c7"
   logo_url: string | null;
   imagen_portada_url: string | null;
+  whatsapp?: string | null; // Solo dígitos con código de país, ej. 50688887777
   estado_suscripcion: EstadoSuscripcion;
   stripe_customer_id: string | null;
 };
@@ -28,6 +29,8 @@ export type Servicio = {
   nombre: string;
   precio_usd: number; // Decimal
   duracion_min: number;
+  descripcion?: string | null;
+  imagen_url?: string | null;
 };
 
 export type Reserva = {
@@ -36,13 +39,17 @@ export type Reserva = {
   negocio_id: string; // UUID (FK -> negocios.id)
   fecha_hora: string; // Timestamptz (ISO string)
   email_cliente: string;
+  nombre_cliente?: string | null;
+  cupos?: number; // Cupos reservados (por defecto 1)
+  token_gestion?: string | null; // Token secreto para que el turista gestione su reserva
   estado: EstadoReserva;
   trx_id?: string | null;
+  monto_usd?: number | null; // Monto cobrado al momento del pago (precio × cupos)
 };
 
 /** Reserva extendida con el nombre del servicio (JOIN reservas + servicios). */
 export interface ReservaConServicio extends Reserva {
-  servicio: Pick<Servicio, "nombre"> | null;
+  servicio: Pick<Servicio, "nombre" | "precio_usd"> | null;
 }
 
 export type BloqueoExcepcion = {
@@ -51,6 +58,15 @@ export type BloqueoExcepcion = {
   fecha_inicio: string; // Timestamptz (ISO string)
   fecha_fin: string; // Timestamptz (ISO string)
   motivo: string;
+};
+
+/** Franja horaria reservable de un servicio, con cupos totales. */
+export type Horario = {
+  id: string; // UUID
+  negocio_id: string; // UUID (FK -> negocios.id)
+  servicio_id: string; // UUID (FK -> servicios.id)
+  fecha_hora: string; // Timestamptz (ISO string)
+  cupos_totales: number;
 };
 
 /**
@@ -89,6 +105,16 @@ export type Database = {
             | "estado"
           >;
         Update: Partial<Reserva>;
+        Relationships: [];
+      };
+      horarios: {
+        Row: Horario;
+        Insert: Partial<Horario> &
+          Pick<
+            Horario,
+            "negocio_id" | "servicio_id" | "fecha_hora" | "cupos_totales"
+          >;
+        Update: Partial<Horario>;
         Relationships: [];
       };
       bloqueos_excepcion: {

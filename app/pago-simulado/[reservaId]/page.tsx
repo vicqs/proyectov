@@ -64,6 +64,22 @@ export default async function PagoSimuladoPage({ params }: PageProps) {
     );
   }
 
+  if (reserva.estado === "cancelada") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+          <h1 className="text-lg font-semibold text-slate-900">
+            Esta reserva fue cancelada
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Ya no es posible pagarla. Crea una nueva reserva desde el enlace del
+            negocio.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   const confirmar = confirmarPagoSimuladoAction.bind(null, reserva.id);
   const cancelar = cancelarPagoSimuladoAction.bind(null, reserva.id);
 
@@ -85,7 +101,7 @@ export default async function PagoSimuladoPage({ params }: PageProps) {
         <div className="my-4 rounded-lg bg-slate-50 p-4">
           <p className="text-xs text-slate-500">Total a pagar</p>
           <p className="text-2xl font-bold text-slate-900">
-            ${servicio?.precio_usd.toFixed(2) ?? "0.00"}
+            ${((servicio?.precio_usd ?? 0) * (reserva.cupos ?? 1)).toFixed(2)}
           </p>
         </div>
 

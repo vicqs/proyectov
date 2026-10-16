@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 
 export type Locale = "es" | "en";
@@ -36,6 +43,10 @@ const diccionario = {
     cerrar: "Cerrar",
     min: "min",
     reservar: "Reservar",
+    quedan: "quedan",
+    personas: "Personas (cupos)",
+    quitar_persona: "Quitar una persona",
+    agregar_persona: "Agregar una persona",
   },
   en: {
     servicios_disponibles: "Available services",
@@ -66,6 +77,10 @@ const diccionario = {
     cerrar: "Close",
     min: "min",
     reservar: "Book now",
+    quedan: "left",
+    personas: "Guests",
+    quitar_persona: "Remove one guest",
+    agregar_persona: "Add one guest",
   },
 } as const;
 
@@ -81,7 +96,27 @@ const LocaleContext = createContext<LocaleContextValue | null>(null);
 
 /** Provee el idioma activo (ES/EN) y la función de traducción `t()` al árbol. */
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocale] = useState<Locale>("es");
+  const [locale, setLocaleState] = useState<Locale>("es");
+
+  // Idioma inicial: preferencia guardada o idioma del navegador (tras montar,
+  // para no provocar diferencias de hidratación).
+  useEffect(() => {
+    const guardado = window.localStorage.getItem("locale");
+    if (guardado === "es" || guardado === "en") {
+      setLocaleState(guardado);
+    } else if (navigator.language?.toLowerCase().startsWith("en")) {
+      setLocaleState("en");
+    }
+  }, []);
+
+  const setLocale = useCallback((nuevo: Locale) => {
+    setLocaleState(nuevo);
+    try {
+      window.localStorage.setItem("locale", nuevo);
+    } catch {
+      // Almacenamiento no disponible: la preferencia solo dura la sesión.
+    }
+  }, []);
 
   const value = useMemo<LocaleContextValue>(
     () => ({
@@ -89,7 +124,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       setLocale,
       t: (clave) => diccionario[locale][clave],
     }),
-    [locale],
+    [locale, setLocale],
   );
 
   return (

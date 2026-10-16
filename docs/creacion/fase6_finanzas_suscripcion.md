@@ -38,16 +38,17 @@ Reflejado en TypeScript en [types/database.ts](../types/database.ts)
 Sobre cada reserva con `estado = 'pagada'` del negocio:
 
 ```
-ingresoBruto        = Σ precio_usd de cada reserva pagada
-comisionPlataforma  = ingresoBruto × 1.5%
+ingresoBruto        = Σ monto_usd de cada reserva pagada (precio × cupos al pagar)
 comisionBanco       = ingresoBruto × 4.25%
-comisionesEstimadas = comisionPlataforma + comisionBanco
-ingresoNeto         = ingresoBruto − comisionesEstimadas
+ingresoNeto         = ingresoBruto − comisionBanco
 ```
 
-Estas tasas están centralizadas como constantes
-(`COMISION_PLATAFORMA`, `COMISION_BANCO`) en
-[app/admin/finanzas/page.tsx](../app/admin/finanzas/page.tsx) para
+La plataforma no cobra comisión por venta (solo suscripción fija). Las
+reservas pagadas y luego canceladas no cuentan como ingreso y se avisan
+como "por reembolsar".
+
+La tasa está centralizada como constante (`COMISION_BANCO`) en
+[components/admin/FinanzasView.tsx](../components/admin/FinanzasView.tsx) para
 ajustarse fácilmente si cambian los acuerdos comerciales. El monto de
 cada reserva se obtiene mediante un JOIN a `servicios` (mismo patrón que
 `/admin/reservas`): `select("*, servicio:servicios(nombre, precio_usd)")`.

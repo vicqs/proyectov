@@ -1,16 +1,21 @@
-import { Calendar, Mail } from "lucide-react";
 import { createSupabaseServerClient } from "../../lib/supabase/server";
-import type { Reserva } from "../../types/database";
+import type {
+  Reserva,
+  ReservaConServicio,
+  Servicio,
+} from "../../types/database";
+import InicioView from "../../components/admin/InicioView";
+import { construirHorarios } from "../../lib/horarios";
+import type { Horario } from "../../types/database";
 
-const ESTADO_STYLES: Record<Reserva["estado"], string> = {
-  pendiente: "bg-amber-100 text-amber-700",
-  pagada: "bg-emerald-100 text-emerald-700",
-};
+interface PagoConPrecio extends Reserva {
+  servicio: Pick<Servicio, "precio_usd"> | null;
+}
 
 /**
- * Overview del dashboard: próximas 5 reservas del negocio del usuario
- * autenticado. Gracias a RLS, el filtro por `negocio_id` solo puede
- * devolver filas que le pertenecen al usuario logueado.
+ * Inicio del dashboard: KPIs, próximas 5 reservas y servicios del negocio
+ * del usuario autenticado. Gracias a RLS, los filtros por `negocio_id` solo
+ * pueden devolver filas que le pertenecen al usuario logueado.
  */
 export default async function AdminOverviewPage() {
   const supabase = await createSupabaseServerClient();
@@ -21,65 +26,109 @@ export default async function AdminOverviewPage() {
 
   const { data: negocio } = await supabase
     .from("negocios")
-    .select("id")
+    .select("id, nombre, descripcion")
     .eq("user_id", user!.id)
     .single();
 
-  let reservas: Reserva[] = [];
+  let proximas: ReservaConServicio[] = [];
+  let pagos: PagoConPrecio[] = [];
+  let servicios: Servicio[] = [];
+  let totalReservas = 0;
+  let horarios: Horario[] = [];
+  let todas: Reserva[] = [];
 
   if (negocio) {
-    const { data, error } = await supabase
-      .from("reservas")
-      .select("*")
-      .eq("negocio_id", negocio.id)
-      .in("estado", ["pendiente", "pagada"])
-      .order("fecha_hora", { ascending: true })
-      .limit(5);
+    const [serviciosRes, todasRes, horariosRes] = await Promise.all([
+      supabase
+        .from("servicios")
+        .select("*")
+        .eq("negocio_id", negocio.id)
+        .order("nombre", { ascending: true }),
+      supabase.from("reservas").select("*").eq("negocio_id", negocio.id),
+      supabase
+        .from("horarios")
+        .select("*")
+        .eq("negocio_id", negocio.id)
+        .gte("fecha_hora", new Date().toISOString()),
+    ]);
 
-    if (!error) {
-      reservas = (data ?? []) as Reserva[];
-    }
+    servicios = (serviciosRes.data ?? []) as Servicio[];
+    todas = (todasRes.data ?? []) as Reserva[];
+    horarios = (horariosRes.data ?? []) as Horario[];
+    totalReservas = todas.filter((r) => r.estado !== "cancelada").length;
+
+    const ahora = Date.now();
+    proximas = todas
+      .filter(
+        (r) =>
+          (r.estado === "pendiente" || r.estado === "pagada") &&
+          new Date(r.fecha_hora).getTime() >= ahora,
+      )
+      .sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora))
+      .slice(0, 5) as unknown as ReservaConServicio[];
+    pagos = todas
+      .filter((r) => r.estado === "pagada")
+      .map((r) => ({
+        ...r,
+        servicio: servicios.find((s) => s.id === r.servicio_id) ?? null,
+      }));
   }
 
+  const montoDe = (p: PagoConPrecio) =>
+    p.monto_usd ?? (p.servicio?.precio_usd ?? 0) * (p.cupos ?? 1);
+  const totalCobrado = pagos.reduce((acc, pago) => acc + montoDe(pago), 0);
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const manana = new Date(hoy.getTime() + 86_400_000);
+  const haceSemana = Date.now() - 7 * 86_400_000;
+  const reservasHoy = todas.filter((r) => {
+    const t = new Date(r.fecha_hora).getTime();
+    return (
+      r.estado !== "cancelada" && t >= hoy.getTime() && t < manana.getTime()
+    );
+  }).length;
+  const ingresosSemana = pagos
+    .filter((p) => new Date(p.fecha_hora).getTime() >= haceSemana)
+    .reduce((acc, p) => acc + montoDe(p), 0);
+  const limite = Date.now() + 7 * 86_400_000;
+  const nombreServicio = (id: string) =>
+    servicios.find((s) => s.id === id)?.nombre ?? "Servicio";
+  const pocosCupos = construirHorarios(
+    horarios.filter((h) => new Date(h.fecha_hora).getTime() <= limite),
+    todas,
+    [],
+  )
+    .filter((h) => h.cuposDisponibles <= 2)
+    .slice(0, 5)
+    .map((h) => ({
+      id: h.id,
+      servicio: nombreServicio(h.servicioId),
+      label: h.label,
+      cuposDisponibles: h.cuposDisponibles,
+    }));
+
   return (
-    <div>
-      <h1 className="mb-6 text-2xl font-bold text-slate-900">Inicio</h1>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">
-          Próximas reservas
-        </h2>
-
-        {reservas.length === 0 ? (
-          <p className="text-sm text-slate-500">
-            No tienes reservas pendientes o pagadas por ahora.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {reservas.map((reserva) => (
-              <li
-                key={reserva.id}
-                className="flex items-center justify-between rounded-xl border border-slate-100 p-4"
-              >
-                <div className="flex items-center gap-3 text-sm text-slate-600">
-                  <Calendar className="h-4 w-4 text-slate-400" />
-                  {new Date(reserva.fecha_hora).toLocaleString("es-CR", {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })}
-                  <Mail className="h-4 w-4 text-slate-400" />
-                  {reserva.email_cliente}
-                </div>
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${ESTADO_STYLES[reserva.estado]}`}
-                >
-                  {reserva.estado}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </div>
+    <InicioView
+      nombre={negocio?.nombre ?? "tu negocio"}
+      descripcion="Este es el resumen de tu negocio."
+      totalReservas={totalReservas}
+      totalCobrado={totalCobrado}
+      reservasHoy={reservasHoy}
+      ingresosSemana={ingresosSemana}
+      horariosPocosCupos={pocosCupos}
+      servicios={servicios.map((s) => ({
+        id: s.id,
+        nombre: s.nombre,
+        duracionMin: s.duracion_min,
+        precioUsd: s.precio_usd,
+      }))}
+      proximasReservas={proximas.map((r) => ({
+        id: r.id,
+        fechaIso: r.fecha_hora,
+        cliente: r.nombre_cliente || r.email_cliente,
+        estado: r.estado,
+      }))}
+    />
   );
 }

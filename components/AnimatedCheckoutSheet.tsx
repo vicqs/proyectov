@@ -58,7 +58,8 @@ interface AnimatedCheckoutSheetProps {
     horarioId: string,
     nombreCliente: string,
     emailCliente: string,
-  ) => void;
+    cupos: number,
+  ) => void | Promise<{ error?: string; trxId?: string } | void>;
 }
 
 const variantesPaso = {
@@ -100,13 +101,15 @@ export default function AnimatedCheckoutSheet({
     useState<DemoHorario | null>(null);
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
+  const [cupos, setCupos] = useState(1);
   const [errorEmail, setErrorEmail] = useState<string | null>(null);
   const [numeroTarjeta, setNumeroTarjeta] = useState("");
   const [vencimiento, setVencimiento] = useState("");
   const [cvc, setCvc] = useState("");
-  const [trxIdSimulado] = useState(
+  const [trxIdSimulado, setTrxIdSimulado] = useState(
     () => `TL-${Date.now().toString().slice(-8)}`,
   );
+  const [errorPago, setErrorPago] = useState<string | null>(null);
 
   const idTitulo = useId();
   const idNombre = useId();
@@ -189,14 +192,31 @@ export default function AnimatedCheckoutSheet({
   const pagoValido =
     numeroTarjetaValido && vencimientoValido(vencimiento) && cvcValido;
 
-  function handleConfirmarPago() {
+  async function handleConfirmarPago() {
+    setErrorPago(null);
     irA("cargando");
-    setTimeout(() => {
-      if (horarioSeleccionado) {
-        onReservaConfirmada(horarioSeleccionado.id, nombre, email);
+    const espera = new Promise((resolve) => setTimeout(resolve, 3000));
+    let resultado: { error?: string; trxId?: string } | void = undefined;
+    if (horarioSeleccionado) {
+      try {
+        resultado = await onReservaConfirmada(
+          horarioSeleccionado.id,
+          nombre,
+          email.trim().toLowerCase(),
+          cupos,
+        );
+      } catch {
+        resultado = { error: "No se pudo procesar el pago. Intenta de nuevo." };
       }
-      irA("exito");
-    }, 3000);
+    }
+    await espera;
+    if (resultado && resultado.error) {
+      setErrorPago(resultado.error);
+      irA("pago");
+      return;
+    }
+    if (resultado && resultado.trxId) setTrxIdSimulado(resultado.trxId);
+    irA("exito");
   }
 
   return (
@@ -293,6 +313,11 @@ export default function AnimatedCheckoutSheet({
                         {reservado && (
                           <span className="text-[10px] font-semibold uppercase tracking-wide">
                             {t("reservado")}
+                          </span>
+                        )}
+                        {!reservado && horario.cuposDisponibles <= 3 && (
+                          <span className="text-[10px] font-semibold text-amber-600">
+                            {horario.cuposDisponibles} {t("quedan")}
                           </span>
                         )}
                       </motion.button>
@@ -403,6 +428,37 @@ export default function AnimatedCheckoutSheet({
                   </div>
                 </div>
 
+                <div className="mt-5 flex items-center justify-between rounded-2xl bg-slate-100 px-4 py-3">
+                  <span className="text-sm font-medium text-slate-700">
+                    {t("personas")}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      aria-label={t("quitar_persona")}
+                      disabled={cupos <= 1}
+                      onClick={() => setCupos((c) => Math.max(1, c - 1))}
+                      className="h-9 w-9 rounded-full bg-white text-lg font-semibold text-slate-700 shadow-sm disabled:opacity-30"
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center text-base font-semibold text-slate-900">
+                      {cupos}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={t("agregar_persona")}
+                      disabled={
+                        cupos >= (horarioSeleccionado?.cuposDisponibles ?? 1)
+                      }
+                      onClick={() => setCupos((c) => c + 1)}
+                      className="h-9 w-9 rounded-full bg-white text-lg font-semibold text-slate-700 shadow-sm disabled:opacity-30"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
                 <motion.button
                   type="button"
                   disabled={!nombre || !email}
@@ -443,7 +499,7 @@ export default function AnimatedCheckoutSheet({
                 <div className="mb-6 rounded-2xl bg-slate-50 p-5">
                   <p className="text-xs text-gray-500">{t("total_a_pagar")}</p>
                   <p className="text-3xl font-bold tracking-tight text-slate-900">
-                    ${servicio.precioUsd.toFixed(2)}
+                    ${(servicio.precioUsd * cupos).toFixed(2)}
                   </p>
                 </div>
 
@@ -516,6 +572,12 @@ export default function AnimatedCheckoutSheet({
                   </div>
                 </div>
 
+                {errorPago && (
+                  <p role="alert" className="mt-5 text-sm text-red-600">
+                    {errorPago}
+                  </p>
+                )}
+
                 <motion.button
                   type="button"
                   disabled={!pagoValido}
@@ -523,7 +585,7 @@ export default function AnimatedCheckoutSheet({
                   whileTap={{ scale: 0.97 }}
                   className="mt-10 h-14 w-full rounded-2xl bg-emerald-600 text-base font-semibold text-white shadow-sm outline-none transition hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-30"
                 >
-                  {t("pagar")} ${servicio.precioUsd.toFixed(2)}
+                  {t("pagar")} ${(servicio.precioUsd * cupos).toFixed(2)}
                 </motion.button>
               </motion.div>
             )}
@@ -643,7 +705,7 @@ export default function AnimatedCheckoutSheet({
                     <div className="flex justify-between border-t border-emerald-200 pt-2.5">
                       <dt className="text-gray-500">{t("total_pagado")}</dt>
                       <dd className="font-bold text-emerald-700">
-                        ${servicio.precioUsd.toFixed(2)}
+                        ${(servicio.precioUsd * cupos).toFixed(2)}
                       </dd>
                     </div>
                   </dl>

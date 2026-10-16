@@ -9,6 +9,8 @@ interface ServicioCardProps {
   servicio: MockServicio;
   colorTema: string;
   onSeleccionar: (servicio: MockServicio) => void;
+  /** Carga la imagen de inmediato (tarjetas visibles sin hacer scroll). */
+  prioritaria?: boolean;
 }
 
 /**
@@ -20,6 +22,7 @@ export default function ServicioCard({
   servicio,
   colorTema,
   onSeleccionar,
+  prioritaria = false,
 }: ServicioCardProps) {
   return (
     <motion.button
@@ -44,6 +47,7 @@ export default function ServicioCard({
         alt=""
         aria-hidden="true"
         fill
+        loading={prioritaria ? "eager" : "lazy"}
         sizes="(max-width: 640px) 100vw, 480px"
         className="object-cover transition-transform duration-500 group-hover:scale-105"
       />

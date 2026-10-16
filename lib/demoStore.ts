@@ -56,10 +56,27 @@ export interface DemoSuscripcion {
   fechaProximoCobro: string; // ISO string
 }
 
+export interface DemoBloqueo {
+  id: string;
+  fechaInicio: string; // ISO string
+  fechaFin: string; // ISO string
+  motivo: string;
+}
+
+export interface DemoPersonalizacion {
+  nombre: string;
+  descripcion: string;
+  colorTema: string; // HEX
+  logoUrl: string;
+  portadaUrl: string;
+}
+
 export interface DemoStoreData {
   servicios: DemoServicio[];
   horarios: DemoHorario[];
   reservas: DemoReserva[];
+  bloqueos: DemoBloqueo[];
+  personalizacion: DemoPersonalizacion;
   suscripcion: DemoSuscripcion;
 }
 
@@ -276,6 +293,14 @@ function datosSemilla(): DemoStoreData {
         estado: "pagado",
       },
     ],
+    bloqueos: [],
+    personalizacion: {
+      nombre: mockNegocio.nombre,
+      descripcion: mockNegocio.descripcion,
+      colorTema: mockNegocio.colorTema,
+      logoUrl: mockNegocio.logoUrl,
+      portadaUrl: mockNegocio.portadaUrl,
+    },
     suscripcion: { estado: "prueba", fechaProximoCobro: proximoMesIso() },
   };
 }
@@ -310,6 +335,12 @@ interface DemoStoreState {
       montoPagado: number;
     },
   ) => DemoReserva;
+  crearBloqueo: (slug: string, datos: Omit<DemoBloqueo, "id">) => void;
+  eliminarBloqueo: (slug: string, bloqueoId: string) => void;
+  actualizarPersonalizacion: (
+    slug: string,
+    cambios: Partial<DemoPersonalizacion>,
+  ) => void;
   activarSuscripcion: (slug: string) => void;
   cancelarSuscripcion: (slug: string) => void;
 }
@@ -469,6 +500,59 @@ const useStoreInterno = create<DemoStoreState>()((set, get) => ({
     return nueva;
   },
 
+  crearBloqueo: (slug, datos) => {
+    get()._asegurarNegocio(slug);
+    const nuevo: DemoBloqueo = { ...datos, id: `bloqueo-${Date.now()}` };
+    set((estado) => {
+      const previo = estado.negocios[slug];
+      return {
+        negocios: {
+          ...estado.negocios,
+          [slug]: {
+            ...previo,
+            bloqueos: [...previo.bloqueos, nuevo].sort(
+              (a, b) =>
+                new Date(a.fechaInicio).getTime() -
+                new Date(b.fechaInicio).getTime(),
+            ),
+          },
+        },
+      };
+    });
+  },
+
+  eliminarBloqueo: (slug, bloqueoId) => {
+    get()._asegurarNegocio(slug);
+    set((estado) => {
+      const previo = estado.negocios[slug];
+      return {
+        negocios: {
+          ...estado.negocios,
+          [slug]: {
+            ...previo,
+            bloqueos: previo.bloqueos.filter((b) => b.id !== bloqueoId),
+          },
+        },
+      };
+    });
+  },
+
+  actualizarPersonalizacion: (slug, cambios) => {
+    get()._asegurarNegocio(slug);
+    set((estado) => {
+      const previo = estado.negocios[slug];
+      return {
+        negocios: {
+          ...estado.negocios,
+          [slug]: {
+            ...previo,
+            personalizacion: { ...previo.personalizacion, ...cambios },
+          },
+        },
+      };
+    });
+  },
+
   activarSuscripcion: (slug) => {
     get()._asegurarNegocio(slug);
     set((estado) => ({
@@ -558,6 +642,23 @@ export function crearReserva(
   },
 ): DemoReserva {
   return useStoreInterno.getState().crearReserva(slug, datos);
+}
+
+// --- Acciones: Bloqueos y personalización ---
+
+export function crearBloqueo(slug: string, datos: Omit<DemoBloqueo, "id">) {
+  useStoreInterno.getState().crearBloqueo(slug, datos);
+}
+
+export function eliminarBloqueo(slug: string, bloqueoId: string) {
+  useStoreInterno.getState().eliminarBloqueo(slug, bloqueoId);
+}
+
+export function actualizarPersonalizacion(
+  slug: string,
+  cambios: Partial<DemoPersonalizacion>,
+) {
+  useStoreInterno.getState().actualizarPersonalizacion(slug, cambios);
 }
 
 // --- Acciones: Suscripción ---

@@ -1,11 +1,17 @@
 import {
   mockBloqueos,
+  mockHorarios,
   mockNegocios,
   mockReservas,
   mockServicios,
 } from "./data";
 
-type TableName = "negocios" | "servicios" | "reservas" | "bloqueos_excepcion";
+type TableName =
+  | "negocios"
+  | "servicios"
+  | "reservas"
+  | "bloqueos_excepcion"
+  | "horarios";
 
 /** Devuelve la referencia mutable del arreglo en memoria de una tabla. */
 function getTabla(tabla: TableName): Record<string, unknown>[] {
@@ -18,11 +24,13 @@ function getTabla(tabla: TableName): Record<string, unknown>[] {
       return mockReservas as unknown as Record<string, unknown>[];
     case "bloqueos_excepcion":
       return mockBloqueos as unknown as Record<string, unknown>[];
+    case "horarios":
+      return mockHorarios as unknown as Record<string, unknown>[];
   }
 }
 
 interface Filtro {
-  tipo: "eq" | "gte" | "in";
+  tipo: "eq" | "gte" | "lt" | "in";
   columna: string;
   valor: unknown;
 }
@@ -47,8 +55,8 @@ class MockQueryBuilder<T extends Record<string, unknown>>
   private limite: number | null = null;
   private soloUno = false;
   private selectExpandeServicio = false;
-  private pendiente: "select" | "insert" | "update" = "select";
-  private payload: Partial<T> | null = null;
+  private pendiente: "select" | "insert" | "update" | "delete" = "select";
+  private payload: Partial<T> | Partial<T>[] | null = null;
 
   constructor(private readonly tabla: TableName) {}
 
@@ -64,6 +72,11 @@ class MockQueryBuilder<T extends Record<string, unknown>>
 
   gte(columna: string, valor: unknown) {
     this.filtros.push({ tipo: "gte", columna, valor });
+    return this;
+  }
+
+  lt(columna: string, valor: unknown) {
+    this.filtros.push({ tipo: "lt", columna, valor });
     return this;
   }
 
@@ -83,7 +96,7 @@ class MockQueryBuilder<T extends Record<string, unknown>>
     return this;
   }
 
-  insert(payload: Partial<T>) {
+  insert(payload: Partial<T> | Partial<T>[]) {
     this.pendiente = "insert";
     this.payload = payload;
     return this;
@@ -92,6 +105,11 @@ class MockQueryBuilder<T extends Record<string, unknown>>
   update(payload: Partial<T>) {
     this.pendiente = "update";
     this.payload = payload;
+    return this;
+  }
+
+  delete() {
+    this.pendiente = "delete";
     return this;
   }
 
@@ -122,6 +140,7 @@ class MockQueryBuilder<T extends Record<string, unknown>>
       if (filtro.tipo === "eq") return valorFila === filtro.valor;
       if (filtro.tipo === "gte")
         return String(valorFila) >= String(filtro.valor);
+      if (filtro.tipo === "lt") return String(valorFila) < String(filtro.valor);
       if (filtro.tipo === "in")
         return (filtro.valor as unknown[]).includes(valorFila);
       return true;
@@ -132,12 +151,17 @@ class MockQueryBuilder<T extends Record<string, unknown>>
     const tablaRef = getTabla(this.tabla);
 
     if (this.pendiente === "insert" && this.payload) {
-      const nuevaFila = {
-        id: `mock-${this.tabla}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        ...this.payload,
-      } as unknown as Record<string, unknown>;
-      tablaRef.push(nuevaFila);
-      return { data: [nuevaFila as T], error: null };
+      const filas = (
+        Array.isArray(this.payload) ? this.payload : [this.payload]
+      ).map(
+        (p, i) =>
+          ({
+            id: `mock-${this.tabla}-${Date.now()}-${i}-${Math.floor(Math.random() * 1000)}`,
+            ...p,
+          }) as unknown as Record<string, unknown>,
+      );
+      tablaRef.push(...filas);
+      return { data: filas as T[], error: null };
     }
 
     if (this.pendiente === "update" && this.payload) {
@@ -155,6 +179,16 @@ class MockQueryBuilder<T extends Record<string, unknown>>
         };
       }
       return { data: afectadas as T[], error: null };
+    }
+
+    if (this.pendiente === "delete") {
+      const eliminadas: Record<string, unknown>[] = [];
+      for (let i = tablaRef.length - 1; i >= 0; i--) {
+        if (this.cumpleFiltros(tablaRef[i])) {
+          eliminadas.push(...tablaRef.splice(i, 1));
+        }
+      }
+      return { data: eliminadas as T[], error: null };
     }
 
     let filas = tablaRef.filter((fila) => this.cumpleFiltros(fila));

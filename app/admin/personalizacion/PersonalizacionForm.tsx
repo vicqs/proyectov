@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { ImageIcon, Loader2, Save, UploadCloud } from "lucide-react";
 import {
@@ -8,6 +8,8 @@ import {
   type PersonalizacionActionState,
 } from "../../../actions/personalizacion";
 import type { Negocio } from "../../../types/database";
+import { toast } from "../../../components/Toast";
+import { mockNegocio } from "../../../lib/mockData";
 
 const initialState: PersonalizacionActionState = {};
 
@@ -34,11 +36,20 @@ interface ImagePickerProps {
   label: string;
   name: string;
   currentUrl: string | null;
+  /** Imagen que el enlace público muestra mientras no se suba una propia. */
+  defaultUrl: string;
 }
 
 /** Input de archivo con vista previa (imagen actual o la recién seleccionada). */
-function ImagePicker({ label, name, currentUrl }: ImagePickerProps) {
+function ImagePicker({
+  label,
+  name,
+  currentUrl,
+  defaultUrl,
+}: ImagePickerProps) {
   const [preview, setPreview] = useState<string | null>(currentUrl);
+  const usandoDefecto = !preview;
+  const mostrada = preview ?? defaultUrl;
 
   return (
     <div>
@@ -47,12 +58,12 @@ function ImagePicker({ label, name, currentUrl }: ImagePickerProps) {
       </label>
       <div className="flex items-center gap-4">
         <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-          {preview ? (
+          {mostrada ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={preview}
+              src={mostrada}
               alt={label}
-              className="h-full w-full object-cover"
+              className={`h-full w-full object-cover ${usandoDefecto ? "opacity-70" : ""}`}
             />
           ) : (
             <ImageIcon className="h-6 w-6 text-slate-300" />
@@ -75,6 +86,11 @@ function ImagePicker({ label, name, currentUrl }: ImagePickerProps) {
             }}
           />
         </label>
+        {usandoDefecto && (
+          <span className="text-xs text-slate-400">
+            Imagen por defecto. Sube la tuya para reemplazarla.
+          </span>
+        )}
       </div>
     </div>
   );
@@ -86,11 +102,34 @@ export default function PersonalizacionForm({ negocio }: { negocio: Negocio }) {
     initialState,
   );
 
+  useEffect(() => {
+    if (state.success) toast.success("Personalización guardada correctamente.");
+    else if (state.error) toast.error(state.error);
+  }, [state]);
+
   return (
     <form
       action={formAction}
-      className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6"
+      className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
+      <div>
+        <label
+          htmlFor="nombre"
+          className="mb-1 block text-sm font-medium text-slate-700"
+        >
+          Nombre del negocio
+        </label>
+        <input
+          id="nombre"
+          name="nombre"
+          required
+          minLength={2}
+          maxLength={100}
+          defaultValue={negocio.nombre}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+        />
+      </div>
+
       <div>
         <label
           htmlFor="descripcion"
@@ -104,9 +143,31 @@ export default function PersonalizacionForm({ negocio }: { negocio: Negocio }) {
           rows={4}
           maxLength={1000}
           defaultValue={negocio.descripcion ?? ""}
-          placeholder="Cuéntale al turista qué hace especial a tu negocio..."
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
         />
+      </div>
+
+      <div>
+        <label
+          htmlFor="whatsapp"
+          className="mb-1 block text-sm font-medium text-slate-700"
+        >
+          WhatsApp de contacto (opcional)
+        </label>
+        <input
+          id="whatsapp"
+          name="whatsapp"
+          type="tel"
+          inputMode="tel"
+          maxLength={20}
+          defaultValue={negocio.whatsapp ?? ""}
+          placeholder="50688887777"
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+        />
+        <p className="mt-1 text-xs text-slate-500">
+          Código de país + número, sin espacios. Aparece como botón en tu enlace
+          público.
+        </p>
       </div>
 
       <div>
@@ -130,19 +191,18 @@ export default function PersonalizacionForm({ negocio }: { negocio: Negocio }) {
         </div>
       </div>
 
-      <ImagePicker label="Logotipo" name="logo" currentUrl={negocio.logo_url} />
+      <ImagePicker
+        label="Logotipo"
+        name="logo"
+        currentUrl={negocio.logo_url}
+        defaultUrl={mockNegocio.logoUrl}
+      />
       <ImagePicker
         label="Imagen de portada"
         name="portada"
         currentUrl={negocio.imagen_portada_url}
+        defaultUrl={mockNegocio.portadaUrl}
       />
-
-      {state.error && <p className="text-sm text-red-500">{state.error}</p>}
-      {state.success && (
-        <p className="text-sm text-emerald-600">
-          Personalización guardada correctamente.
-        </p>
-      )}
 
       <SubmitButton />
     </form>

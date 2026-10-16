@@ -1,7 +1,13 @@
+import Link from "next/link";
 import { CheckCircle2, Circle, ShieldAlert } from "lucide-react";
+import { isStripeMockMode } from "../../../lib/stripe";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import type { Negocio } from "../../../types/database";
-import { crearCheckoutSuscripcionAction } from "../../../actions/billing";
+import {
+  cancelarSuscripcionActivaAction,
+  crearCheckoutSuscripcionAction,
+} from "../../../actions/billing";
+import AdminPage from "../../../components/AdminPage";
 import SuscribirseButton from "./SuscribirseButton";
 
 interface PageProps {
@@ -50,9 +56,11 @@ export default async function SuscripcionPage({ searchParams }: PageProps) {
 
   if (error || !negocioData) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-        No se encontró el negocio asociado a este usuario.
-      </div>
+      <AdminPage titulo="Suscripción">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          No se encontró el negocio asociado a este usuario.
+        </div>
+      </AdminPage>
     );
   }
 
@@ -60,9 +68,10 @@ export default async function SuscripcionPage({ searchParams }: PageProps) {
   const activa = negocio.estado_suscripcion === "activa";
 
   return (
-    <div>
-      <h1 className="mb-6 text-2xl font-bold text-slate-900">Suscripción</h1>
-
+    <AdminPage
+      titulo="Suscripción"
+      descripcion="Gestiona el plan SaaS de tu negocio."
+    >
       {estadoQuery === "cancelado" && (
         <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
           El proceso de pago fue cancelado. Puedes intentarlo de nuevo cuando
@@ -70,9 +79,9 @@ export default async function SuscripcionPage({ searchParams }: PageProps) {
         </div>
       )}
 
-      <div className="mb-6 flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="mb-6 flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
             Estado de la cuenta
           </p>
           <p className="mt-1 text-lg font-semibold text-slate-900">
@@ -80,19 +89,46 @@ export default async function SuscripcionPage({ searchParams }: PageProps) {
           </p>
         </div>
         <span
-          className={`rounded-full px-3 py-1 text-xs font-medium ${ESTADO_STYLES[negocio.estado_suscripcion]}`}
+          className={`rounded-full px-3 py-1 text-xs font-semibold ${ESTADO_STYLES[negocio.estado_suscripcion]}`}
         >
           {ESTADO_LABELS[negocio.estado_suscripcion]}
         </span>
       </div>
 
       {activa ? (
-        <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-700">
-          <CheckCircle2 className="h-6 w-6 shrink-0" />
-          <p className="text-sm">
-            Tu suscripción está activa. Tienes acceso completo a todas las
-            funciones de la plataforma.
-          </p>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-700">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="h-6 w-6 shrink-0" />
+            <p className="text-sm">
+              Tu suscripción está activa. Tu enlace público{" "}
+              <Link
+                href={`/${negocio.slug}`}
+                className="font-medium underline underline-offset-2"
+              >
+                /{negocio.slug}
+              </Link>{" "}
+              está disponible y tus clientes pueden reservar y pagar con
+              normalidad.
+            </p>
+          </div>
+          <Link
+            href={`/${negocio.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 flex h-12 w-full items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            Ver enlace público ↗
+          </Link>
+          {isStripeMockMode && (
+            <form action={cancelarSuscripcionActivaAction}>
+              <button
+                type="submit"
+                className="mt-3 h-12 w-full rounded-2xl border border-red-200 bg-white text-sm font-semibold text-red-600 transition hover:bg-red-50"
+              >
+                Cancelar suscripción (simular impago)
+              </button>
+            </form>
+          )}
         </div>
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -104,10 +140,10 @@ export default async function SuscripcionPage({ searchParams }: PageProps) {
             </div>
           )}
 
-          <p className="text-xs font-medium uppercase tracking-wide text-sky-600">
+          <p className="text-xs font-semibold uppercase tracking-widest text-sky-600">
             Plan Turismo Link
           </p>
-          <p className="mt-1 text-3xl font-bold text-slate-900">
+          <p className="mt-1 text-4xl font-bold tracking-tight text-slate-900">
             $15{" "}
             <span className="text-base font-medium text-slate-400">/ mes</span>
           </p>
@@ -129,6 +165,6 @@ export default async function SuscripcionPage({ searchParams }: PageProps) {
           </form>
         </div>
       )}
-    </div>
+    </AdminPage>
   );
 }

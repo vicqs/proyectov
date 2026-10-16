@@ -10,6 +10,18 @@ const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 const TIPOS_PERMITIDOS = ["image/png", "image/jpeg", "image/webp"];
 
 const personalizacionSchema = z.object({
+  whatsapp: z
+    .string()
+    .transform((v) => v.replace(/[\s()+-]/g, ""))
+    .refine((v) => v === "" || /^\d{8,15}$/.test(v), {
+      message:
+        "WhatsApp inválido: usa solo números con código de país (ej. 50688887777)",
+    }),
+  nombre: z
+    .string()
+    .trim()
+    .min(2, "El nombre es muy corto")
+    .max(100, "El nombre debe tener menos de 100 caracteres"),
   descripcion: z
     .string()
     .max(1000, "La biografía debe tener menos de 1000 caracteres"),
@@ -37,8 +49,10 @@ export async function actualizarPersonalizacionAction(
   formData: FormData,
 ): Promise<PersonalizacionActionState> {
   const parsed = personalizacionSchema.safeParse({
+    nombre: formData.get("nombre") ?? "",
     descripcion: formData.get("descripcion") ?? "",
     color_tema: formData.get("color_tema"),
+    whatsapp: formData.get("whatsapp") ?? "",
   });
 
   if (!parsed.success) {
@@ -57,7 +71,7 @@ export async function actualizarPersonalizacionAction(
 
   const { data: negocio, error: negocioError } = await supabase
     .from("negocios")
-    .select("id")
+    .select("id, slug")
     .eq("user_id", user.id)
     .single();
 
@@ -69,8 +83,10 @@ export async function actualizarPersonalizacionAction(
   const portadaFile = formData.get("portada") as File | null;
 
   const updatePayload: Partial<Negocio> = {
+    nombre: parsed.data.nombre,
     descripcion: parsed.data.descripcion,
     color_tema: parsed.data.color_tema,
+    whatsapp: parsed.data.whatsapp || null,
   };
 
   try {
@@ -114,6 +130,8 @@ export async function actualizarPersonalizacionAction(
   }
 
   revalidatePath("/admin/personalizacion");
+  revalidatePath("/admin", "layout");
+  revalidatePath(`/${negocio.slug}`);
   return { success: true };
 }
 

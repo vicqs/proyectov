@@ -72,13 +72,26 @@ export async function POST(request: NextRequest) {
 
     const { reserva_id, estado, trx_id } = parsed.data;
 
-    // 2. Actualizar el estado de la reserva (idempotente: si no existe, 404).
+    // 2. No "resucitar" reservas canceladas (el cupo ya fue liberado).
+    const { data: existente } = await supabaseAdmin
+      .from("reservas")
+      .select("estado")
+      .eq("id", reserva_id)
+      .single();
+    if (existente?.estado === "cancelada") {
+      return NextResponse.json(
+        { error: "La reserva fue cancelada" },
+        { status: 409 },
+      );
+    }
+
+    // Actualizar el estado de la reserva (si no existe, 404).
     const { data: reserva, error: updateError } = await supabaseAdmin
       .from("reservas")
       .update({ estado, trx_id })
       .eq("id", reserva_id)
       .select(
-        "id, servicio_id, negocio_id, fecha_hora, email_cliente, estado, trx_id",
+        "id, servicio_id, negocio_id, fecha_hora, email_cliente, estado, trx_id, cupos",
       )
       .single();
 
@@ -106,6 +119,11 @@ export async function POST(request: NextRequest) {
       ]);
 
       if (servicio && negocio) {
+        await supabaseAdmin
+          .from("reservas")
+          .update({ monto_usd: servicio.precio_usd * (reserva.cupos ?? 1) })
+          .eq("id", reserva.id);
+
         const { data: negocioAuthUser } =
           await supabaseAdmin.auth.admin.getUserById(negocio.user_id);
         const negocioEmail = negocioAuthUser?.user?.email;
@@ -122,7 +140,7 @@ export async function POST(request: NextRequest) {
               negocioEmail,
               servicioNombre: servicio.nombre,
               fechaHora: reserva.fecha_hora,
-              montoUsd: servicio.precio_usd,
+              montoUsd: servicio.precio_usd * (reserva.cupos ?? 1),
               trxId: reserva.trx_id ?? "N/A",
               emailCliente: reserva.email_cliente,
             });

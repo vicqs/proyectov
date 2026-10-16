@@ -124,3 +124,28 @@ export async function confirmarSuscripcionSimuladaAction(
 export async function cancelarSuscripcionSimuladaAction(): Promise<never> {
   redirect("/admin/suscripcion?estado=cancelado");
 }
+
+/**
+ * Cancela la suscripción activa del negocio autenticado (simula un impago).
+ * Solo disponible en modo simulado; con Stripe real la cancelación se
+ * gestiona desde el portal de facturación de Stripe.
+ */
+export async function cancelarSuscripcionActivaAction(): Promise<never> {
+  if (!isStripeMockMode) {
+    throw new Error("Cancela tu suscripción desde el portal de Stripe.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { error } = await supabaseAdmin
+    .from("negocios")
+    .update({ estado_suscripcion: "inactiva" })
+    .eq("user_id", user.id);
+  if (error) throw new Error("No se pudo cancelar la suscripción.");
+
+  redirect("/admin/suscripcion?estado=inactiva");
+}

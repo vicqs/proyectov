@@ -8,7 +8,11 @@ const bloqueoSchema = z
   .object({
     fecha_inicio: z.string().datetime({ message: "Fecha de inicio inválida" }),
     fecha_fin: z.string().datetime({ message: "Fecha de fin inválida" }),
-    motivo: z.string().min(3, "El motivo debe tener al menos 3 caracteres"),
+    motivo: z
+      .string()
+      .trim()
+      .min(3, "El motivo debe tener al menos 3 caracteres")
+      .max(200, "El motivo es muy largo"),
   })
   .refine((data) => new Date(data.fecha_fin) >= new Date(data.fecha_inicio), {
     message: "La fecha de fin no puede ser anterior a la fecha de inicio.",
@@ -67,6 +71,22 @@ export async function crearBloqueoAction(
     return { error: "No se encontró el negocio asociado a tu cuenta." };
   }
 
+  const { data: reservas } = await supabase
+    .from("reservas")
+    .select("*")
+    .eq("negocio_id", negocio.id);
+  const ini = new Date(parsed.data.fecha_inicio).getTime();
+  const fin = new Date(parsed.data.fecha_fin).getTime();
+  const afectadas = (reservas ?? []).filter((r) => {
+    const t = new Date(r.fecha_hora).getTime();
+    return r.estado !== "cancelada" && t >= ini && t <= fin;
+  }).length;
+  if (afectadas > 0) {
+    return {
+      error: `Hay ${afectadas} reserva(s) en ese rango. Cancélalas primero en Reservas.`,
+    };
+  }
+
   const { error: insertError } = await supabase
     .from("bloqueos_excepcion")
     .insert({
@@ -81,6 +101,46 @@ export async function crearBloqueoAction(
   }
 
   revalidatePath("/admin/agenda");
+  revalidatePath("/admin/calendario");
+  return { success: true };
+}
+
+/** Elimina un bloqueo del negocio autenticado (filtra siempre por `negocio_id`). */
+export async function eliminarBloqueoAction(
+  bloqueoId: string,
+): Promise<CrearBloqueoActionState> {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Sesión expirada, vuelve a iniciar sesión." };
+  }
+
+  const { data: negocio, error: negocioError } = await supabase
+    .from("negocios")
+    .select("id")
+    .eq("user_id", user.id)
+    .single();
+
+  if (negocioError || !negocio) {
+    return { error: "No se encontró el negocio asociado a tu cuenta." };
+  }
+
+  const { error } = await supabase
+    .from("bloqueos_excepcion")
+    .delete()
+    .eq("id", bloqueoId)
+    .eq("negocio_id", negocio.id);
+
+  if (error) {
+    return { error: "No se pudo eliminar el bloqueo." };
+  }
+
+  revalidatePath("/admin/agenda");
+  revalidatePath("/admin/calendario");
   return { success: true };
 }
 

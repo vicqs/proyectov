@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "../../types/database";
@@ -14,7 +15,41 @@ import { createMockSupabaseClient, isMockMode } from "../mock/client";
  * devuelve un cliente simulado con datos en memoria, incluyendo autenticación
  * simulada (ver `lib/mock/auth.ts` para las credenciales de prueba).
  */
-export async function createSupabaseServerClient() {
+export const createSupabaseServerClient = cache(crearCliente);
+
+async function crearCliente() {
+  const cliente = await crearClienteBase();
+  memoizarGetUser(cliente);
+  return cliente;
+}
+
+/**
+ * Dentro de una misma request, layout y página piden el usuario varias
+ * veces (cada llamada real es un viaje de red a Supabase Auth). Se memoiza
+ * la promesa y se invalida al iniciar/cerrar sesión.
+ */
+function memoizarGetUser(
+  cliente: Awaited<ReturnType<typeof crearClienteBase>>,
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const auth = cliente.auth as any;
+  const original = auth.getUser.bind(auth);
+  let pendiente: Promise<unknown> | null = null;
+  auth.getUser = (...args: unknown[]) => {
+    pendiente ??= original(...args);
+    return pendiente;
+  };
+  for (const metodo of ["signInWithPassword", "signOut"]) {
+    if (typeof auth[metodo] !== "function") continue;
+    const fn = auth[metodo].bind(auth);
+    auth[metodo] = (...args: unknown[]) => {
+      pendiente = null;
+      return fn(...args);
+    };
+  }
+}
+
+async function crearClienteBase() {
   const cookieStore = await cookies();
 
   if (isMockMode) {

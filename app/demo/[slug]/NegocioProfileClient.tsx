@@ -49,11 +49,15 @@ export default function NegocioProfileClient({
   );
 }
 
-function NegocioProfileContenido({ negocio }: NegocioProfileClientProps) {
+function NegocioProfileContenido({
+  negocio: negocioBase,
+}: NegocioProfileClientProps) {
   const { t, locale, setLocale } = useTranslations();
-  const { servicios, horarios, reservas, suscripcion } = useDemoStore(
-    negocio.slug,
-  );
+  const { servicios, horarios, reservas, suscripcion, personalizacion } =
+    useDemoStore(negocioBase.slug);
+  // La personalización editada en /demo/admin/personalizacion prevalece
+  // sobre los datos semilla del negocio.
+  const negocio = { ...negocioBase, ...personalizacion };
   const [servicioSeleccionado, setServicioSeleccionado] =
     useState<DemoServicio | null>(null);
   const [montado, setMontado] = useState(false);
@@ -76,6 +80,7 @@ function NegocioProfileContenido({ negocio }: NegocioProfileClientProps) {
     horarioId: string,
     nombreCliente: string,
     emailCliente: string,
+    cupos: number,
   ) {
     if (!servicioSeleccionado) return;
     crearReserva(negocio.slug, {
@@ -83,8 +88,8 @@ function NegocioProfileContenido({ negocio }: NegocioProfileClientProps) {
       servicioId: servicioSeleccionado.id,
       nombreCliente,
       emailCliente,
-      cantidadCuposReservados: 1,
-      montoPagado: servicioSeleccionado.precioUsd,
+      cantidadCuposReservados: cupos,
+      montoPagado: servicioSeleccionado.precioUsd * cupos,
     });
   }
 
@@ -201,9 +206,10 @@ function NegocioProfileContenido({ negocio }: NegocioProfileClientProps) {
             animate="visible"
             className="grid grid-cols-1 gap-5 sm:grid-cols-2"
           >
-            {servicios.map((servicio) => (
+            {servicios.map((servicio, i) => (
               <motion.div key={servicio.id} variants={itemLista}>
                 <ServicioCard
+                  prioritaria={i < 2}
                   servicio={servicio}
                   colorTema={negocio.colorTema}
                   onSeleccionar={setServicioSeleccionado}

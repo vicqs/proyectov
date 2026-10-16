@@ -1,14 +1,15 @@
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
-import type { ReservaConServicio } from "../../../types/database";
-
-const ESTADO_STYLES: Record<"pendiente" | "pagada", string> = {
-  pendiente: "bg-amber-100 text-amber-700",
-  pagada: "bg-emerald-100 text-emerald-700",
-};
+import type {
+  Horario,
+  ReservaConServicio,
+  Servicio,
+} from "../../../types/database";
+import { construirHorarios, etiquetaHorario } from "../../../lib/horarios";
+import ReservasAdminClient from "./ReservasAdminClient";
 
 /**
- * Data table de todas las reservas del negocio, con el nombre del servicio
- * traído mediante consulta anidada de Supabase (JOIN implícito por FK).
+ * Todas las reservas del negocio, con el nombre del servicio traído
+ * mediante consulta anidada de Supabase (JOIN implícito por FK).
  * Server Component: la consulta se ejecuta en el servidor y respeta RLS.
  */
 export default async function ReservasPage() {
@@ -25,70 +26,58 @@ export default async function ReservasPage() {
     .single();
 
   let reservas: ReservaConServicio[] = [];
+  let horarios: Horario[] = [];
+  let servicios: Pick<Servicio, "id" | "nombre">[] = [];
 
   if (negocio) {
-    const { data, error } = await supabase
-      .from("reservas")
-      .select("*, servicio:servicios(nombre)")
-      .eq("negocio_id", negocio.id)
-      .order("fecha_hora", { ascending: false });
+    const [reservasRes, horariosRes, serviciosRes] = await Promise.all([
+      supabase
+        .from("reservas")
+        .select("*, servicio:servicios(nombre, precio_usd)")
+        .eq("negocio_id", negocio.id)
+        .order("fecha_hora", { ascending: false }),
+      supabase
+        .from("horarios")
+        .select("*")
+        .eq("negocio_id", negocio.id)
+        .gte("fecha_hora", new Date().toISOString())
+        .order("fecha_hora", { ascending: true }),
+      supabase.from("servicios").select("*").eq("negocio_id", negocio.id),
+    ]);
 
-    if (!error) {
-      reservas = (data ?? []) as unknown as ReservaConServicio[];
+    if (!reservasRes.error) {
+      reservas = (reservasRes.data ?? []) as unknown as ReservaConServicio[];
     }
+    horarios = (horariosRes.data ?? []) as Horario[];
+    servicios = (serviciosRes.data ?? []) as Servicio[];
   }
 
-  return (
-    <div>
-      <h1 className="mb-6 text-2xl font-bold text-slate-900">Reservas</h1>
+  const nombreServicio = (id: string) =>
+    servicios.find((s) => s.id === id)?.nombre ?? "Servicio";
 
-      {reservas.length === 0 ? (
-        <p className="text-sm text-slate-500">
-          Aún no hay reservas registradas.
-        </p>
-      ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-4 py-3 whitespace-nowrap">Fecha/Hora</th>
-                <th className="px-4 py-3 whitespace-nowrap">Cliente</th>
-                <th className="px-4 py-3 whitespace-nowrap">Servicio</th>
-                <th className="px-4 py-3 whitespace-nowrap">Estado</th>
-                <th className="px-4 py-3 whitespace-nowrap">ID Transacción</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {reservas.map((reserva) => (
-                <tr key={reserva.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 whitespace-nowrap text-slate-700">
-                    {new Date(reserva.fecha_hora).toLocaleString("es-CR", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-slate-700">
-                    {reserva.email_cliente}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-slate-700">
-                    {reserva.servicio?.nombre ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${ESTADO_STYLES[reserva.estado]}`}
-                    >
-                      {reserva.estado}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-slate-500">
-                    {reserva.trx_id ?? "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+  return (
+    <ReservasAdminClient
+      reservas={reservas.map((r) => ({
+        id: r.id,
+        fechaIso: r.fecha_hora,
+        cliente: r.nombre_cliente || r.email_cliente,
+        email: r.nombre_cliente ? r.email_cliente : undefined,
+        servicio: r.servicio?.nombre ?? "—",
+        horario: etiquetaHorario(r.fecha_hora),
+        cupos: r.cupos ?? 1,
+        monto:
+          r.estado === "pagada" && r.servicio
+            ? (r.monto_usd ?? r.servicio.precio_usd * (r.cupos ?? 1))
+            : undefined,
+        estado: r.estado,
+        trxId: r.trx_id,
+      }))}
+      horarios={construirHorarios(horarios, reservas, []).map((h) => ({
+        id: h.id,
+        servicio: nombreServicio(h.servicioId),
+        label: h.label,
+        cuposDisponibles: h.cuposDisponibles,
+      }))}
+    />
   );
 }

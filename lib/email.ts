@@ -26,6 +26,8 @@ export interface DatosConfirmacionReserva {
   montoUsd: number;
   trxId: string;
   emailCliente: string;
+  /** Enlace privado para que el turista vea o cancele su reserva. */
+  gestionUrl?: string;
 }
 
 export interface ResultadoEnvioCorreos {
@@ -58,6 +60,7 @@ export async function enviarCorreosConfirmacion(
     montoUsd: datos.montoUsd,
     trxId: datos.trxId,
     emailCliente: datos.emailCliente,
+    gestionUrl: datos.gestionUrl,
   };
 
   const alertaProps: AlertaPymeProps = {

@@ -3,6 +3,8 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../lib/supabase/server";
+import { isMockMode } from "../lib/mock/client";
+import { MOCK_USER_EMAIL, MOCK_USER_PASSWORD } from "../lib/mock/data";
 
 const loginSchema = z.object({
   email: z.string().email("Correo inválido"),
@@ -40,6 +42,23 @@ export async function loginAction(
     return { error: "Correo o contraseña incorrectos." };
   }
 
+  redirect("/admin");
+}
+
+/**
+ * Inicio rápido SOLO para desarrollo/demo: inicia la sesión simulada sin
+ * pasar por el formulario. Se rechaza fuera del modo simulado o en
+ * producción, para que nunca exista un acceso sin credenciales reales.
+ */
+export async function inicioRapidoAction() {
+  if (!isMockMode || process.env.NODE_ENV === "production") {
+    redirect("/login");
+  }
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signInWithPassword({
+    email: MOCK_USER_EMAIL,
+    password: MOCK_USER_PASSWORD,
+  });
   redirect("/admin");
 }
 

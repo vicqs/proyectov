@@ -6,6 +6,7 @@ import {
   Hr,
   Html,
   Img,
+  Link,
   Preview,
   Row,
   Section,
@@ -20,6 +21,7 @@ export interface ReciboTuristaProps {
   montoUsd: number;
   trxId: string;
   emailCliente: string;
+  gestionUrl?: string;
 }
 
 /**
@@ -35,6 +37,7 @@ export default function ReciboTurista({
   montoUsd,
   trxId,
   emailCliente,
+  gestionUrl,
 }: ReciboTuristaProps) {
   const fechaFormateada = new Date(fechaHora).toLocaleString("es-CR", {
     dateStyle: "full",
@@ -86,6 +89,13 @@ export default function ReciboTurista({
           </Section>
 
           <Hr style={hr} />
+
+          {gestionUrl && (
+            <Text style={footerNote}>
+              ¿Necesitas ver o cancelar tu reserva?{" "}
+              <Link href={gestionUrl}>Gestionar mi reserva</Link>
+            </Text>
+          )}
 
           <Text style={footerNote}>
             Conserve este correo como comprobante de su reserva. Fue enviado a{" "}
