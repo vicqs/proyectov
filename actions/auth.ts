@@ -64,38 +64,6 @@ export async function loginAction(
   redirect(rutaPanelEmpresa(contexto.negocio.slug));
 }
 
-/**
- * Inicio rápido SOLO para desarrollo: inicia la sesión simulada sin
- * pasar por el formulario. Se rechaza fuera del modo simulado o en
- * producción, para que nunca exista un acceso sin credenciales reales.
- */
-export async function inicioRapidoAction() {
-  if (!isMockMode || process.env.NODE_ENV === "production") {
-    redirect("/login");
-  }
-  const supabase = await createSupabaseServerClient();
-  await supabase.auth.signInWithPassword({
-    email: MOCK_USER_EMAIL,
-    password: MOCK_USER_PASSWORD,
-  });
-  const contexto = await obtenerEmpresaAutenticada();
-  if ("error" in contexto) redirect("/login");
-  redirect(rutaPanelEmpresa(contexto.negocio.slug));
-}
-
-/** Inicio rápido de administrador SOLO para desarrollo (modo simulado). */
-export async function inicioRapidoAdminAction() {
-  if (!isMockMode || process.env.NODE_ENV === "production") {
-    redirect("/login");
-  }
-  const supabase = await createSupabaseServerClient();
-  await supabase.auth.signInWithPassword({
-    email: "admin@turismolink.dev",
-    password: "admin1234",
-  });
-  redirect("/admin");
-}
-
 /** Server Action para cerrar sesión desde el layout del dashboard. */
 export async function logoutAction() {
   const supabase = await createSupabaseServerClient();
