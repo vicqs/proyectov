@@ -14,7 +14,7 @@ interface DrawerProps {
 
 /**
  * Slide-over lateral derecho reutilizable (estilo Apple/Airbnb) para
- * formularios de crear/editar dentro del panel `/demo/admin`. Reemplaza
+ * formularios de crear/editar dentro del panel de empresa. Reemplaza
  * los formularios incrustados en la página por un panel flotante con
  * trampa de foco básica (Escape cierra) y overlay difuminado.
  */
@@ -25,15 +25,31 @@ export default function Drawer({
   children,
 }: DrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!abierto) return;
+    const anterior = document.activeElement as HTMLElement | null;
+    const enfoque = window.setTimeout(() => {
+      panelRef.current
+        ?.querySelector<HTMLElement>(
+          "input, select, textarea, button:not([aria-label='Cerrar'])",
+        )
+        ?.focus();
+    }, 150);
     function alPresionarTecla(evento: KeyboardEvent) {
-      if (evento.key === "Escape") onClose();
+      if (evento.key === "Escape") onCloseRef.current();
     }
     document.addEventListener("keydown", alPresionarTecla);
-    return () => document.removeEventListener("keydown", alPresionarTecla);
-  }, [abierto, onClose]);
+    return () => {
+      window.clearTimeout(enfoque);
+      document.removeEventListener("keydown", alPresionarTecla);
+      anterior?.focus?.();
+    };
+  }, [abierto]);
 
   return (
     <AnimatePresence>

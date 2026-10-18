@@ -1,16 +1,18 @@
 # Fase 4 — Motor de Personalización y Supabase Storage
 
+> Documento histórico de la fase: se conserva la intención de personalización; las rutas y los enlaces apuntan a los archivos actuales. Los cambios de BD/Storage descritos pertenecen a esta fase, no al cambio de rutas, que no requiere migración.
+
 ## Qué se construyó
 
 Permite al dueño de la pyme personalizar la apariencia de su "Link en Bio"
 público: biografía, color de marca, logotipo e imagen de portada.
 
-- [actions/personalizacion.ts](../actions/personalizacion.ts) — Server Action `actualizarPersonalizacionAction` + helper `subirImagen`.
-- [app/admin/personalizacion/page.tsx](../app/admin/personalizacion/page.tsx) — Server Component: carga el `negocio` actual del usuario autenticado.
-- [app/admin/personalizacion/PersonalizacionForm.tsx](../app/admin/personalizacion/PersonalizacionForm.tsx) — Client Component (`useActionState`), con `<ImagePicker>` que muestra vista previa (URL actual o la del archivo recién seleccionado con `URL.createObjectURL`).
-- [app/[slug]/layout.tsx](../app/%5Bslug%5D/layout.tsx) — Layout público: obtiene el negocio por `slug`, inyecta `--color-tema` como variable CSS y muestra portada/logo.
-- Cambios menores: [app/[slug]/page.tsx](../app/%5Bslug%5D/page.tsx) ahora muestra `negocio.descripcion`; [app/[slug]/BookingButton.tsx](../app/%5Bslug%5D/BookingButton.tsx) usa `var(--color-tema)` como color del botón.
-- Nuevas columnas en `Negocio` ([types/database.ts](../types/database.ts)): `descripcion`, `color_tema`, `logo_url`, `imagen_portada_url`.
+- [actions/personalizacion.ts](../../actions/personalizacion.ts) — Server Action `actualizarPersonalizacionAction` + helper `subirImagen`.
+- [app/[slug]/admin/personalizacion/page.tsx](../../app/%5Bslug%5D/admin/personalizacion/page.tsx) — Server Component: carga el `negocio` actual del usuario autenticado y valida `user_id` + `slug`.
+- [app/[slug]/admin/personalizacion/PersonalizacionForm.tsx](../../app/%5Bslug%5D/admin/personalizacion/PersonalizacionForm.tsx) — Client Component (`useActionState`), con `<ImagePicker>` que muestra vista previa (URL actual o la del archivo recién seleccionado con `URL.createObjectURL`).
+- [app/[slug]/page.tsx](../../app/%5Bslug%5D/page.tsx) — Perfil público actual: obtiene el negocio por `slug` y pasa su biografía, color, portada y logo al componente cliente.
+- [app/[slug]/NegocioProfileClient.tsx](../../app/%5Bslug%5D/NegocioProfileClient.tsx) — UI pública actual: muestra la biografía, portada y logo, y pasa el color de marca a las tarjetas y al checkout de reserva.
+- Nuevas columnas en `Negocio` ([types/database.ts](../../types/database.ts)): `descripcion`, `color_tema`, `logo_url`, `imagen_portada_url`.
 
 ## 1. Políticas de Storage requeridas (bucket `negocios-media`)
 
@@ -59,8 +61,7 @@ formulario (texto + archivos) en una sola invocación:
 1. **Validación de texto** con `zod`: `descripcion` (máx. 1000 caracteres) y
    `color_tema` (regex HEX `#RRGGBB`).
 2. **Resolución del `negocio_id`**: se busca `negocios` por `user_id = auth.uid()`
-   con el cliente SSR — si no hay sesión o no existe el negocio, se aborta con
-   un error legible, sin tocar Storage ni la base de datos.
+   y por el `slug` solicitado con el cliente SSR, mediante [lib/empresa.ts](../../lib/empresa.ts) — si no hay sesión o no existe el negocio propio con ese slug, se aborta sin tocar Storage ni la base de datos.
 3. **Archivos opcionales**: `formData.get('logo')` / `formData.get('portada')`
    se leen como `File`. Si el usuario no seleccionó un archivo nuevo, ese campo
    se omite del `formData` (se envía vacío) y **no se sobrescribe** la URL existente.
@@ -73,7 +74,7 @@ formulario (texto + archivos) en una sola invocación:
      con mensaje descriptivo, capturado en un `try/catch` en la acción principal.
 5. **Update en `negocios`**: solo al final, con el payload de texto + las URLs
    nuevas (si hubo subida), se hace `update(...).eq('id', negocio.id)`.
-6. `revalidatePath('/admin/personalizacion')` refresca la página tras el éxito.
+6. `revalidarEmpresa(negocio.slug)` invalida el layout exacto `/<slug>/admin` y la página pública del mismo negocio tras el éxito.
 
 Ningún paso deja código a medias: todas las ramas de error retornan un mensaje
 claro (`PersonalizacionActionState.error`) y el formulario muestra el spinner de
@@ -82,7 +83,7 @@ carga vía `useFormStatus` mientras la acción está `pending`.
 ## 3. Variables CSS dinámicas y color de marca en Tailwind
 
 Tailwind v4 no requiere un `tailwind.config.js` con temas por negocio — en vez
-de eso, el color se inyecta como **variable CSS inline** en el layout público:
+de eso, en esta fase se planteó inyectar el color como **variable CSS inline** en el perfil público:
 
 ```tsx
 <div style={{ '--color-tema': colorTema } as React.CSSProperties}>
@@ -99,21 +100,21 @@ dinámicos):
 </button>
 ```
 
-Esto se usa en:
+En la estructura actual, los puntos de personalización están en:
 
-- `app/[slug]/layout.tsx` — borde superior del contenido (`border-t-4` con `borderTopColor`).
-- `app/[slug]/BookingButton.tsx` — color de fondo del botón de reserva.
+- [app/[slug]/page.tsx](../../app/%5Bslug%5D/page.tsx) — carga `color_tema` y el resto de datos de apariencia del negocio.
+- [app/[slug]/NegocioProfileClient.tsx](../../app/%5Bslug%5D/NegocioProfileClient.tsx) — transmite `colorTema` a [components/ServicioCard.tsx](../../components/ServicioCard.tsx) y [components/AnimatedCheckoutSheet.tsx](../../components/AnimatedCheckoutSheet.tsx), que aplican el color a la UI de reserva.
 
-El valor por defecto (`#0284c7`, azul cielo) se aplica tanto en el layout
-(`COLOR_TEMA_DEFAULT`) como en el `fallback` de `var(--color-tema, #0284c7)`,
-para negocios que aún no configuraron su color.
+El valor por defecto (`#0284c7`, azul cielo) se aplica actualmente al cargar el perfil
+(`COLOR_TEMA_DEFAULT`); el `fallback` de `var(--color-tema, #0284c7)` ilustra
+el enfoque CSS de esta fase para negocios que aún no configuraron su color.
 
 ## Cómo probarlo (QA)
 
 1. Ejecutar el DDL de columnas nuevas en `negocios` (`descripcion text`,
    `color_tema text`, `logo_url text`, `imagen_portada_url text`) y crear el
    bucket público `negocios-media` con las políticas de arriba.
-2. Iniciar sesión, ir a `/admin/personalizacion`.
+2. Iniciar sesión, ir a `/surf-tamarindo/admin/personalizacion` (o usar el slug del negocio autenticado).
 3. Cambiar la biografía y el color, subir un logo y una portada válidos (PNG/JPEG/WEBP, < 5 MB) → debe mostrar el spinner y luego "Personalización guardada correctamente."
 4. Intentar subir un archivo no-imagen (ej. `.pdf`) → debe retornar el error de tipo sin romper la página.
 5. Intentar subir una imagen > 5 MB → debe retornar el error de tamaño.

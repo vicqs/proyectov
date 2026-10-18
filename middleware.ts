@@ -2,10 +2,10 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isMockMode } from "./lib/mock/client";
 import { MOCK_SESSION_COOKIE } from "./lib/mock/auth";
-import { MOCK_USER_ID } from "./lib/mock/data";
+import { MOCK_USER_PREFIX } from "./lib/mock/usuarios";
 
 /**
- * Protege todas las rutas bajo `/admin`: si no hay sesión de Supabase activa,
+ * Protege `/{slug}/admin` y el acceso antiguo `/empresa`: sin sesión activa,
  * redirige a `/login`. También refresca el token de sesión en cada request
  * (necesario porque los Server Components no pueden escribir cookies).
  *
@@ -23,12 +23,27 @@ function conCabecerasDeAutoria(response: NextResponse): NextResponse {
 }
 
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const esAccesoAnterior =
+    pathname === "/empresa" || pathname.startsWith("/empresa/");
+  if (
+    esAccesoAnterior &&
+    request.method !== "GET" &&
+    request.method !== "HEAD"
+  ) {
+    return conCabecerasDeAutoria(
+      new NextResponse(null, { status: 405, headers: { Allow: "GET, HEAD" } }),
+    );
+  }
+  const esPanelEmpresa =
+    /^\/[^/]+\/admin(?:\/|$)/.test(pathname) || esAccesoAnterior;
+  // Administración global: la autorización por rol se valida en el servidor.
+  const esPanelAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
+  const requiereSesion = esPanelEmpresa || esPanelAdmin;
+
   if (isMockMode) {
     const sesion = request.cookies.get(MOCK_SESSION_COOKIE)?.value;
-    if (
-      sesion !== MOCK_USER_ID &&
-      request.nextUrl.pathname.startsWith("/admin")
-    ) {
+    if (!sesion?.startsWith(MOCK_USER_PREFIX) && requiereSesion) {
       return conCabecerasDeAutoria(
         NextResponse.redirect(new URL("/login", request.url)),
       );
@@ -68,7 +83,7 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && request.nextUrl.pathname.startsWith("/admin")) {
+  if (!user && requiereSesion) {
     const loginUrl = new URL("/login", request.url);
     return conCabecerasDeAutoria(NextResponse.redirect(loginUrl));
   }

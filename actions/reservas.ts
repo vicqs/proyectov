@@ -1,8 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createSupabaseServerClient } from "../lib/supabase/server";
+import { obtenerEmpresaOperativa, revalidarEmpresa } from "../lib/empresa";
 import { construirHorarios } from "../lib/horarios";
 
 export interface ReservaActionResult {
@@ -10,45 +9,21 @@ export interface ReservaActionResult {
   success?: boolean;
 }
 
-async function resolverNegocioId() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada, vuelve a iniciar sesión." };
-
-  const { data: negocio, error } = await supabase
-    .from("negocios")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-  if (error || !negocio) {
-    return { error: "No se encontró el negocio asociado a tu cuenta." };
-  }
-  return { supabase, negocioId: negocio.id as string };
-}
-
-function revalidarPaneles() {
-  revalidatePath("/admin");
-  revalidatePath("/admin/reservas");
-  revalidatePath("/admin/horarios");
-  revalidatePath("/admin/finanzas");
-  revalidatePath("/admin/calendario");
-}
-
 /**
  * Cancela una reserva del negocio autenticado. La reserva se conserva con
  * estado "cancelada" (historial) y libera sus cupos automáticamente.
  */
 export async function cancelarReservaAction(
+  slug: string,
   reservaId: string,
 ): Promise<ReservaActionResult> {
   if (!z.string().min(1).safeParse(reservaId).success) {
     return { error: "Reserva inválida." };
   }
-  const ctx = await resolverNegocioId();
-  if ("error" in ctx && !("supabase" in ctx)) return { error: ctx.error };
-  const { supabase, negocioId } = ctx as Exclude<typeof ctx, { error: string }>;
+  const ctx = await obtenerEmpresaOperativa(slug);
+  if ("error" in ctx) return { error: ctx.error };
+  const { supabase, negocio } = ctx;
+  const negocioId = negocio.id;
 
   const { data: reserva } = await supabase
     .from("reservas")
@@ -68,7 +43,7 @@ export async function cancelarReservaAction(
     .eq("negocio_id", negocioId);
   if (error) return { error: "No se pudo cancelar la reserva." };
 
-  revalidarPaneles();
+  revalidarEmpresa(negocio.slug);
   return { success: true };
 }
 
@@ -86,6 +61,7 @@ const manualSchema = z.object({
  * correos: se marca como pagada solo si el dueño ya recibió el dinero.
  */
 export async function crearReservaManualAction(
+  slug: string,
   datos: z.infer<typeof manualSchema>,
 ): Promise<ReservaActionResult> {
   const parsed = manualSchema.safeParse(datos);
@@ -95,9 +71,10 @@ export async function crearReservaManualAction(
   const { horarioId, nombre, email, cupos, pagada } = parsed.data;
   const emailNorm = email.toLowerCase();
 
-  const ctx = await resolverNegocioId();
-  if ("error" in ctx && !("supabase" in ctx)) return { error: ctx.error };
-  const { supabase, negocioId } = ctx as Exclude<typeof ctx, { error: string }>;
+  const ctx = await obtenerEmpresaOperativa(slug);
+  if ("error" in ctx) return { error: ctx.error };
+  const { supabase, negocio } = ctx;
+  const negocioId = negocio.id;
 
   const { data: horario } = await supabase
     .from("horarios")
@@ -149,6 +126,6 @@ export async function crearReservaManualAction(
   });
   if (error) return { error: "No se pudo crear la reserva." };
 
-  revalidarPaneles();
+  revalidarEmpresa(negocio.slug);
   return { success: true };
 }

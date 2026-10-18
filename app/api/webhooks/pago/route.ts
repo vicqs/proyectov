@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { supabaseAdmin } from "../../../../lib/supabase";
 import { enviarCorreosConfirmacion } from "../../../../lib/email";
+import { registrarSistema } from "../../../../lib/registro";
 
 /**
  * El banco/pasarela envía notificaciones asíncronas (webhook) para
@@ -57,6 +58,12 @@ export async function POST(request: NextRequest) {
     // 1. Validar la firma del banco.
     if (!firmaValida(rawBody, firmaRecibida)) {
       console.error("Firma de webhook inválida o ausente.");
+      await registrarSistema({
+        tipo: "webhook",
+        origen: "pago",
+        estado: "error",
+        detalle: "Firma inválida o ausente",
+      });
       return NextResponse.json({ error: "Firma inválida" }, { status: 401 });
     }
 
@@ -64,6 +71,12 @@ export async function POST(request: NextRequest) {
     const parsed = webhookSchema.safeParse(body);
 
     if (!parsed.success) {
+      await registrarSistema({
+        tipo: "webhook",
+        origen: "pago",
+        estado: "error",
+        detalle: "Payload inválido",
+      });
       return NextResponse.json(
         { error: "Payload inválido", detalles: parsed.error.flatten() },
         { status: 400 },
@@ -79,6 +92,13 @@ export async function POST(request: NextRequest) {
       .eq("id", reserva_id)
       .single();
     if (existente?.estado === "cancelada") {
+      await registrarSistema({
+        tipo: "webhook",
+        origen: "pago",
+        estado: "error",
+        detalle: "Pago recibido para una reserva cancelada (posible reembolso)",
+        payload: { reserva_id, estado, trx_id: trx_id ?? null },
+      });
       return NextResponse.json(
         { error: "La reserva fue cancelada" },
         { status: 409 },
@@ -96,6 +116,13 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (updateError || !reserva) {
+      await registrarSistema({
+        tipo: "webhook",
+        origen: "pago",
+        estado: "error",
+        detalle: "Reserva no encontrada",
+        payload: { reserva_id, estado, trx_id: trx_id ?? null },
+      });
       return NextResponse.json(
         { error: "Reserva no encontrada" },
         { status: 404 },
@@ -170,6 +197,12 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("Error en /api/webhooks/pago:", error);
+    await registrarSistema({
+      tipo: "webhook",
+      origen: "pago",
+      estado: "error",
+      detalle: error instanceof Error ? error.message : "Error interno",
+    });
     return NextResponse.json(
       { error: "Error interno del servidor" },
       { status: 500 },

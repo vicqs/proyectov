@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { MessageCircle, ShieldAlert } from "lucide-react";
 import AnimatedCheckoutSheet from "../../components/AnimatedCheckoutSheet";
 import ServicioCard from "../../components/ServicioCard";
-import type { DemoHorario, DemoServicio } from "../../lib/demoStore";
+import type { HorarioPublico, ServicioPublico } from "../../lib/tipos-publicos";
 import { LocaleProvider, useTranslations } from "../../lib/i18n";
 import { reservarYPagarAction } from "../../actions/pago-simulado";
 
@@ -17,13 +17,14 @@ export interface NegocioPublico {
   portadaUrl: string;
   logoUrl: string;
   colorTema: string;
+  colorSecundario: string;
   whatsapp?: string;
 }
 
 interface NegocioProfileClientProps {
   negocio: NegocioPublico;
-  servicios: DemoServicio[];
-  horarios: DemoHorario[];
+  servicios: ServicioPublico[];
+  horarios: HorarioPublico[];
   suscripcionActiva: boolean;
   pago?: string;
 }
@@ -39,9 +40,9 @@ const itemLista = {
 };
 
 /**
- * Perfil público real (/[slug]): misma experiencia premium que el demo
+ * Perfil público real (/[slug]): experiencia premium de reservas
  * (header inmersivo, idioma ES/EN, tarjetas con imagen y checkout animado
- * por pasos), pero alimentada con datos reales del negocio.
+ * por pasos), alimentada con datos reales del negocio.
  */
 export default function NegocioProfileClient(props: NegocioProfileClientProps) {
   return (
@@ -61,7 +62,7 @@ function NegocioProfileContenido({
   const router = useRouter();
   const { t, locale, setLocale } = useTranslations();
   const [servicioSeleccionado, setServicioSeleccionado] =
-    useState<DemoServicio | null>(null);
+    useState<ServicioPublico | null>(null);
   const [huboReserva, setHuboReserva] = useState(false);
 
   const horariosDelServicio = servicioSeleccionado
@@ -106,7 +107,7 @@ function NegocioProfileContenido({
         <h1 className="mt-6 text-2xl font-bold tracking-tight text-slate-900">
           Enlace no disponible
         </h1>
-        <p className="mt-2 max-w-sm text-sm leading-relaxed text-gray-500">
+        <p className="mt-2 max-w-sm text-sm leading-relaxed text-slate-600">
           {negocio.nombre} no tiene una suscripción activa en este momento, por
           lo que su enlace público de reservas no está disponible.
         </p>
@@ -138,7 +139,7 @@ function NegocioProfileContenido({
               type="button"
               aria-pressed={locale === idioma}
               onClick={() => setLocale(idioma)}
-              className={`px-3 py-1.5 outline-none transition focus-visible:ring-2 focus-visible:ring-slate-900 ${
+              className={`px-3 py-2 outline-none transition focus-visible:ring-2 focus-visible:ring-slate-900 ${
                 locale === idioma
                   ? "bg-slate-900 text-white"
                   : "text-slate-700 hover:bg-white"
@@ -152,12 +153,18 @@ function NegocioProfileContenido({
 
       <div className="relative mx-auto -mt-16 max-w-md px-6 sm:max-w-xl sm:px-8">
         {pago === "exitoso" && (
-          <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm text-emerald-700">
+          <div
+            role="status"
+            className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm text-emerald-700"
+          >
             ¡Pago confirmado! Revisa tu correo para ver el recibo.
           </div>
         )}
         {pago === "cancelado" && (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700">
+          <div
+            role="status"
+            className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700"
+          >
             El pago fue cancelado. Tu reserva quedó pendiente.
           </div>
         )}
@@ -183,18 +190,25 @@ function NegocioProfileContenido({
           transition={{ duration: 0.5, delay: 0.1 }}
           className="mt-8"
         >
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900">
+          <h1 className="break-words text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
             {negocio.nombre}
           </h1>
-          <p className="mt-3 max-w-md text-base leading-relaxed text-gray-500">
+          <div
+            aria-hidden="true"
+            className="mt-3 h-1 w-16 rounded-full"
+            style={{
+              backgroundImage: `linear-gradient(90deg, ${negocio.colorTema}, ${negocio.colorSecundario})`,
+            }}
+          />
+          <p className="mt-3 max-w-md whitespace-pre-line break-words text-base leading-relaxed text-slate-600">
             {negocio.descripcion}
           </p>
           {negocio.whatsapp && (
             <a
-              href={`https://wa.me/${negocio.whatsapp}?text=${encodeURIComponent(`Hola ${negocio.nombre}, quisiera consultar sobre una reserva.`)}`}
+              href={`https://wa.me/${negocio.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Hola ${negocio.nombre}, quisiera consultar sobre una reserva.`)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-emerald-700"
             >
               <MessageCircle className="h-4 w-4" aria-hidden="true" />
               WhatsApp
@@ -203,12 +217,12 @@ function NegocioProfileContenido({
         </motion.header>
 
         <section className="mt-14">
-          <h2 className="mb-6 text-sm font-semibold uppercase tracking-widest text-gray-400">
+          <h2 className="mb-6 text-sm font-semibold uppercase tracking-widest text-slate-600">
             {t("servicios_disponibles")}
           </h2>
 
           {servicios.length === 0 ? (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-slate-600">
               Este negocio aún no tiene servicios disponibles.
             </p>
           ) : (
@@ -224,6 +238,7 @@ function NegocioProfileContenido({
                     prioritaria={i < 2}
                     servicio={servicio}
                     colorTema={negocio.colorTema}
+                    colorSecundario={negocio.colorSecundario}
                     onSeleccionar={setServicioSeleccionado}
                   />
                 </motion.div>

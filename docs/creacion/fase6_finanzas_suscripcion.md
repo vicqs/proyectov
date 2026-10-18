@@ -1,14 +1,16 @@
 # Fase 6 — Dashboard Financiero y Suscripción SaaS (Billing)
 
+> Documento histórico de la fase: se conservan sus objetivos, SQL y pendientes; las rutas y los enlaces reflejan la estructura actual. El cambio de rutas no requiere migración de base de datos.
+
 ## 1. Resumen
 
 Esta fase añade dos piezas de negocio nuevas sobre lo construido en las
 Fases 1–5:
 
-1. **Dashboard Financiero** (`/admin/finanzas`): permite a la pyme ver
+1. **Dashboard Financiero** (`/[slug]/admin/finanzas`): permite a la pyme ver
    cuánto ha facturado, cuánto se lleva la plataforma/banco en comisiones,
    y cuánto le corresponde liquidar en neto.
-2. **Suscripción SaaS** (`/admin/suscripcion`): cobro recurrente de
+2. **Suscripción SaaS** (`/[slug]/admin/suscripcion`): cobro recurrente de
    **$15 USD/mes** a la pyme por el uso del software, vía Stripe
    Checkout + Billing Portal (suscripciones).
 
@@ -25,12 +27,12 @@ alter table negocios
 
 - `estado_suscripcion`: controla si la pyme tiene acceso pleno a la
   plataforma. En un futuro se puede usar en middleware para bloquear
-  `/admin/*` si está `inactiva` (no implementado en esta fase para no
+  `/[slug]/admin/*` si está `inactiva` (no implementado en esta fase para no
   bloquear el uso durante desarrollo/pruebas).
 - `stripe_customer_id`: se guarda la primera vez que la pyme inicia un
   checkout, para reutilizar el mismo Customer de Stripe en renovaciones.
 
-Reflejado en TypeScript en [types/database.ts](../types/database.ts)
+Reflejado en TypeScript en [types/database.ts](../../types/database.ts)
 (`EstadoSuscripcion`, campos en `Negocio`).
 
 ## 3. Cálculo de ingresos netos (Dashboard Financiero)
@@ -48,10 +50,10 @@ reservas pagadas y luego canceladas no cuentan como ingreso y se avisan
 como "por reembolsar".
 
 La tasa está centralizada como constante (`COMISION_BANCO`) en
-[components/admin/FinanzasView.tsx](../components/admin/FinanzasView.tsx) para
+[components/empresa/FinanzasView.tsx](../../components/empresa/FinanzasView.tsx) para
 ajustarse fácilmente si cambian los acuerdos comerciales. El monto de
 cada reserva se obtiene mediante un JOIN a `servicios` (mismo patrón que
-`/admin/reservas`): `select("*, servicio:servicios(nombre, precio_usd)")`.
+`/[slug]/admin/reservas`): `select("*, servicio:servicios(nombre, precio_usd)")`.
 
 La tabla de "últimos pagos" muestra las 10 reservas pagadas más recientes
 (`order("fecha_hora", { ascending: false })`, luego `.slice(0, 10)`).
@@ -67,16 +69,17 @@ La tabla de "últimos pagos" muestra las 10 reservas pagadas más recientes
 | `STRIPE_PRICE_ID`       | ID del Price de Stripe para el plan mensual de $15 USD.                                             |
 | `NEXT_PUBLIC_APP_URL`   | URL base pública de la app, usada para construir `success_url`/`cancel_url` del Checkout.           |
 
-### Server Action: `actions/billing.ts`
+### Server Action: [actions/billing.ts](../../actions/billing.ts)
 
-- `crearCheckoutSuscripcionAction()`:
-  1. Verifica sesión activa vía `createSupabaseServerClient().auth.getUser()`; si no hay sesión, redirige a `/login`.
-  2. Busca el negocio del usuario autenticado.
+- `crearCheckoutSuscripcionAction(slug)`:
+  1. Verifica sesión activa mediante `requerirEmpresa(slug)` de [lib/empresa.ts](../../lib/empresa.ts); si no hay sesión, redirige a `/login`.
+  2. Busca el negocio por el `user_id` de la sesión y el `slug` solicitado; el cliente no puede elegir otro negocio.
   3. Si no hay `stripe_customer_id`, crea un `Customer` en Stripe y lo guarda.
   4. Crea una `checkout.sessions.create({ mode: "subscription", ... })` con el `price` de `STRIPE_PRICE_ID`, y redirige al usuario a `session.url`.
+- `success_url` y `cancel_url` retornan a `/<slug>/admin/suscripcion` del mismo negocio, con `?estado=activa` o `?estado=cancelado`, usando [lib/rutas-empresa.ts](../../lib/rutas-empresa.ts).
 - La suscripción se activa **solo** cuando llega el webhook de Stripe (no en la Server Action), siguiendo el flujo real de pagos asíncronos.
 
-### Webhook: `app/api/webhooks/stripe/route.ts`
+### Webhook: [app/api/webhooks/stripe/route.ts](../../app/api/webhooks/stripe/route.ts)
 
 - Verifica la firma con `stripe.webhooks.constructEvent(rawBody, firma, STRIPE_WEBHOOK_SECRET)` (usa el cuerpo **crudo**, requisito de Stripe).
 - Eventos manejados:
@@ -92,12 +95,13 @@ expone `isStripeMockMode = true` y **no** inicializa el SDK de Stripe.
 
 En ese caso:
 
-- `crearCheckoutSuscripcionAction()` redirige a
-  `/admin/suscripcion/simulado/[negocioId]`, una pantalla que imita
+- `crearCheckoutSuscripcionAction(slug)` redirige a
+  `/[slug]/admin/suscripcion/simulado/[negocioId]`, una pantalla que imita
   Stripe Checkout dentro de la propia app.
-- Al confirmar, `confirmarSuscripcionSimuladaAction()` actualiza
+- Al confirmar, `confirmarSuscripcionSimuladaAction(slug)` actualiza
   directamente `estado_suscripcion = 'activa'` (equivalente a lo que
   haría el webhook real), sin necesidad de firmar/verificar nada.
+- Las acciones simuladas validan también `user_id` + `slug` y regresan a `/<slug>/admin/suscripcion` del negocio autenticado. Tras activar, `revalidarEmpresa(negocio.slug)` invalida el layout exacto del panel y el perfil público del mismo negocio.
 - El endpoint `/api/webhooks/stripe` responde `503` en este modo, ya que
   no participa del flujo simulado.
 
@@ -111,7 +115,7 @@ En ese caso:
    Este comando imprime un `whsec_...`: cópialo en `STRIPE_WEBHOOK_SECRET` en `.env.local`.
 3. Crea un producto y un Price recurrente de $15 USD/mes en el
    [Dashboard de Stripe](https://dashboard.stripe.com/test/products) (modo test) y copia el `price_id` en `STRIPE_PRICE_ID`.
-4. Con el servidor (`npm run dev`) y `stripe listen` corriendo, inicia sesión en `/login`, ve a `/admin/suscripcion` y haz clic en "Suscribirse ahora". Usa la tarjeta de prueba `4242 4242 4242 4242` con cualquier fecha futura y CVC.
+4. Con el servidor (`npm run dev`) y `stripe listen` corriendo, inicia sesión en `/login`, ve a `/surf-tamarindo/admin/suscripcion` (o usa el slug del negocio autenticado) y haz clic en "Suscribirse ahora". Usa la tarjeta de prueba `4242 4242 4242 4242` con cualquier fecha futura y CVC.
 5. Al completar el pago, Stripe CLI reenvía `checkout.session.completed` (y luego `invoice.paid`) a tu endpoint local, que actualizará `estado_suscripcion` a `activa` en Supabase.
 6. También puedes disparar eventos manualmente para pruebas puntuales:
    ```bash
@@ -120,18 +124,18 @@ En ese caso:
 
 ## 6. Archivos de esta fase
 
-- [actions/billing.ts](../actions/billing.ts)
-- [app/admin/finanzas/page.tsx](../app/admin/finanzas/page.tsx)
-- [app/admin/suscripcion/page.tsx](../app/admin/suscripcion/page.tsx)
-- [app/admin/suscripcion/SuscribirseButton.tsx](../app/admin/suscripcion/SuscribirseButton.tsx)
-- [app/admin/suscripcion/simulado/[negocioId]/page.tsx](../app/admin/suscripcion/simulado/%5BnegocioId%5D/page.tsx)
-- [app/api/webhooks/stripe/route.ts](../app/api/webhooks/stripe/route.ts)
-- [lib/stripe.ts](../lib/stripe.ts)
-- Actualizaciones en [types/database.ts](../types/database.ts), [lib/mock/data.ts](../lib/mock/data.ts) y [app/admin/layout.tsx](../app/admin/layout.tsx) (nuevos links de navegación).
+- [actions/billing.ts](../../actions/billing.ts)
+- [app/[slug]/admin/finanzas/page.tsx](../../app/%5Bslug%5D/admin/finanzas/page.tsx)
+- [app/[slug]/admin/suscripcion/page.tsx](../../app/%5Bslug%5D/admin/suscripcion/page.tsx)
+- [app/[slug]/admin/suscripcion/SuscribirseButton.tsx](../../app/%5Bslug%5D/admin/suscripcion/SuscribirseButton.tsx)
+- [app/[slug]/admin/suscripcion/simulado/[negocioId]/page.tsx](../../app/%5Bslug%5D/admin/suscripcion/simulado/%5BnegocioId%5D/page.tsx)
+- [app/api/webhooks/stripe/route.ts](../../app/api/webhooks/stripe/route.ts)
+- [lib/stripe.ts](../../lib/stripe.ts)
+- Actualizaciones en [types/database.ts](../../types/database.ts), [lib/mock/data.ts](../../lib/mock/data.ts) y [app/[slug]/admin/layout.tsx](../../app/%5Bslug%5D/admin/layout.tsx) (nuevos links de navegación).
 
 ## 7. Pendientes / decisiones asumidas
 
-- No se implementó bloqueo automático de `/admin/*` cuando
+- No se implementó bloqueo automático de `/[slug]/admin/*` cuando
   `estado_suscripcion = 'inactiva'` (queda para una fase futura, para no
   interferir con las pruebas manuales del resto de la app).
 - No se implementó un Billing Portal de Stripe (`billingPortal.sessions.create`) para que la pyme cancele/actualice su método de pago; solo el checkout inicial.

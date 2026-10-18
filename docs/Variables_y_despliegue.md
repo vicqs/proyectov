@@ -1,6 +1,6 @@
 # 🔧 Variables de Entorno y Despliegue — Proyecto V
 
-Este documento detalla las variables de entorno requeridas, la diferencia entre el entorno de desarrollo (mock/Zustand) y producción, y la estrategia recomendada para desplegar en Vercel.
+Este documento detalla las variables de entorno requeridas, la diferencia entre el entorno de desarrollo (mock local) y producción, y la estrategia recomendada para desplegar en Vercel.
 
 ## 1. 🔑 Variables de entorno (`.env`)
 
@@ -23,12 +23,11 @@ Este documento detalla las variables de entorno requeridas, la diferencia entre 
 
 > 🔒 Ninguna clave secreta (`*_SECRET_KEY`, `*_SERVICE_ROLE_KEY`, `*_WEBHOOK_SECRET`) debe llevar el prefijo `NEXT_PUBLIC_` — ese prefijo hace que Next.js la incluya en el bundle del navegador. Solo las variables explícitamente públicas (URL, IDs no sensibles) deben usarlo.
 
-## 2. 🌎 Entornos: Desarrollo (Mock/Zustand) vs. Producción
+## 2. 🌎 Entornos: Desarrollo (Mock local) vs. Producción
 
 ### Desarrollo (Mock)
 
-- Las rutas `/demo/[slug]` y `/demo/admin/*` funcionan **completamente sin variables de entorno**, ya que su estado vive en memoria en [lib/demoStore.ts](../lib/demoStore.ts) (Zustand), sin tocar Supabase ni ninguna pasarela de pago.
-- Las rutas de producción (`/[slug]`, `/admin/*`) pueden ejecutarse localmente en modo mock activando `USE_MOCK_DB=true` (o simplemente dejando `NEXT_PUBLIC_SUPABASE_URL` sin configurar/con placeholder), lo que hace que [lib/mock/client.ts](../lib/mock/client.ts) sirva datos simulados (`lib/mock/data.ts`) en vez de conectarse a una base de datos real — así se puede desarrollar sin depender de credenciales externas.
+- Las rutas de producción (`/[slug]`, `/[slug]/admin/*`) pueden ejecutarse localmente en modo mock activando `USE_MOCK_DB=true` (o simplemente dejando `NEXT_PUBLIC_SUPABASE_URL` sin configurar/con placeholder), lo que hace que [lib/mock/client.ts](../lib/mock/client.ts) sirva datos simulados (`lib/mock/data.ts`) en vez de conectarse a una base de datos real — así se puede desarrollar sin depender de credenciales externas. El panel real sigue requiriendo sesión y validación de `user_id` + `slug`, también en modo mock.
 - No se requieren claves reales de Stripe/Resend/pasarelas para trabajar en este modo; los emails y pagos también pueden simularse.
 
 ### Producción
@@ -50,6 +49,5 @@ Next.js 15 se beneficia directamente de la infraestructura de **Vercel** (su cre
 4. **Aprovechar Server Components y Route Handlers como Serverless Functions**: cada `route.ts` bajo `app/api/*` (checkout, webhooks) se despliega automáticamente como una función serverless independiente, con escalado automático según demanda — ideal para picos de tráfico ante campañas de una pyme en redes sociales.
 5. **Edge Runtime donde aplique**: evaluar mover el `middleware.ts` (autenticación/Supabase SSR) y páginas públicas de solo lectura (perfil `/ [slug]`) a **Edge Runtime** para reducir la latencia percibida por turistas que acceden desde distintas regiones, especialmente relevante para una audiencia internacional (turistas).
 6. **Dominios personalizados**: configurar el dominio de producción (ej. `proyectov.app`) y asegurarse de que `NEXT_PUBLIC_APP_URL` coincida exactamente, ya que se usa para construir URLs de retorno de checkout y enlaces en correos.
-7. **Previews por Pull Request**: aprovechar los _Preview Deployments_ automáticos de Vercel en cada PR para validar cambios (incluyendo la demo `/demo/*`) antes de fusionar a producción, usando credenciales de prueba/mock en ese entorno.
 8. **Webhooks apuntando al dominio de producción**: una vez desplegado, actualizar en los dashboards de Stripe y de la pasarela de pago (TiloPay/OnvoPay) las URLs de webhook para que apunten a `https://<dominio>/api/webhooks/*`.
 9. **Monitoreo**: habilitar **Vercel Analytics** (ya integrado vía `@vercel/analytics` en el proyecto) y revisar los logs de Functions para detectar errores en Route Handlers críticos (checkout, webhooks) tempranamente.

@@ -18,7 +18,7 @@ El frontend **nunca captura ni almacena datos de tarjeta directamente**. En luga
 - Al delegar la captura de datos sensibles al iframe de la pasarela, **el alcance de cumplimiento PCI-DSS de Proyecto V se reduce drásticamente** (SAQ-A en vez de SAQ-D): nuestros servidores y frontend nunca "tocan", transmiten ni almacenan el PAN (número de tarjeta) completo.
 - Esto es coherente con el rol de "puente tecnológico, no PayFac" descrito en [docs/Reglas_Negocio.md](Reglas_Negocio.md): Proyecto V no maneja fondos ni datos de pago, solo orquesta la experiencia de usuario.
 
-> ⚠️ **Estado actual (demo)**: el paso `"pago"` de `AnimatedCheckoutSheet.tsx` hoy simula estos campos con inputs propios (`numeroTarjeta`, `vencimiento`, `cvc`) únicamente para fines de demostración visual — **no se conecta a ninguna pasarela real todavía** y no debe usarse en producción tal cual. Ver [docs/Roapmap.md](Roapmap.md#⚙️-fase-2-mvp-técnico).
+> ⚠️ **Estado actual (simulado)**: el paso `"pago"` de `AnimatedCheckoutSheet.tsx` hoy simula estos campos con inputs propios (`numeroTarjeta`, `vencimiento`, `cvc`) únicamente para fines de demostración visual — **no se conecta a ninguna pasarela real todavía** y no debe usarse en producción tal cual. Ver [docs/Roapmap.md](Roapmap.md#⚙️-fase-2-mvp-técnico).
 
 ## 2. 🔔 Manejo de webhooks (Backend)
 
@@ -46,14 +46,14 @@ Ya existe un precedente funcional de este patrón en [app/api/webhooks/pago/rout
 
 ## 3. 🔄 Estados de transacción
 
-Todo pago dentro del sistema transita por un conjunto acotado de estados, reflejados tanto en la reserva (`Booking.estado_pago`, ver [docs/Estructura_Datos.md](Estructura_Datos.md)) como en la UI:
+Todo pago dentro del sistema transita por un conjunto acotado de estados, reflejados tanto en la reserva (`Booking.estado_pago`, ver [docs/bd/Estructura_Datos.md](bd/Estructura_Datos.md)) como en la UI:
 
 | Estado          | Significado                                                                                                                                                               | Disparador                                                                                                   |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | **Pendiente**   | La reserva fue creada y se inició la intención de pago, pero la pasarela aún no confirma el resultado.                                                                    | Creación inicial vía `app/api/checkout/route.ts` (paso 3 del flujo, antes de abrir el modal de la pasarela). |
 | **Aprobado**    | La pasarela confirmó el pago exitosamente. El cupo queda bloqueado en firme y se notifica a la pyme y al turista.                                                         | Webhook de la pasarela con resultado exitoso (paso 6, respuesta `200 OK`).                                   |
 | **Rechazado**   | La pasarela informó que el cobro falló (fondos insuficientes, tarjeta inválida, fraude detectado, etc.). El cupo **no** se bloquea y se le permite al turista reintentar. | Webhook de la pasarela con resultado fallido.                                                                |
-| **Reembolsado** | Un pago previamente aprobado fue revertido (solicitud de la pyme, disputa, cancelación). El cupo se libera nuevamente.                                                    | Acción manual desde el panel admin o webhook de reembolso de la pasarela.                                    |
+| **Reembolsado** | Un pago previamente aprobado fue revertido (solicitud de la pyme, disputa, cancelación). El cupo se libera nuevamente.                                                    | Acción manual desde el panel de empresa o webhook de reembolso de la pasarela.                               |
 
 ### Reglas de negocio asociadas a los estados
 

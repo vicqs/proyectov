@@ -10,7 +10,7 @@ A diferencia de los marketplaces tradicionales, Proyecto V **no cobra comisión 
 - 🔗 **"Link en bio" transaccional**: un perfil público (`/[slug]`) con servicios, agenda y botón de pago, ideal para compartir en Instagram/WhatsApp.
 - 📅 **Agenda y disponibilidad en tiempo real** con bloqueos y excepciones de horario.
 - 💳 **Pagos directos** vía pasarela (Stripe) y simulación de pago local para pruebas.
-- 📊 **Panel de administración** para gestionar servicios, reservas, finanzas y personalización de marca.
+- 📊 **Panel de empresa** para gestionar servicios, reservas, finanzas y personalización de marca.
 - ✉️ **Notificaciones automáticas** por correo (Resend + React Email) a negocio y turista.
 - 🌐 **Multi-idioma** (i18n) y arquitectura multi-tenant vía `negocio_id`.
 
@@ -32,29 +32,34 @@ A diferencia de los marketplaces tradicionales, Proyecto V **no cobra comisión 
 
 ## 🏗️ Estructura de la aplicación
 
-Proyecto V tiene dos grandes superficies, cada una disponible tanto en su versión **real** (conectada a Supabase) como en una versión **demo** (100% frontend, sin backend, para presentaciones comerciales):
+Proyecto V tiene dos grandes superficies, cada una disponible (conectada a Supabase o a la capa mock local):
 
 ### 1. Vista pública del negocio
 
 Perfil público donde el turista descubre servicios, revisa disponibilidad y paga:
 
-- Producción: `app/[slug]/page.tsx` (ej. `/tamarindo-surf-school`)
-- Demo (sin backend, ideal para mostrar a clientes): `app/demo/[slug]/page.tsx` (ej. **`/demo/surf-tamarindo`**)
+- Producción: [app/[slug]/page.tsx](app/%5Bslug%5D/page.tsx) (ej. `/surf-tamarindo`)
 
-### 2. Panel de administración
+### 2. Panel de empresa
 
 Donde el dueño del negocio gestiona su operación diaria:
 
-- Producción: `app/admin/` — agenda, servicios, reservas, finanzas, personalización y suscripción.
-- Demo: `app/demo/admin/` (ej. **`/demo/admin`**) — misma experiencia, con datos simulados en `lib/mockData.ts` / `lib/demoStore.ts`.
+- Producción: [app/[slug]/admin/](app/%5Bslug%5D/admin/) (ruta **`/[slug]/admin`**, ej. **`/surf-tamarindo/admin`**) — agenda, servicios, reservas, finanzas, personalización y suscripción.
+
+**Empresa** sigue siendo el rol del dueño del negocio; el segmento `admin` de `/<slug>/admin` identifica su panel. La ruta raíz **`/admin`** se reserva exclusivamente para un futuro rol **Admin global**, no está implementada y ya no tiene una redirección al panel Empresa. Los segmentos `empresa` y `admin` no deben usarse como slugs públicos de negocios.
+
+- **Compatibilidad, solo GET**: `/empresa` y sus subrutas son alias que resuelven el negocio desde la sesión autenticada, aceptan únicamente una allowlist de secciones y conservan los querystrings al redirigir a `/<slug>/admin`. No son rutas de ejecución de Server Actions.
+- **Autorización en servidor**: además del middleware y el layout, cada página del panel y cada Server Action validan `user_id` + `slug` mediante [lib/empresa.ts](lib/empresa.ts). El slug no sustituye la identidad de la sesión. [lib/rutas-empresa.ts](lib/rutas-empresa.ts) centraliza las rutas canónicas y la allowlist de compatibilidad.
+- **Retornos e invalidación**: login y Stripe retornan a la ruta canónica del negocio correspondiente. `revalidarEmpresa(slug)` invalida el layout exacto `/<slug>/admin` y el perfil público del mismo negocio, no todos los paneles.
+
+Los componentes siguen en [components/empresa/](components/empresa/), [components/EmpresaPage.tsx](components/EmpresaPage.tsx) y [components/EmpresaShell.tsx](components/EmpresaShell.tsx); se conservan los nombres `*EmpresaClient`. Este cambio de rutas **no requiere migración de base de datos** ni añade un rol global implementado.
 
 ```
 app/
 ├── [slug]/          # Perfil público real (Supabase)
-├── admin/           # Panel de administración real
-├── demo/
-│   ├── [slug]/      # Perfil público de demostración
-│   └── admin/       # Panel de administración de demostración
+│   └── admin/       # Panel Empresa del mismo negocio
+├── empresa/
+│   └── [[...ruta]]/ # Alias GET resuelto por sesión
 └── api/             # Endpoints (checkout, webhooks de pago/Stripe)
 ```
 
@@ -82,7 +87,6 @@ npm run dev
 
 La aplicación quedará disponible en [http://localhost:3000](http://localhost:3000).
 
-> 💡 **Tip:** Si solo quieres ver la demo comercial sin configurar Supabase, visita directamente `/demo/surf-tamarindo` y `/demo/admin` — funcionan con datos simulados en el navegador.
 
 ### Otros comandos útiles
 
@@ -99,9 +103,9 @@ npm run email:dev   # Previsualizar plantillas de correo (React Email)
 - `app/` — Rutas de la aplicación (App Router de Next.js).
 - `components/` — Componentes UI reutilizables.
 - `emails/` — Plantillas de correo transaccional (React Email).
-- `lib/` — Clientes (Supabase, Stripe), utilidades y capa mock para demos.
+- `lib/` — Clientes (Supabase, Stripe), utilidades y capa mock local.
 - `types/` — Tipos TypeScript del esquema de base de datos.
-- `docs/` — Documentación de fases del proyecto y guías de demo.
+- `docs/` — Documentación de fases del proyecto.
 
 ## 📄 Licencia
 

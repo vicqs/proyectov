@@ -17,6 +17,9 @@ export interface AlertaPymeProps {
   fechaHora: string; // ISO string
   emailCliente: string;
   montoUsd: number;
+  /** Texto opcional configurable por la administración global. */
+  encabezado?: string;
+  pie?: string;
 }
 
 /**
@@ -29,6 +32,8 @@ export default function AlertaPyme({
   fechaHora,
   emailCliente,
   montoUsd,
+  encabezado,
+  pie,
 }: AlertaPymeProps) {
   const fechaFormateada = new Date(fechaHora).toLocaleString("es-CR", {
     dateStyle: "full",
@@ -48,6 +53,8 @@ export default function AlertaPyme({
           </Section>
 
           <Heading style={heading}>¡Nueva reserva confirmada!</Heading>
+
+          {encabezado && <Text style={paragraph}>{encabezado}</Text>}
 
           <Text style={paragraph}>
             {negocioNombre}, tienes una nueva reserva pagada. No necesitas
@@ -77,9 +84,11 @@ export default function AlertaPyme({
 
           <Hr style={hr} />
 
+          {pie && <Text style={footer}>{pie}</Text>}
+
           <Text style={footer}>
-            Puedes ver el detalle completo en tu panel de administración,
-            sección "Reservas".
+            Puedes ver el detalle completo en tu panel de empresa, sección
+            "Reservas".
           </Text>
         </Container>
       </Body>

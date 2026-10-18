@@ -1,66 +1,109 @@
-import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "../../lib/supabase/server";
-import type { Negocio } from "../../types/database";
+import type { Metadata } from "next";
+import { requerirAdmin } from "../../lib/admin/auth";
+import { ETIQUETA_ROL, tienePermiso, type Permiso } from "../../lib/roles";
 import { logoutAction } from "../../actions/auth";
-import AdminShell, { type AdminNavLink } from "../../components/AdminShell";
+import AdminShell, {
+  type AdminNavLink,
+} from "../../components/admin/AdminShell";
 
-const NAV_LINKS: AdminNavLink[] = [
-  { href: "/admin", label: "Inicio", icon: "home" },
-  { href: "/admin/servicios", label: "Mis Servicios", icon: "servicios" },
-  { href: "/admin/horarios", label: "Horarios", icon: "horarios" },
-  { href: "/admin/calendario", label: "Calendario", icon: "calendario" },
-  { href: "/admin/agenda", label: "Agenda/Bloqueos", icon: "agenda" },
-  { href: "/admin/reservas", label: "Reservas", icon: "reservas" },
-  { href: "/admin/finanzas", label: "Finanzas", icon: "finanzas" },
+export const metadata: Metadata = {
+  title: "Administración global",
+  robots: { index: false, follow: false },
+};
+
+export const dynamic = "force-dynamic";
+
+const NAV: (AdminNavLink & { permiso: Permiso })[] = [
+  { href: "/admin", label: "Resumen", icon: "dashboard", permiso: "dashboard" },
   {
-    href: "/admin/personalizacion",
-    label: "Personalización",
-    icon: "personalizacion",
+    href: "/admin/negocios",
+    label: "Negocios",
+    icon: "negocios",
+    permiso: "negocios_ver",
   },
-  { href: "/admin/suscripcion", label: "Suscripción", icon: "suscripcion" },
+  {
+    href: "/admin/suscripciones",
+    label: "Suscripciones",
+    icon: "suscripciones",
+    permiso: "facturacion",
+  },
+  {
+    href: "/admin/finanzas",
+    label: "Finanzas",
+    icon: "finanzas",
+    permiso: "finanzas",
+  },
+  {
+    href: "/admin/reservas",
+    label: "Reservas",
+    icon: "reservas",
+    permiso: "reservas",
+  },
+  {
+    href: "/admin/usuarios",
+    label: "Usuarios",
+    icon: "usuarios",
+    permiso: "usuarios",
+  },
+  {
+    href: "/admin/soporte",
+    label: "Soporte",
+    icon: "soporte",
+    permiso: "soporte",
+  },
+  {
+    href: "/admin/moderacion",
+    label: "Moderación",
+    icon: "moderacion",
+    permiso: "moderacion",
+  },
+  {
+    href: "/admin/comunicacion",
+    label: "Comunicación",
+    icon: "comunicacion",
+    permiso: "comunicacion",
+  },
+  {
+    href: "/admin/configuracion",
+    label: "Configuración",
+    icon: "configuracion",
+    permiso: "configuracion",
+  },
+  {
+    href: "/admin/sistema",
+    label: "Sistema",
+    icon: "sistema",
+    permiso: "sistema",
+  },
+  {
+    href: "/admin/auditoria",
+    label: "Auditoría",
+    icon: "auditoria",
+    permiso: "auditoria",
+  },
+  {
+    href: "/admin/equipo",
+    label: "Equipo",
+    icon: "equipo",
+    permiso: "equipo",
+  },
 ];
 
-/**
- * Layout del panel de administración. Es un Server Component: obtiene la
- * sesión y el negocio asociado al usuario en el servidor. El middleware
- * (`middleware.ts`) ya garantiza que solo llega aquí un usuario autenticado.
- * Si la suscripción está inactiva, el cascarón bloquea todo excepto la
- * página de suscripción.
- */
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const { data: negocio, error } = await supabase
-    .from("negocios")
-    .select("*")
-    .eq("user_id", user.id)
-    .single();
-
-  if (error || !negocio) {
-    redirect("/login");
-  }
-
-  const negocioTyped = negocio as Negocio;
+  const admin = await requerirAdmin();
+  const links: AdminNavLink[] = NAV.filter((l) =>
+    tienePermiso(admin.rol, l.permiso),
+  ).map(({ permiso: _permiso, ...resto }) => resto);
 
   return (
     <AdminShell
-      nombre={negocioTyped.nombre}
-      links={NAV_LINKS}
-      hrefPublico={`/${negocioTyped.slug}`}
-      hrefSuscripcion="/admin/suscripcion"
-      bloqueado={negocioTyped.estado_suscripcion === "inactiva"}
+      links={links}
+      email={admin.email}
+      rol={ETIQUETA_ROL[admin.rol]}
       pie={
         <form action={logoutAction}>
           <button

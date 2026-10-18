@@ -31,7 +31,7 @@ Cada negocio tiene su **propio color de marca** (`colorTema`), definido en sus d
 - El anillo de foco (`focus-visible:ring-2`) de elementos interactivos.
 - Botones primarios de call-to-action del perfil público.
 
-Esto permite que cada pyme "personalice" su perfil público sin tocar código — pieza clave de la sección **Personalización** del panel admin (`app/admin/personalizacion`).
+Esto permite que cada pyme "personalice" su perfil público sin tocar código — pieza clave de la sección **Personalización** del panel de empresa (`/[slug]/admin/personalizacion`), implementada en [app/[slug]/admin/personalizacion/page.tsx](../app/%5Bslug%5D/admin/personalizacion/page.tsx).
 
 ### Colores semánticos (estado)
 
@@ -75,7 +75,7 @@ Framer Motion es la librería central de animación, usada de forma consistente 
 - **Drawers/paneles laterales** ([components/Drawer.tsx](../components/Drawer.tsx)): entrada/salida con física de resorte (`type: "spring", stiffness: 280, damping: 32`), deslizando desde `x: "100%"` hasta `x: 0`, con overlay que se desvanece (`opacity` con `easeOut`).
 - **Tarjetas de servicio** ([components/ServicioCard.tsx](../components/ServicioCard.tsx)): micro-interacción de elevación (`whileHover={{ y: -6 }}`) y compresión al tocar (`whileTap={{ scale: 0.97 }}`), con resorte suave (`stiffness: 300, damping: 22`) — refuerza la sensación táctil "premium".
 - **Botones de ícono** ([components/AnimatedIconButton.tsx](../components/AnimatedIconButton.tsx)): micro-animación "identidad" de giro de 90° (hover/tap) consistente en toda la app para abrir/cerrar menús y paneles.
-- **Toasts de notificación** ([components/Toast.tsx](../components/Toast.tsx)): entrada/salida animada con `AnimatePresence` para confirmar acciones (crear/editar/eliminar) en el panel admin.
+- **Toasts de notificación** ([components/Toast.tsx](../components/Toast.tsx)): entrada/salida animada con `AnimatePresence` para confirmar acciones (crear/editar/eliminar) en el panel de empresa.
 
 **Principio de diseño**: todas las transiciones usan física de resorte (`spring`) en vez de curvas de tiempo fijas, para que la interfaz se sienta natural y responsiva — patrón inspirado en las interacciones de iOS/Apple y Airbnb.
 
@@ -86,13 +86,13 @@ Framer Motion es la librería central de animación, usada de forma consistente 
 | **ServicioCard**          | [components/ServicioCard.tsx](../components/ServicioCard.tsx)                   | Tarjeta de servicio con imagen a sangre, degradado y precio con color de marca dinámico.                                                       |
 | **AnimatedCheckoutSheet** | [components/AnimatedCheckoutSheet.tsx](../components/AnimatedCheckoutSheet.tsx) | Bottom sheet multi-paso (horario/datos/pago/cargando/éxito), con trampa de foco y soporte de teclado (Escape).                                 |
 | **CheckoutMock**          | [components/CheckoutMock.tsx](../components/CheckoutMock.tsx)                   | Modal de checkout simplificado (versión ligera, un solo paso) para el perfil público.                                                          |
-| **Drawer**                | [components/Drawer.tsx](../components/Drawer.tsx)                               | Slide-over lateral derecho reutilizable para formularios de crear/editar en `/demo/admin`.                                                     |
+| **Drawer**                | [components/Drawer.tsx](../components/Drawer.tsx)                               | Slide-over lateral derecho reutilizable para formularios de crear/editar en el panel de empresa.                                      |
 | **ConfirmDialog**         | [components/ConfirmDialog.tsx](../components/ConfirmDialog.tsx)                 | Modal de confirmación (ej. antes de eliminar un servicio u horario).                                                                           |
 | **AnimatedIconButton**    | [components/AnimatedIconButton.tsx](../components/AnimatedIconButton.tsx)       | Botón de ícono con variantes `"abrir"` / `"cerrar"` y animación de giro consistente.                                                           |
 | **Toast / ToastViewport** | [components/Toast.tsx](../components/Toast.tsx)                                 | Sistema de notificaciones globales (`toast.success()`, `toast.error()`) vía store externo (`useSyncExternalStore`), sin dependencias externas. |
 | **Footer**                | [components/Footer.tsx](../components/Footer.tsx)                               | Pie de página institucional (legal, marca).                                                                                                    |
 | **VLogo**                 | [components/VLogo.tsx](../components/VLogo.tsx)                                 | Logotipo de marca de la plataforma (Proyecto V).                                                                                               |
-| **Watermark**             | [components/Watermark.tsx](../components/Watermark.tsx)                         | Marca de agua discreta (probablemente para planes/demo sin marca blanca).                                                                      |
+| **Watermark**             | [components/Watermark.tsx](../components/Watermark.tsx)                         | Marca de agua discreta (probablemente para planes sin marca blanca).                                                                      |
 
 Todos los componentes interactivos comparten la utilidad [lib/cn.ts](../lib/cn.ts) (`clsx` + `tailwind-merge`) para componer clases condicionales sin conflictos de especificidad de Tailwind.
 
@@ -101,6 +101,6 @@ Todos los componentes interactivos comparten la utilidad [lib/cn.ts](../lib/cn.t
 > **Cero fricción para el turista, no-code/intuitivo para la pyme.**
 
 - **Turista (perfil público / checkout)**: el flujo de reserva y pago debe completarse en el menor número de pasos posible, sin necesidad de crear cuenta, con feedback visual inmediato (animaciones de carga, confirmación clara) y funcionando perfectamente en móvil (mobile-first), ya que la mayoría de las reservas llegan desde un enlace compartido en redes sociales.
-- **Pyme (panel de administración)**: la dueña o el dueño del negocio —típicamente sin conocimientos técnicos— debe poder gestionar servicios, horarios y ver sus reservas/finanzas usando formularios simples (Drawers), confirmaciones claras (`ConfirmDialog`) y notificaciones inmediatas (`Toast`), **sin tocar código ni configuración técnica**. Toda la personalización de marca (color, textos) se resuelve desde la UI, nunca editando archivos.
+- **Empresa (panel del negocio)**: la dueña o el dueño del negocio —típicamente sin conocimientos técnicos— debe poder gestionar servicios, horarios y ver sus reservas/finanzas usando formularios simples (Drawers), confirmaciones claras (`ConfirmDialog`) y notificaciones inmediatas (`Toast`), **sin tocar código ni configuración técnica**. Toda la personalización de marca (color, textos) se resuelve desde la UI, nunca editando archivos.
 
 Esta regla debe primar sobre cualquier decisión de diseño futura: ante la duda entre una solución "más completa" pero más compleja, y una más simple pero inmediata de usar, **se prioriza la simplicidad**.

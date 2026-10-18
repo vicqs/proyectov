@@ -1,83 +1,234 @@
-import { createSupabaseServerClient } from "../../../lib/supabase/server";
-import type {
-  Horario,
-  ReservaConServicio,
-  Servicio,
-} from "../../../types/database";
-import { construirHorarios, etiquetaHorario } from "../../../lib/horarios";
-import ReservasAdminClient from "./ReservasAdminClient";
+import Link from "next/link";
+import { requerirAdmin } from "../../../lib/admin/auth";
+import { leer } from "../../../lib/admin/db";
+import {
+  indexar,
+  montoReserva,
+  ETIQUETA_ESTADO,
+} from "../../../lib/admin/datos";
+import { fechaHora, paginar, parametro, usd } from "../../../lib/admin/formato";
+import {
+  cancelarReservaAction,
+  completarReembolsoAction,
+  registrarReembolsoAction,
+} from "../../../actions/admin/reservas";
+import { AccionForm } from "../../../components/admin/AccionForm";
+import {
+  CLASE_BOTON_NEUTRO,
+  CLASE_INPUT,
+  Celda,
+  FiltrosGet,
+  Insignia,
+  PaginaAdmin,
+  Paginacion,
+  Tabla,
+  Tarjeta,
+  type TonoInsignia,
+} from "../../../components/admin/ui";
 
-/**
- * Todas las reservas del negocio, con el nombre del servicio traído
- * mediante consulta anidada de Supabase (JOIN implícito por FK).
- * Server Component: la consulta se ejecuta en el servidor y respeta RLS.
- */
-export default async function ReservasPage() {
-  const supabase = await createSupabaseServerClient();
+const TONO: Record<string, TonoInsignia> = {
+  pagada: "verde",
+  pendiente: "ambar",
+  cancelada: "rojo",
+};
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export default async function ReservasAdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  await requerirAdmin("reservas");
+  const sp = await searchParams;
+  const q = (parametro(sp.q) ?? "").trim().toLowerCase();
+  const estado = parametro(sp.estado) ?? "";
+  const negocioId = parametro(sp.negocio) ?? "";
 
-  const { data: negocio } = await supabase
-    .from("negocios")
-    .select("id")
-    .eq("user_id", user!.id)
-    .single();
+  const [reservas, servicios, negocios, reembolsos] = await Promise.all([
+    leer("reservas"),
+    leer("servicios"),
+    leer("negocios"),
+    leer("reembolsos").catch(() => []),
+  ]);
+  const idx = indexar(servicios);
+  const nombreNegocio = new Map(negocios.map((n) => [n.id, n.nombre]));
+  const conReembolso = new Set(reembolsos.map((r) => r.reserva_id));
 
-  let reservas: ReservaConServicio[] = [];
-  let horarios: Horario[] = [];
-  let servicios: Pick<Servicio, "id" | "nombre">[] = [];
-
-  if (negocio) {
-    const [reservasRes, horariosRes, serviciosRes] = await Promise.all([
-      supabase
-        .from("reservas")
-        .select("*, servicio:servicios(nombre, precio_usd)")
-        .eq("negocio_id", negocio.id)
-        .order("fecha_hora", { ascending: false }),
-      supabase
-        .from("horarios")
-        .select("*")
-        .eq("negocio_id", negocio.id)
-        .gte("fecha_hora", new Date().toISOString())
-        .order("fecha_hora", { ascending: true }),
-      supabase.from("servicios").select("*").eq("negocio_id", negocio.id),
-    ]);
-
-    if (!reservasRes.error) {
-      reservas = (reservasRes.data ?? []) as unknown as ReservaConServicio[];
-    }
-    horarios = (horariosRes.data ?? []) as Horario[];
-    servicios = (serviciosRes.data ?? []) as Servicio[];
-  }
-
-  const nombreServicio = (id: string) =>
-    servicios.find((s) => s.id === id)?.nombre ?? "Servicio";
+  const filtradas = reservas
+    .filter((r) => !estado || r.estado === estado)
+    .filter((r) => !negocioId || r.negocio_id === negocioId)
+    .filter(
+      (r) =>
+        !q ||
+        r.id.toLowerCase().includes(q) ||
+        r.email_cliente.toLowerCase().includes(q) ||
+        (r.trx_id ?? "").toLowerCase().includes(q),
+    )
+    .sort((a, b) => b.fecha_hora.localeCompare(a.fecha_hora));
+  const pag = paginar(filtradas, parametro(sp.pagina));
+  const pendientes = reembolsos.filter((r) => r.estado === "pendiente");
 
   return (
-    <ReservasAdminClient
-      reservas={reservas.map((r) => ({
-        id: r.id,
-        fechaIso: r.fecha_hora,
-        cliente: r.nombre_cliente || r.email_cliente,
-        email: r.nombre_cliente ? r.email_cliente : undefined,
-        servicio: r.servicio?.nombre ?? "—",
-        horario: etiquetaHorario(r.fecha_hora),
-        cupos: r.cupos ?? 1,
-        monto:
-          r.estado === "pagada" && r.servicio
-            ? (r.monto_usd ?? r.servicio.precio_usd * (r.cupos ?? 1))
-            : undefined,
-        estado: r.estado,
-        trxId: r.trx_id,
-      }))}
-      horarios={construirHorarios(horarios, reservas, []).map((h) => ({
-        id: h.id,
-        servicio: nombreServicio(h.servicioId),
-        label: h.label,
-        cuposDisponibles: h.cuposDisponibles,
-      }))}
-    />
+    <PaginaAdmin
+      titulo="Reservas globales"
+      descripcion="Busca y corrige reservas de cualquier negocio."
+      accion={
+        <a href="/admin/exportar/reservas" className={CLASE_BOTON_NEUTRO}>
+          Exportar CSV
+        </a>
+      }
+    >
+      {pendientes.length > 0 && (
+        <Tarjeta titulo="Reembolsos pendientes">
+          <Tabla columnas={["Negocio", "Reserva", "Monto", "Motivo", ""]}>
+            {pendientes.map((r) => (
+              <tr key={r.id}>
+                <Celda>{nombreNegocio.get(r.negocio_id) ?? "—"}</Celda>
+                <Celda className="font-mono text-xs">{r.reserva_id}</Celda>
+                <Celda>{usd(r.monto_usd)}</Celda>
+                <Celda>{r.motivo}</Celda>
+                <Celda>
+                  <AccionForm
+                    accion={completarReembolsoAction.bind(null, r.id)}
+                    boton="Marcar completado"
+                    variante="neutro"
+                    confirmar="¿Confirmas que el dinero ya fue devuelto al cliente?"
+                  />
+                </Celda>
+              </tr>
+            ))}
+          </Tabla>
+        </Tarjeta>
+      )}
+
+      <FiltrosGet>
+        <input
+          name="q"
+          defaultValue={q}
+          aria-label="Correo, id o transacción" placeholder="Correo, id o transacción"
+          className={`${CLASE_INPUT} sm:w-64`}
+        />
+        <select
+          name="estado"
+          defaultValue={estado}
+          className={`${CLASE_INPUT} sm:w-40`}
+        >
+          <option value="">Todos los estados</option>
+          <option value="pendiente">Pendiente</option>
+          <option value="pagada">Pagada</option>
+          <option value="cancelada">Cancelada</option>
+        </select>
+        <select
+          name="negocio"
+          defaultValue={negocioId}
+          className={`${CLASE_INPUT} sm:w-56`}
+        >
+          <option value="">Todos los negocios</option>
+          {negocios.map((n) => (
+            <option key={n.id} value={n.id}>
+              {n.nombre}
+            </option>
+          ))}
+        </select>
+      </FiltrosGet>
+
+      <Tabla
+        columnas={[
+          "Fecha",
+          "Negocio / servicio",
+          "Cliente",
+          "Estado",
+          "Monto",
+          "Acciones",
+        ]}
+        vacia={pag.filas.length === 0}
+      >
+        {pag.filas.map((r) => {
+          const monto = montoReserva(r, idx);
+          const puedeReembolsar =
+            (r.estado === "pagada" || (r.estado === "cancelada" && r.trx_id)) &&
+            !conReembolso.has(r.id);
+          return (
+            <tr key={r.id}>
+              <Celda>{fechaHora(r.fecha_hora)}</Celda>
+              <Celda>
+                <Link
+                  href={`/admin/negocios/${r.negocio_id}`}
+                  className="font-medium text-sky-700 hover:underline"
+                >
+                  {nombreNegocio.get(r.negocio_id) ?? "—"}
+                </Link>
+                <p className="text-xs text-slate-400">
+                  {idx.get(r.servicio_id)?.nombre ?? "—"}
+                </p>
+              </Celda>
+              <Celda>
+                {r.email_cliente}
+                {r.trx_id && (
+                  <p className="text-xs text-slate-400">trx {r.trx_id}</p>
+                )}
+              </Celda>
+              <Celda>
+                <Insignia tono={TONO[r.estado] ?? "gris"}>
+                  {ETIQUETA_ESTADO[r.estado] ?? r.estado}
+                </Insignia>
+                {conReembolso.has(r.id) && (
+                  <p className="mt-1 text-xs text-slate-400">Con reembolso</p>
+                )}
+              </Celda>
+              <Celda>{usd(monto)}</Celda>
+              <Celda>
+                <div className="space-y-2">
+                  {r.estado !== "cancelada" && (
+                    <AccionForm
+                      accion={cancelarReservaAction.bind(null, r.id)}
+                      boton="Cancelar"
+                      variante="peligro"
+                      confirmar="¿Cancelar esta reserva? Se libera el cupo."
+                    />
+                  )}
+                  {puedeReembolsar && (
+                    <details>
+                      <summary className="cursor-pointer text-sm text-sky-700">
+                        Reembolsar
+                      </summary>
+                      <div className="mt-2">
+                        <AccionForm
+                          accion={registrarReembolsoAction.bind(null, r.id)}
+                          boton="Registrar reembolso"
+                          variante="neutro"
+                        >
+                          <input
+                            name="monto_usd"
+                            type="number"
+                            step="0.01"
+                            min={0.01}
+                            max={monto}
+                            defaultValue={monto}
+                            className={CLASE_INPUT}
+                          />
+                          <input
+                            name="motivo"
+                            required
+                            aria-label="Motivo" placeholder="Motivo"
+                            className={CLASE_INPUT}
+                          />
+                        </AccionForm>
+                      </div>
+                    </details>
+                  )}
+                </div>
+              </Celda>
+            </tr>
+          );
+        })}
+      </Tabla>
+      <Paginacion
+        pagina={pag.pagina}
+        paginas={pag.paginas}
+        total={pag.total}
+        base="/admin/reservas"
+        params={{ q, estado, negocio: negocioId }}
+      />
+    </PaginaAdmin>
   );
 }

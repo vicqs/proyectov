@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin } from "../../../lib/supabase";
 import { construirHorarios } from "../../../lib/horarios";
+import {
+  COLUMNAS_OPERATIVIDAD,
+  errorReservaNoPermitida,
+} from "../../../lib/reservas-guard";
 
 /**
  * Esquema de validación estricta del cuerpo del request.
@@ -45,14 +49,14 @@ export async function POST(request: NextRequest) {
 
     const { data: negocio } = await supabaseAdmin
       .from("negocios")
-      .select("id, estado_suscripcion")
+      .select(COLUMNAS_OPERATIVIDAD)
       .eq("id", servicio.negocio_id)
       .single();
-    if (!negocio || negocio.estado_suscripcion === "inactiva") {
-      return NextResponse.json(
-        { error: "Este negocio no acepta reservas por ahora." },
-        { status: 409 },
-      );
+    const bloqueo = negocio
+      ? await errorReservaNoPermitida(negocio)
+      : "Este negocio no acepta reservas por ahora.";
+    if (!negocio || bloqueo) {
+      return NextResponse.json({ error: bloqueo }, { status: 409 });
     }
 
     // Mismas reglas que el perfil público: horario real, cupos y sin duplicados.

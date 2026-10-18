@@ -1,8 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createSupabaseServerClient } from "../lib/supabase/server";
+import { obtenerEmpresaOperativa, revalidarEmpresa } from "../lib/empresa";
 
 const servicioSchema = z.object({
   nombre: z
@@ -35,15 +34,6 @@ export interface CrearServicioActionState {
   success?: boolean;
 }
 
-/** Los servicios se muestran también en estos paneles. */
-function revalidarDependientes() {
-  revalidatePath("/admin");
-  revalidatePath("/admin/horarios");
-  revalidatePath("/admin/reservas");
-  revalidatePath("/admin/finanzas");
-  revalidatePath("/admin/calendario");
-}
-
 /**
  * Server Action para crear un servicio. El `negocio_id` NUNCA se toma del
  * formulario: se resuelve en el servidor a partir del usuario autenticado,
@@ -51,6 +41,7 @@ function revalidarDependientes() {
  * manipula el payload.
  */
 export async function crearServicioAction(
+  slug: string,
   _prevState: CrearServicioActionState,
   formData: FormData,
 ): Promise<CrearServicioActionState> {
@@ -66,25 +57,9 @@ export async function crearServicioAction(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "Sesión expirada, vuelve a iniciar sesión." };
-  }
-
-  const { data: negocio, error: negocioError } = await supabase
-    .from("negocios")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (negocioError || !negocio) {
-    return { error: "No se encontró el negocio asociado a tu cuenta." };
-  }
+  const ctx = await obtenerEmpresaOperativa(slug);
+  if ("error" in ctx) return { error: ctx.error };
+  const { supabase, negocio } = ctx;
 
   const { error: insertError } = await supabase.from("servicios").insert({
     negocio_id: negocio.id,
@@ -99,8 +74,7 @@ export async function crearServicioAction(
     return { error: "No se pudo crear el servicio. Intenta de nuevo." };
   }
 
-  revalidatePath("/admin/servicios");
-  revalidarDependientes();
+  revalidarEmpresa(negocio.slug);
   return { success: true };
 }
 
@@ -109,32 +83,9 @@ export interface ServicioMutacionResult {
   success?: boolean;
 }
 
-async function resolverNegocioId(): Promise<
-  | {
-      supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
-      negocioId: string;
-    }
-  | { error: string }
-> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada, vuelve a iniciar sesión." };
-
-  const { data: negocio, error } = await supabase
-    .from("negocios")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-  if (error || !negocio) {
-    return { error: "No se encontró el negocio asociado a tu cuenta." };
-  }
-  return { supabase, negocioId: negocio.id };
-}
-
 /** Edita un servicio del negocio autenticado (filtra siempre por `negocio_id`). */
 export async function editarServicioAction(
+  slug: string,
   servicioId: string,
   datos: {
     nombre: string;
@@ -149,19 +100,18 @@ export async function editarServicioAction(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const ctx = await resolverNegocioId();
+  const ctx = await obtenerEmpresaOperativa(slug);
   if ("error" in ctx) return { error: ctx.error };
 
   const { error } = await ctx.supabase
     .from("servicios")
     .update(parsed.data)
     .eq("id", servicioId)
-    .eq("negocio_id", ctx.negocioId);
+    .eq("negocio_id", ctx.negocio.id);
 
   if (error) return { error: "No se pudo actualizar el servicio." };
 
-  revalidatePath("/admin/servicios");
-  revalidarDependientes();
+  revalidarEmpresa(ctx.negocio.slug);
   return { success: true };
 }
 
@@ -170,16 +120,17 @@ export async function editarServicioAction(
  * reservas asociadas, para no perder el historial financiero.
  */
 export async function eliminarServicioAction(
+  slug: string,
   servicioId: string,
 ): Promise<ServicioMutacionResult> {
-  const ctx = await resolverNegocioId();
+  const ctx = await obtenerEmpresaOperativa(slug);
   if ("error" in ctx) return { error: ctx.error };
 
   const { data: reservas } = await ctx.supabase
     .from("reservas")
     .select("id")
     .eq("servicio_id", servicioId)
-    .eq("negocio_id", ctx.negocioId)
+    .eq("negocio_id", ctx.negocio.id)
     .limit(1);
 
   if (reservas && reservas.length > 0) {
@@ -192,11 +143,10 @@ export async function eliminarServicioAction(
     .from("servicios")
     .delete()
     .eq("id", servicioId)
-    .eq("negocio_id", ctx.negocioId);
+    .eq("negocio_id", ctx.negocio.id);
 
   if (error) return { error: "No se pudo eliminar el servicio." };
 
-  revalidatePath("/admin/servicios");
-  revalidarDependientes();
+  revalidarEmpresa(ctx.negocio.slug);
   return { success: true };
 }

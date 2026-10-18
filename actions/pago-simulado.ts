@@ -5,6 +5,10 @@ import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase";
 import { enviarCorreosConfirmacion } from "../lib/email";
 import { construirHorarios, cuposOcupados } from "../lib/horarios";
+import {
+  COLUMNAS_OPERATIVIDAD,
+  errorReservaNoPermitida,
+} from "../lib/reservas-guard";
 
 /**
  * Simula la confirmación de pago de una pasarela real (ej. Tilopay): marca
@@ -120,12 +124,12 @@ export async function reservarYPagarAction(
 
   const { data: negocio } = await supabaseAdmin
     .from("negocios")
-    .select("id, estado_suscripcion")
+    .select(COLUMNAS_OPERATIVIDAD)
     .eq("id", servicio.negocio_id)
     .single();
-  if (!negocio || negocio.estado_suscripcion === "inactiva") {
-    return { error: "Este negocio no acepta reservas por ahora." };
-  }
+  if (!negocio) return { error: "Este negocio no acepta reservas por ahora." };
+  const bloqueo = await errorReservaNoPermitida(negocio);
+  if (bloqueo) return { error: bloqueo };
 
   const [{ data: reservas }, { data: bloqueos }, { data: horariosDb }] =
     await Promise.all([

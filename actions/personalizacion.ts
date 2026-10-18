@@ -1,12 +1,12 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../lib/supabase/server";
+import { obtenerEmpresaOperativa, revalidarEmpresa } from "../lib/empresa";
 import type { Negocio } from "../types/database";
+import { obtenerConfiguracion } from "../lib/plataforma";
 
 const STORAGE_BUCKET = "negocios-media";
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 const TIPOS_PERMITIDOS = ["image/png", "image/jpeg", "image/webp"];
 
 const personalizacionSchema = z.object({
@@ -31,6 +31,12 @@ const personalizacionSchema = z.object({
       /^#([0-9a-fA-F]{6})$/,
       "El color debe estar en formato HEX (ej. #0284c7)",
     ),
+  color_secundario: z
+    .string()
+    .regex(
+      /^#([0-9a-fA-F]{6})$/,
+      "El color secundario debe estar en formato HEX",
+    ),
 });
 
 export interface PersonalizacionActionState {
@@ -45,6 +51,7 @@ export interface PersonalizacionActionState {
  * en el servidor con el cliente SSR, respetando RLS.
  */
 export async function actualizarPersonalizacionAction(
+  slug: string,
   _prevState: PersonalizacionActionState,
   formData: FormData,
 ): Promise<PersonalizacionActionState> {
@@ -52,6 +59,8 @@ export async function actualizarPersonalizacionAction(
     nombre: formData.get("nombre") ?? "",
     descripcion: formData.get("descripcion") ?? "",
     color_tema: formData.get("color_tema"),
+    color_secundario:
+      formData.get("color_secundario") || formData.get("color_tema"),
     whatsapp: formData.get("whatsapp") ?? "",
   });
 
@@ -59,26 +68,11 @@ export async function actualizarPersonalizacionAction(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "Sesión expirada, vuelve a iniciar sesión." };
-  }
-
-  const { data: negocio, error: negocioError } = await supabase
-    .from("negocios")
-    .select("id, slug")
-    .eq("user_id", user.id)
-    .single();
-
-  if (negocioError || !negocio) {
-    return { error: "No se encontró el negocio asociado a tu cuenta." };
-  }
-
+  const ctx = await obtenerEmpresaOperativa(slug);
+  if ("error" in ctx) return { error: ctx.error };
+  const { supabase, negocio } = ctx;
+  const { max_imagen_mb } = await obtenerConfiguracion();
+  const maxBytes = max_imagen_mb * 1024 * 1024;
   const logoFile = formData.get("logo") as File | null;
   const portadaFile = formData.get("portada") as File | null;
 
@@ -86,6 +80,7 @@ export async function actualizarPersonalizacionAction(
     nombre: parsed.data.nombre,
     descripcion: parsed.data.descripcion,
     color_tema: parsed.data.color_tema,
+    color_secundario: parsed.data.color_secundario,
     whatsapp: parsed.data.whatsapp || null,
   };
 
@@ -96,6 +91,7 @@ export async function actualizarPersonalizacionAction(
         negocio.id,
         logoFile,
         "logo",
+        maxBytes,
       );
     }
 
@@ -105,6 +101,7 @@ export async function actualizarPersonalizacionAction(
         negocio.id,
         portadaFile,
         "portada",
+        maxBytes,
       );
     }
   } catch (uploadError) {
@@ -129,10 +126,24 @@ export async function actualizarPersonalizacionAction(
     };
   }
 
-  revalidatePath("/admin/personalizacion");
-  revalidatePath("/admin", "layout");
-  revalidatePath(`/${negocio.slug}`);
+  revalidarEmpresa(negocio.slug);
   return { success: true };
+}
+
+/** Comprueba los primeros bytes (firma) para que el contenido coincida con el MIME declarado. */
+function firmaCoincide(tipo: string, b: Uint8Array): boolean {
+  const ascii = (desde: number, hasta: number) =>
+    String.fromCharCode(...b.slice(desde, hasta));
+  if (tipo === "image/png") {
+    return b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
+  }
+  if (tipo === "image/jpeg") {
+    return b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  }
+  if (tipo === "image/webp") {
+    return ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP";
+  }
+  return false;
 }
 
 /**
@@ -145,17 +156,24 @@ async function subirImagen(
   negocioId: string,
   file: File,
   tipo: "logo" | "portada",
+  maxBytes: number,
 ): Promise<string> {
   if (!TIPOS_PERMITIDOS.includes(file.type)) {
     throw new Error("Solo se permiten imágenes en formato PNG, JPEG o WEBP.");
   }
 
-  if (file.size > MAX_FILE_SIZE_BYTES) {
-    throw new Error("La imagen no puede superar los 5 MB.");
+  if (file.size > maxBytes) {
+    throw new Error(
+      `La imagen no puede superar los ${Math.round(maxBytes / 1024 / 1024)} MB.`,
+    );
   }
 
   const extension =
     file.type.split("/")[1] === "jpeg" ? "jpg" : file.type.split("/")[1];
+  const cabecera = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  if (!firmaCoincide(file.type, cabecera)) {
+    throw new Error("El archivo no es una imagen válida.");
+  }
   const path = `${negocioId}/${tipo}-${Date.now()}.${extension}`;
 
   const { error: uploadError } = await supabase.storage

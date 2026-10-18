@@ -3,12 +3,15 @@
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { Clock } from "lucide-react";
-import type { MockServicio } from "../lib/mockData";
+import type { ServicioPublico } from "../lib/tipos-publicos";
+import { textoSobre } from "../lib/color";
 
 interface ServicioCardProps {
-  servicio: MockServicio;
+  servicio: ServicioPublico;
   colorTema: string;
-  onSeleccionar: (servicio: MockServicio) => void;
+  /** Segundo color de marca; junto al principal forma el degradado del precio. */
+  colorSecundario?: string;
+  onSeleccionar: (servicio: ServicioPublico) => void;
   /** Carga la imagen de inmediato (tarjetas visibles sin hacer scroll). */
   prioritaria?: boolean;
 }
@@ -21,6 +24,7 @@ interface ServicioCardProps {
 export default function ServicioCard({
   servicio,
   colorTema,
+  colorSecundario = colorTema,
   onSeleccionar,
   prioritaria = false,
 }: ServicioCardProps) {
@@ -57,23 +61,26 @@ export default function ServicioCard({
 
       <div className="absolute inset-x-0 bottom-0 flex flex-col gap-3 p-6">
         <div>
-          <h3 className="text-xl font-semibold tracking-tight text-white">
+          <h3 className="break-words text-xl font-semibold tracking-tight text-white">
             {servicio.nombre}
           </h3>
-          <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-white/70">
+          <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-white/90">
             {servicio.descripcion}
           </p>
         </div>
 
         <div className="flex items-center justify-between pt-1">
-          <span className="flex items-center gap-1.5 text-xs font-medium text-white/80">
+          <span className="flex items-center gap-1.5 text-xs font-medium text-white/90">
             <Clock className="h-3.5 w-3.5" aria-hidden="true" />
             {servicio.duracionMin} min
           </span>
 
           <span
-            className="rounded-full px-4 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm"
-            style={{ backgroundColor: colorTema }}
+            className="rounded-full px-4 py-2 text-sm font-semibold shadow-lg backdrop-blur-sm"
+            style={{
+              backgroundImage: `linear-gradient(135deg, ${colorTema}, ${colorSecundario})`,
+              color: textoSobre(colorTema),
+            }}
           >
             ${servicio.precioUsd.toFixed(2)}
           </span>

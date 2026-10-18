@@ -24,7 +24,7 @@ Proyecto V se monetiza mediante una **suscripción mensual fija**, no por comisi
 
 - El plan se paga **por el negocio**, no por el turista.
 - El precio es fijo independientemente del volumen de ventas del mes — este es el pilar de la propuesta "cero comisiones".
-- La gestión de suscripción (activación, cancelación, estado de prueba) se refleja en el panel de administración (`/admin/suscripcion`, demo en `/demo/admin/suscripcion`).
+- La gestión de suscripción (activación, cancelación, estado de prueba) se refleja en el panel de empresa (`/[slug]/admin/suscripcion`, ej. `/surf-tamarindo/admin/suscripcion`).
 
 ## 3. 🏦 Flujo financiero y legal
 

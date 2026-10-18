@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase";
 import { HORAS_LIMITE_CANCELACION } from "../lib/horarios";
+import { revalidarEmpresa } from "../lib/empresa";
 
 export interface CancelacionPublicaResultado {
   error?: string;
@@ -46,9 +47,11 @@ export async function cancelarReservaPublicaAction(
   if (error) return { error: "No se pudo cancelar la reserva." };
 
   revalidatePath(`/reserva/${token}`);
-  revalidatePath("/admin/reservas");
-  revalidatePath("/admin");
-  revalidatePath("/admin/calendario");
-  revalidatePath("/admin/finanzas");
+  const { data: negocio } = await supabaseAdmin
+    .from("negocios")
+    .select("slug")
+    .eq("id", reserva.negocio_id)
+    .single();
+  if (negocio) revalidarEmpresa(negocio.slug);
   return { success: true };
 }

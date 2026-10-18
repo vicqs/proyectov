@@ -6,14 +6,14 @@ Cuando el webhook de la pasarela de pagos confirma un pago (`estado: 'pagada'`),
 el sistema envía automáticamente dos correos: un recibo al turista y una alerta
 de nueva venta al dueño de la pyme.
 
-- [emails/ReciboTurista.tsx](../emails/ReciboTurista.tsx) — plantilla del recibo (servicio, fecha/hora, monto, ID de transacción, logo/nombre de la pyme).
-- [emails/AlertaPyme.tsx](../emails/AlertaPyme.tsx) — plantilla de alerta de venta (badge "PAGADA", servicio, fecha, email del cliente, ingreso).
-- [lib/email.ts](../lib/email.ts) — cliente de Resend + `enviarCorreosConfirmacion()`, envía ambos correos en paralelo con `Promise.allSettled` (nunca lanza excepción).
-- [app/api/webhooks/pago/route.ts](../app/api/webhooks/pago/route.ts) — actualizado: valida firma HMAC, actualiza la reserva, resuelve negocio/servicio y dispara los correos sin bloquear la respuesta al banco.
+- [emails/ReciboTurista.tsx](../../emails/ReciboTurista.tsx) — plantilla del recibo (servicio, fecha/hora, monto, ID de transacción, logo/nombre de la pyme).
+- [emails/AlertaPyme.tsx](../../emails/AlertaPyme.tsx) — plantilla de alerta de venta (badge "PAGADA", servicio, fecha, email del cliente, ingreso).
+- [lib/email.ts](../../lib/email.ts) — cliente de Resend + `enviarCorreosConfirmacion()`, envía ambos correos en paralelo con `Promise.allSettled` (nunca lanza excepción).
+- [app/api/webhooks/pago/route.ts](../../app/api/webhooks/pago/route.ts) — actualizado: valida firma HMAC, actualiza la reserva, resuelve negocio/servicio y dispara los correos sin bloquear la respuesta al banco.
 
 ## Variables de entorno necesarias
 
-Ver [.env.example](../.env.example):
+Ver [.env.example](../../.env.example):
 
 | Variable              | Uso                                                                                                            |
 | --------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -27,7 +27,7 @@ tiempo real con `supabaseAdmin.auth.admin.getUserById(negocio.user_id)`
 
 ## Cómo probar los correos en local
 
-1. Instalar dependencias (`resend`, `react-email`, `@react-email/components` ya están en [package.json](../package.json)).
+1. Instalar dependencias (`resend`, `react-email`, `@react-email/components` ya están en [package.json](../../package.json)).
 2. Correr el modo preview de React Email, que levanta un servidor local con
    todas las plantillas de la carpeta `emails/`:
    ```bash

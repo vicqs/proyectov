@@ -1,3 +1,7 @@
+import { obtenerConfiguracion } from "../../lib/plataforma";
+
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Términos y Condiciones — Turismo Link",
 };
@@ -7,7 +11,21 @@ export const metadata = {
  * por las pasarelas de pago (Tilopay, Stripe) y bancos para habilitar el
  * cobro en línea. Debe ser revisado por un abogado antes de producción.
  */
-export default function TerminosPage() {
+export default async function TerminosPage() {
+  const { terminos_texto } = await obtenerConfiguracion();
+  if (terminos_texto) {
+    return (
+      <main className="mx-auto min-h-screen max-w-2xl px-4 py-12">
+        <h1 className="text-2xl font-bold text-slate-900">
+          Términos y Condiciones
+        </h1>
+        <div className="mt-8 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">
+          {terminos_texto}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto min-h-screen max-w-2xl px-4 py-12">
       <h1 className="text-2xl font-bold text-slate-900">
@@ -59,10 +77,9 @@ export default function TerminosPage() {
             4. Suscripción del servicio
           </h2>
           <p>
-            El uso del panel de administración por parte de las Pymes está
-            sujeto al pago de una suscripción mensual, la cual se renueva
-            automáticamente salvo cancelación expresa por parte del titular de
-            la cuenta.
+            El uso del panel de empresa por parte de las Pymes está sujeto al
+            pago de una suscripción mensual, la cual se renueva automáticamente
+            salvo cancelación expresa por parte del titular de la cuenta.
           </p>
         </div>
 

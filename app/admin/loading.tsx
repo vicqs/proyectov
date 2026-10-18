@@ -1,18 +1,18 @@
-/** Esqueleto instantáneo mientras carga cada página del panel. */
 export default function AdminLoading() {
   return (
-    <main
-      className="mx-auto max-w-6xl animate-pulse px-6 py-12 sm:px-10 2xl:max-w-7xl"
-      aria-busy="true"
+    <div
+      role="status"
       aria-label="Cargando"
+      className="mx-auto max-w-7xl animate-pulse space-y-4 px-4 py-8 sm:px-8"
     >
-      <div className="h-7 w-48 rounded-lg bg-slate-200" />
-      <div className="mt-3 h-4 w-72 rounded-lg bg-slate-100" />
-      <div className="mt-8 space-y-3">
-        <div className="h-20 rounded-2xl bg-slate-100" />
-        <div className="h-20 rounded-2xl bg-slate-100" />
-        <div className="h-20 rounded-2xl bg-slate-100" />
+      <div className="h-8 w-48 rounded-lg bg-slate-200" />
+      <div className="h-4 w-72 max-w-full rounded bg-slate-200" />
+      <div className="grid gap-4 pt-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-24 rounded-2xl bg-slate-200" />
+        ))}
       </div>
-    </main>
+      <div className="h-64 rounded-2xl bg-slate-200" />
+    </div>
   );
 }

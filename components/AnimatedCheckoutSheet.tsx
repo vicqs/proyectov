@@ -11,7 +11,11 @@ import {
   User,
   X,
 } from "lucide-react";
-import type { DemoHorario, DemoReserva, DemoServicio } from "../lib/demoStore";
+import type {
+  HorarioPublico,
+  ReservaPublica,
+  ServicioPublico,
+} from "../lib/tipos-publicos";
 import { cn } from "../lib/cn";
 import { useTranslations } from "../lib/i18n";
 import AnimatedIconButton from "./AnimatedIconButton";
@@ -45,14 +49,14 @@ function vencimientoValido(valor: string): boolean {
 }
 
 interface AnimatedCheckoutSheetProps {
-  servicio: DemoServicio;
+  servicio: ServicioPublico;
   negocioNombre: string;
   colorTema: string;
   onClose: () => void;
-  /** Horarios disponibles del servicio (editables en /demo/admin/horarios), con cupos. */
-  horariosDisponibles: DemoHorario[];
+  /** Horarios disponibles del servicio (editables en /[slug]/admin/horarios), con cupos. */
+  horariosDisponibles: HorarioPublico[];
   /** Reservas ya existentes para este mismo servicio (para validar duplicados por correo). */
-  reservasExistentes?: DemoReserva[];
+  reservasExistentes?: ReservaPublica[];
   /** Se llama al confirmar el pago simulado, con los datos para registrar la reserva. */
   onReservaConfirmada: (
     horarioId: string,
@@ -98,7 +102,7 @@ export default function AnimatedCheckoutSheet({
   const [paso, setPaso] = useState<Paso>("horario");
   const [direccion, setDireccion] = useState(1);
   const [horarioSeleccionado, setHorarioSeleccionado] =
-    useState<DemoHorario | null>(null);
+    useState<HorarioPublico | null>(null);
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [cupos, setCupos] = useState(1);

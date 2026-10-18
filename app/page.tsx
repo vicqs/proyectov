@@ -1,13 +1,7 @@
 import Link from "next/link";
-import { inicioRapidoAction } from "../actions/auth";
+import { inicioRapidoAction, inicioRapidoAdminAction } from "../actions/auth";
 import { isMockMode } from "../lib/mock/client";
 import { mockNegocios } from "../lib/mock/data";
-
-const DEMO_LINKS = [
-  { href: "/demo/surf-tamarindo", label: "Ver perfil público (demo)" },
-  { href: "/demo/admin", label: "Panel de administración (demo)" },
-];
-
 export default function HomePage() {
   const mostrarInicioRapido =
     isMockMode && process.env.NODE_ENV !== "production";
@@ -20,18 +14,9 @@ export default function HomePage() {
       </h1>
       <p className="max-w-md text-slate-500">
         Cada pyme turística tiene su propio enlace para mostrar servicios,
-        reservar y cobrar. Prueba la demo sin registrarte:
+        reservar y cobrar.
       </p>
       <div className="flex flex-col gap-3 sm:flex-row">
-        {DEMO_LINKS.map(({ href, label }) => (
-          <Link
-            key={href}
-            href={href}
-            className="rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700"
-          >
-            {label}
-          </Link>
-        ))}
         <Link
           href="/login"
           className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
@@ -51,7 +36,15 @@ export default function HomePage() {
                 type="submit"
                 className="w-full rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
               >
-                Entrar a /admin sin login
+                Entrar al panel de empresa
+              </button>
+            </form>
+            <form action={inicioRapidoAdminAction}>
+              <button
+                type="submit"
+                className="w-full rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-800"
+              >
+                Entrar al panel de administración
               </button>
             </form>
             {slugPublico && (
@@ -59,7 +52,7 @@ export default function HomePage() {
                 href={`/${slugPublico}`}
                 className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
               >
-                Ver enlace público de /admin ↗
+                Ver enlace público de la empresa ↗
               </Link>
             )}
           </div>

@@ -1,5 +1,5 @@
 import type { BloqueoExcepcion, Horario, Reserva } from "../types/database";
-import type { DemoHorario } from "./demoStore";
+import type { HorarioPublico } from "./tipos-publicos";
 
 /** Horas mínimas de anticipación para que el turista cancele por su cuenta. */
 export const HORAS_LIMITE_CANCELACION = 24;
@@ -100,7 +100,7 @@ export function construirHorarios(
   reservas: ReservaCupo[],
   bloqueos: Pick<BloqueoExcepcion, "fecha_inicio" | "fecha_fin">[],
   soloReservables = false,
-): DemoHorario[] {
+): HorarioPublico[] {
   const ahora = Date.now();
   return horarios
     .filter(

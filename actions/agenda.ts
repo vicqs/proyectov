@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createSupabaseServerClient } from "../lib/supabase/server";
+import { obtenerEmpresaOperativa, revalidarEmpresa } from "../lib/empresa";
+import { localCRaIso } from "../lib/zona-horaria";
 
 const bloqueoSchema = z
   .object({
@@ -30,6 +30,7 @@ export interface CrearBloqueoActionState {
  * nunca se toma del formulario (aislamiento multi-tenant).
  */
 export async function crearBloqueoAction(
+  slug: string,
   _prevState: CrearBloqueoActionState,
   formData: FormData,
 ): Promise<CrearBloqueoActionState> {
@@ -51,25 +52,9 @@ export async function crearBloqueoAction(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "Sesión expirada, vuelve a iniciar sesión." };
-  }
-
-  const { data: negocio, error: negocioError } = await supabase
-    .from("negocios")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (negocioError || !negocio) {
-    return { error: "No se encontró el negocio asociado a tu cuenta." };
-  }
+  const ctx = await obtenerEmpresaOperativa(slug);
+  if ("error" in ctx) return { error: ctx.error };
+  const { supabase, negocio } = ctx;
 
   const { data: reservas } = await supabase
     .from("reservas")
@@ -100,34 +85,18 @@ export async function crearBloqueoAction(
     return { error: "No se pudo crear el bloqueo. Intenta de nuevo." };
   }
 
-  revalidatePath("/admin/agenda");
-  revalidatePath("/admin/calendario");
+  revalidarEmpresa(negocio.slug);
   return { success: true };
 }
 
 /** Elimina un bloqueo del negocio autenticado (filtra siempre por `negocio_id`). */
 export async function eliminarBloqueoAction(
+  slug: string,
   bloqueoId: string,
 ): Promise<CrearBloqueoActionState> {
-  const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "Sesión expirada, vuelve a iniciar sesión." };
-  }
-
-  const { data: negocio, error: negocioError } = await supabase
-    .from("negocios")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (negocioError || !negocio) {
-    return { error: "No se encontró el negocio asociado a tu cuenta." };
-  }
+  const ctx = await obtenerEmpresaOperativa(slug);
+  if ("error" in ctx) return { error: ctx.error };
+  const { supabase, negocio } = ctx;
 
   const { error } = await supabase
     .from("bloqueos_excepcion")
@@ -139,8 +108,7 @@ export async function eliminarBloqueoAction(
     return { error: "No se pudo eliminar el bloqueo." };
   }
 
-  revalidatePath("/admin/agenda");
-  revalidatePath("/admin/calendario");
+  revalidarEmpresa(negocio.slug);
   return { success: true };
 }
 
@@ -148,6 +116,5 @@ function toIsoDateTime(value: FormDataEntryValue | null): string {
   if (typeof value !== "string" || value.length === 0) {
     return "";
   }
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+  return localCRaIso(value);
 }

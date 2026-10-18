@@ -1,134 +1,140 @@
-import { createSupabaseServerClient } from "../../lib/supabase/server";
-import type {
-  Reserva,
-  ReservaConServicio,
-  Servicio,
-} from "../../types/database";
-import InicioView from "../../components/admin/InicioView";
-import { construirHorarios } from "../../lib/horarios";
-import type { Horario } from "../../types/database";
+import Link from "next/link";
+import { requerirAdmin } from "../../lib/admin/auth";
+import { leer } from "../../lib/admin/db";
+import {
+  calcularMrr,
+  cargarPlataforma,
+  indexar,
+  montoReserva,
+} from "../../lib/admin/datos";
+import { tienePermiso } from "../../lib/roles";
+import { estadoEfectivo } from "../../lib/negocio-estado";
+import { fechaCorta, usd } from "../../lib/admin/formato";
+import {
+  Celda,
+  Estadistica,
+  PaginaAdmin,
+  Tabla,
+  Tarjeta,
+} from "../../components/admin/ui";
+import { InsigniaNegocio } from "../../components/admin/InsigniaNegocio";
 
-interface PagoConPrecio extends Reserva {
-  servicio: Pick<Servicio, "precio_usd"> | null;
-}
+export default async function AdminResumenPage() {
+  const admin = await requerirAdmin("dashboard");
+  const { negocios, servicios, reservas, planes } = await cargarPlataforma();
+  const [tickets, reportes, registros] = await Promise.all([
+    leer("tickets").catch(() => []),
+    leer("reportes_perfil").catch(() => []),
+    leer("registro_sistema").catch(() => []),
+  ]);
 
-/**
- * Inicio del dashboard: KPIs, próximas 5 reservas y servicios del negocio
- * del usuario autenticado. Gracias a RLS, los filtros por `negocio_id` solo
- * pueden devolver filas que le pertenecen al usuario logueado.
- */
-export default async function AdminOverviewPage() {
-  const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: negocio } = await supabase
-    .from("negocios")
-    .select("id, nombre, descripcion")
-    .eq("user_id", user!.id)
-    .single();
-
-  let proximas: ReservaConServicio[] = [];
-  let pagos: PagoConPrecio[] = [];
-  let servicios: Servicio[] = [];
-  let totalReservas = 0;
-  let horarios: Horario[] = [];
-  let todas: Reserva[] = [];
-
-  if (negocio) {
-    const [serviciosRes, todasRes, horariosRes] = await Promise.all([
-      supabase
-        .from("servicios")
-        .select("*")
-        .eq("negocio_id", negocio.id)
-        .order("nombre", { ascending: true }),
-      supabase.from("reservas").select("*").eq("negocio_id", negocio.id),
-      supabase
-        .from("horarios")
-        .select("*")
-        .eq("negocio_id", negocio.id)
-        .gte("fecha_hora", new Date().toISOString()),
-    ]);
-
-    servicios = (serviciosRes.data ?? []) as Servicio[];
-    todas = (todasRes.data ?? []) as Reserva[];
-    horarios = (horariosRes.data ?? []) as Horario[];
-    totalReservas = todas.filter((r) => r.estado !== "cancelada").length;
-
-    const ahora = Date.now();
-    proximas = todas
-      .filter(
-        (r) =>
-          (r.estado === "pendiente" || r.estado === "pagada") &&
-          new Date(r.fecha_hora).getTime() >= ahora,
-      )
-      .sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora))
-      .slice(0, 5) as unknown as ReservaConServicio[];
-    pagos = todas
-      .filter((r) => r.estado === "pagada")
-      .map((r) => ({
-        ...r,
-        servicio: servicios.find((s) => s.id === r.servicio_id) ?? null,
-      }));
+  const vivos = negocios.filter((n) => !n.eliminado_en);
+  const hace30 = Date.now() - 30 * 86_400_000;
+  const porEstado = { activa: 0, prueba: 0, inactiva: 0 };
+  let suspendidos = 0;
+  for (const n of vivos) {
+    if (n.suspendido) suspendidos++;
+    porEstado[estadoEfectivo(n)]++;
   }
+  const nuevos30 = vivos.filter(
+    (n) => n.creado_en && new Date(n.creado_en).getTime() >= hace30,
+  ).length;
 
-  const montoDe = (p: PagoConPrecio) =>
-    p.monto_usd ?? (p.servicio?.precio_usd ?? 0) * (p.cupos ?? 1);
-  const totalCobrado = pagos.reduce((acc, pago) => acc + montoDe(pago), 0);
+  const idxServicios = indexar(servicios);
+  const pagadas = reservas.filter((r) => r.estado === "pagada");
+  const ingresos30 = pagadas
+    .filter((r) => new Date(r.fecha_hora).getTime() >= hace30)
+    .reduce((a, r) => a + montoReserva(r, idxServicios), 0);
 
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-  const manana = new Date(hoy.getTime() + 86_400_000);
-  const haceSemana = Date.now() - 7 * 86_400_000;
-  const reservasHoy = todas.filter((r) => {
-    const t = new Date(r.fecha_hora).getTime();
-    return (
-      r.estado !== "cancelada" && t >= hoy.getTime() && t < manana.getTime()
-    );
-  }).length;
-  const ingresosSemana = pagos
-    .filter((p) => new Date(p.fecha_hora).getTime() >= haceSemana)
-    .reduce((acc, p) => acc + montoDe(p), 0);
-  const limite = Date.now() + 7 * 86_400_000;
-  const nombreServicio = (id: string) =>
-    servicios.find((s) => s.id === id)?.nombre ?? "Servicio";
-  const pocosCupos = construirHorarios(
-    horarios.filter((h) => new Date(h.fecha_hora).getTime() <= limite),
-    todas,
-    [],
-  )
-    .filter((h) => h.cuposDisponibles <= 2)
-    .slice(0, 5)
-    .map((h) => ({
-      id: h.id,
-      servicio: nombreServicio(h.servicioId),
-      label: h.label,
-      cuposDisponibles: h.cuposDisponibles,
-    }));
+  const ticketsAbiertos = tickets.filter(
+    (t) => t.estado === "abierto" || t.estado === "en_curso",
+  ).length;
+  const reportesPendientes = reportes.filter(
+    (r) => r.estado === "pendiente",
+  ).length;
+  const erroresSinResolver = registros.filter(
+    (r) => r.estado === "error" && !r.resuelto,
+  ).length;
+  const atencion = ticketsAbiertos + reportesPendientes + erroresSinResolver;
+
+  const recientes = [...vivos]
+    .sort((a, b) => (b.creado_en ?? "").localeCompare(a.creado_en ?? ""))
+    .slice(0, 6);
 
   return (
-    <InicioView
-      nombre={negocio?.nombre ?? "tu negocio"}
-      descripcion="Este es el resumen de tu negocio."
-      totalReservas={totalReservas}
-      totalCobrado={totalCobrado}
-      reservasHoy={reservasHoy}
-      ingresosSemana={ingresosSemana}
-      horariosPocosCupos={pocosCupos}
-      servicios={servicios.map((s) => ({
-        id: s.id,
-        nombre: s.nombre,
-        duracionMin: s.duracion_min,
-        precioUsd: s.precio_usd,
-      }))}
-      proximasReservas={proximas.map((r) => ({
-        id: r.id,
-        fechaIso: r.fecha_hora,
-        cliente: r.nombre_cliente || r.email_cliente,
-        estado: r.estado,
-      }))}
-    />
+    <PaginaAdmin
+      titulo="Resumen de la plataforma"
+      descripcion="Estado general de negocios, ingresos y operación."
+    >
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Estadistica
+          titulo="Negocios"
+          valor={String(vivos.length)}
+          nota={`${nuevos30} nuevos en 30 días`}
+        />
+        <Estadistica
+          titulo="Activos"
+          valor={String(porEstado.activa)}
+          tono="bueno"
+        />
+        <Estadistica titulo="En prueba" valor={String(porEstado.prueba)} />
+        <Estadistica
+          titulo="Inactivos / suspendidos"
+          valor={`${porEstado.inactiva} / ${suspendidos}`}
+          tono={porEstado.inactiva + suspendidos > 0 ? "malo" : "normal"}
+        />
+        {tienePermiso(admin.rol, "finanzas") && (
+          <>
+            <Estadistica
+              titulo="MRR"
+              valor={usd(calcularMrr(vivos, planes))}
+              tono="bueno"
+              nota="Suscripciones activas"
+            />
+            <Estadistica
+              titulo="Volumen 30 días"
+              valor={usd(ingresos30)}
+              nota="Reservas pagadas"
+            />
+          </>
+        )}
+        <Estadistica
+          titulo="Reservas totales"
+          valor={String(reservas.length)}
+          nota={`${pagadas.length} pagadas`}
+        />
+        <Estadistica
+          titulo="Atención pendiente"
+          valor={String(atencion)}
+          nota={`${ticketsAbiertos} tickets · ${reportesPendientes} reportes · ${erroresSinResolver} errores`}
+          tono={atencion > 0 ? "malo" : "normal"}
+        />
+      </div>
+
+      <Tarjeta titulo="Negocios recientes">
+        <Tabla
+          columnas={["Negocio", "Estado", "Alta"]}
+          vacia={recientes.length === 0}
+        >
+          {recientes.map((n) => (
+            <tr key={n.id}>
+              <Celda>
+                <Link
+                  href={`/admin/negocios/${n.id}`}
+                  className="font-medium text-sky-700 hover:underline"
+                >
+                  {n.nombre}
+                </Link>
+                <p className="text-xs text-slate-400">/{n.slug}</p>
+              </Celda>
+              <Celda>
+                <InsigniaNegocio negocio={n} />
+              </Celda>
+              <Celda>{fechaCorta(n.creado_en)}</Celda>
+            </tr>
+          ))}
+        </Tabla>
+      </Tarjeta>
+    </PaginaAdmin>
   );
 }

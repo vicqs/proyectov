@@ -1,15 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createSupabaseServerClient } from "../lib/supabase/server";
+import { obtenerEmpresaOperativa, revalidarEmpresa } from "../lib/empresa";
 import { cuposOcupados } from "../lib/horarios";
-
-function revalidarHorarios() {
-  revalidatePath("/admin");
-  revalidatePath("/admin/horarios");
-  revalidatePath("/admin/calendario");
-}
+import { obtenerConfiguracion } from "../lib/plataforma";
 
 const horarioSchema = z.object({
   servicio_id: z.string().uuid("Servicio inválido"),
@@ -26,38 +20,28 @@ export interface HorarioActionResult {
   success?: boolean;
 }
 
-async function resolverNegocioId() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada, vuelve a iniciar sesión." };
-
-  const { data: negocio, error } = await supabase
-    .from("negocios")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-  if (error || !negocio) {
-    return { error: "No se encontró el negocio asociado a tu cuenta." };
-  }
-  return { supabase, negocioId: negocio.id as string };
-}
-
 /** Crea un horario para un servicio del negocio autenticado. */
-export async function crearHorarioAction(datos: {
-  servicio_id: string;
-  fecha_hora: string;
-  cupos_totales: number;
-}): Promise<HorarioActionResult> {
+export async function crearHorarioAction(
+  slug: string,
+  datos: {
+    servicio_id: string;
+    fecha_hora: string;
+    cupos_totales: number;
+  },
+): Promise<HorarioActionResult> {
   const parsed = horarioSchema.safeParse(datos);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const ctx = await resolverNegocioId();
-  if ("error" in ctx && !("supabase" in ctx)) return { error: ctx.error };
-  const { supabase, negocioId } = ctx as Exclude<typeof ctx, { error: string }>;
+  const ctx = await obtenerEmpresaOperativa(slug);
+  if ("error" in ctx) return { error: ctx.error };
+  const { supabase, negocio } = ctx;
+  const negocioId = negocio.id;
+  const { max_cupos_horario } = await obtenerConfiguracion();
+  if (parsed.data.cupos_totales > max_cupos_horario) {
+    return { error: `Máximo ${max_cupos_horario} cupos por horario.` };
+  }
 
   // El servicio debe pertenecer al negocio autenticado.
   const { data: servicio } = await supabase
@@ -76,17 +60,19 @@ export async function crearHorarioAction(datos: {
   });
   if (error) return { error: "No se pudo crear el horario." };
 
-  revalidarHorarios();
+  revalidarEmpresa(negocio.slug);
   return { success: true };
 }
 
 /** Elimina un horario del negocio autenticado (filtra por `negocio_id`). */
 export async function eliminarHorarioAction(
+  slug: string,
   horarioId: string,
 ): Promise<HorarioActionResult> {
-  const ctx = await resolverNegocioId();
-  if ("error" in ctx && !("supabase" in ctx)) return { error: ctx.error };
-  const { supabase, negocioId } = ctx as Exclude<typeof ctx, { error: string }>;
+  const ctx = await obtenerEmpresaOperativa(slug);
+  if ("error" in ctx) return { error: ctx.error };
+  const { supabase, negocio } = ctx;
+  const negocioId = negocio.id;
 
   const { data: horario } = await supabase
     .from("horarios")
@@ -118,7 +104,7 @@ export async function eliminarHorarioAction(
     .eq("negocio_id", negocioId);
   if (error) return { error: "No se pudo eliminar el horario." };
 
-  revalidarHorarios();
+  revalidarEmpresa(negocio.slug);
   return { success: true };
 }
 
@@ -135,19 +121,27 @@ const loteSchema = z.object({
  * Crea varios horarios de una vez (repetición semanal). Omite los que ya
  * existen para el mismo servicio y fecha/hora, para no duplicar.
  */
-export async function crearHorariosLoteAction(datos: {
-  servicio_id: string;
-  fechas: string[];
-  cupos_totales: number;
-}): Promise<HorarioActionResult & { creados?: number }> {
+export async function crearHorariosLoteAction(
+  slug: string,
+  datos: {
+    servicio_id: string;
+    fechas: string[];
+    cupos_totales: number;
+  },
+): Promise<HorarioActionResult & { creados?: number }> {
   const parsed = loteSchema.safeParse(datos);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const ctx = await resolverNegocioId();
-  if ("error" in ctx && !("supabase" in ctx)) return { error: ctx.error };
-  const { supabase, negocioId } = ctx as Exclude<typeof ctx, { error: string }>;
+  const ctx = await obtenerEmpresaOperativa(slug);
+  if ("error" in ctx) return { error: ctx.error };
+  const { supabase, negocio } = ctx;
+  const negocioId = negocio.id;
+  const { max_cupos_horario } = await obtenerConfiguracion();
+  if (parsed.data.cupos_totales > max_cupos_horario) {
+    return { error: `Máximo ${max_cupos_horario} cupos por horario.` };
+  }
 
   const { data: servicio } = await supabase
     .from("servicios")
@@ -183,6 +177,6 @@ export async function crearHorariosLoteAction(datos: {
   );
   if (error) return { error: "No se pudieron crear los horarios." };
 
-  revalidarHorarios();
+  revalidarEmpresa(negocio.slug);
   return { success: true, creados: nuevas.length };
 }

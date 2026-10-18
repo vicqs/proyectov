@@ -22,6 +22,9 @@ export interface ReciboTuristaProps {
   trxId: string;
   emailCliente: string;
   gestionUrl?: string;
+  /** Texto opcional configurable por la administración global. */
+  encabezado?: string;
+  pie?: string;
 }
 
 /**
@@ -38,6 +41,8 @@ export default function ReciboTurista({
   trxId,
   emailCliente,
   gestionUrl,
+  encabezado,
+  pie,
 }: ReciboTuristaProps) {
   const fechaFormateada = new Date(fechaHora).toLocaleString("es-CR", {
     dateStyle: "full",
@@ -63,6 +68,8 @@ export default function ReciboTurista({
           )}
 
           <Heading style={heading}>¡Reserva confirmada!</Heading>
+
+          {encabezado && <Text style={paragraph}>{encabezado}</Text>}
 
           <Text style={paragraph}>
             Hola, tu pago para <strong>{servicioNombre}</strong> con{" "}
@@ -101,6 +108,8 @@ export default function ReciboTurista({
             Conserve este correo como comprobante de su reserva. Fue enviado a{" "}
             <strong>{emailCliente}</strong>.
           </Text>
+
+          {pie && <Text style={footerNote}>{pie}</Text>}
 
           <Text style={footer}>{negocioNombre} · Turismo Link</Text>
         </Container>

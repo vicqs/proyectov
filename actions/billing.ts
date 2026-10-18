@@ -1,15 +1,16 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "../lib/supabase/server";
+import { requerirEmpresa, revalidarEmpresa } from "../lib/empresa";
+import { rutaPanelEmpresa } from "../lib/rutas-empresa";
 import { supabaseAdmin } from "../lib/supabase";
 import { stripe, isStripeMockMode } from "../lib/stripe";
-import type { Negocio } from "../types/database";
-
-const PRECIO_SUSCRIPCION_USD = 15;
 
 function obtenerAppUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(
+    /\/+$/,
+    "",
+  );
 }
 
 /**
@@ -22,36 +23,24 @@ function obtenerAppUrl(): string {
  * dentro de la propia app, que al confirmar activa la suscripción igual que
  * lo haría el webhook real de Stripe.
  */
-export async function crearCheckoutSuscripcionAction(): Promise<never> {
-  const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const { data: negocioData, error: negocioError } = await supabase
-    .from("negocios")
-    .select("*")
-    .eq("user_id", user.id)
-    .single();
-
-  if (negocioError || !negocioData) {
-    throw new Error("No se encontró el negocio asociado a este usuario.");
-  }
-
-  const negocio = negocioData as Negocio;
+export async function crearCheckoutSuscripcionAction(
+  slug: string,
+): Promise<never> {
+  const { user, negocio } = await requerirEmpresa(slug);
 
   if (isStripeMockMode || !stripe) {
-    redirect(`/admin/suscripcion/simulado/${negocio.id}`);
+    redirect(
+      rutaPanelEmpresa(
+        negocio.slug,
+        `suscripcion/simulado/${encodeURIComponent(negocio.id)}`,
+      ),
+    );
   }
 
   const priceId = process.env.STRIPE_PRICE_ID;
   if (!priceId) {
-    throw new Error("Falta la variable de entorno STRIPE_PRICE_ID.");
+    console.error("Falta la variable de entorno STRIPE_PRICE_ID.");
+    redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=error`);
   }
 
   // Stripe requiere un Customer para asociar la suscripción; se crea una
@@ -79,13 +68,14 @@ export async function crearCheckoutSuscripcionAction(): Promise<never> {
     customer: stripeCustomerId,
     payment_method_types: ["card"],
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appUrl}/admin/suscripcion?estado=activa`,
-    cancel_url: `${appUrl}/admin/suscripcion?estado=cancelado`,
+    success_url: `${appUrl}${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=activa`,
+    cancel_url: `${appUrl}${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=cancelado`,
     metadata: { negocio_id: negocio.id },
   });
 
   if (!session.url) {
-    throw new Error("Stripe no devolvió una URL de checkout válida.");
+    console.error("Stripe no devolvió una URL de checkout válida.");
+    redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=error`);
   }
 
   redirect(session.url);
@@ -97,32 +87,37 @@ export async function crearCheckoutSuscripcionAction(): Promise<never> {
  * disponible en modo simulado. Marca `estado_suscripcion` como 'activa'.
  */
 export async function confirmarSuscripcionSimuladaAction(
-  negocioId: string,
+  slug: string,
 ): Promise<never> {
+  const { negocio, user } = await requerirEmpresa(slug);
   if (!isStripeMockMode) {
-    throw new Error(
-      "Esta acción solo está disponible en modo simulado (sin Stripe real).",
-    );
+    redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=error`);
   }
-
   const { error } = await supabaseAdmin
     .from("negocios")
     .update({
       estado_suscripcion: "activa",
-      stripe_customer_id: `mock_cus_${negocioId}`,
+      proximo_cobro: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+      stripe_customer_id: `mock_cus_${negocio.id}`,
     })
-    .eq("id", negocioId);
+    .eq("id", negocio.id)
+    .eq("user_id", user.id);
 
   if (error) {
-    throw new Error("No se pudo activar la suscripción simulada.");
+    console.error("No se pudo activar la suscripción simulada:", error.message);
+    redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=error`);
   }
 
-  redirect("/admin/suscripcion?estado=activa");
+  revalidarEmpresa(negocio.slug);
+  redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=activa`);
 }
 
 /** Cancela el flujo de suscripción simulada sin activar nada. */
-export async function cancelarSuscripcionSimuladaAction(): Promise<never> {
-  redirect("/admin/suscripcion?estado=cancelado");
+export async function cancelarSuscripcionSimuladaAction(
+  slug: string,
+): Promise<never> {
+  const { negocio } = await requerirEmpresa(slug);
+  redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=cancelado`);
 }
 
 /**
@@ -130,22 +125,24 @@ export async function cancelarSuscripcionSimuladaAction(): Promise<never> {
  * Solo disponible en modo simulado; con Stripe real la cancelación se
  * gestiona desde el portal de facturación de Stripe.
  */
-export async function cancelarSuscripcionActivaAction(): Promise<never> {
+export async function cancelarSuscripcionActivaAction(
+  slug: string,
+): Promise<never> {
+  const { negocio, user } = await requerirEmpresa(slug);
   if (!isStripeMockMode) {
-    throw new Error("Cancela tu suscripción desde el portal de Stripe.");
+    redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=error`);
   }
-
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
 
   const { error } = await supabaseAdmin
     .from("negocios")
     .update({ estado_suscripcion: "inactiva" })
+    .eq("id", negocio.id)
     .eq("user_id", user.id);
-  if (error) throw new Error("No se pudo cancelar la suscripción.");
+  if (error) {
+    console.error("No se pudo cancelar la suscripción:", error.message);
+    redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=error`);
+  }
 
-  redirect("/admin/suscripcion?estado=inactiva");
+  revalidarEmpresa(negocio.slug);
+  redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=inactiva`);
 }

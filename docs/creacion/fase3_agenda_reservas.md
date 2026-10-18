@@ -1,27 +1,29 @@
 # Fase 3 — Agenda (bloqueos) y Reservas (data table)
 
+> Documento histórico de la fase: se conserva su alcance; las rutas y los enlaces reflejan la estructura actual.
+
 ## Qué se construyó
 
-### 1. Agenda / Bloqueos de horario (`/admin/agenda`)
+### 1. Agenda / Bloqueos de horario (`/[slug]/admin/agenda`)
 
 Permite al dueño de la pyme declarar rangos de fecha/hora en los que **no**
 está disponible (vacaciones, mantenimiento, etc.), para excluirlos del
 calendario de reservas de cara al turista.
 
-- [app/admin/agenda/page.tsx](../app/admin/agenda/page.tsx) — Server Component: obtiene el `negocio` del usuario autenticado y lista los bloqueos con `fecha_fin >= ahora`, ordenados por `fecha_inicio`.
-- [app/admin/agenda/NuevoBloqueoForm.tsx](../app/admin/agenda/NuevoBloqueoForm.tsx) — Client Component con `useActionState` + `useFormStatus`, formulario de fecha inicio, fecha fin y motivo.
-- [actions/agenda.ts](../actions/agenda.ts) — Server Action `crearBloqueoAction`:
+- [app/[slug]/admin/agenda/page.tsx](../../app/%5Bslug%5D/admin/agenda/page.tsx) — Server Component: obtiene el `negocio` del usuario autenticado, valida `user_id` + `slug` y lista los bloqueos con `fecha_fin >= ahora`, ordenados por `fecha_inicio`.
+- [app/[slug]/admin/agenda/AgendaEmpresaClient.tsx](../../app/%5Bslug%5D/admin/agenda/AgendaEmpresaClient.tsx) — Puente cliente entre los formularios de bloqueos y las Server Actions.
+- [actions/agenda.ts](../../actions/agenda.ts) — Server Action `crearBloqueoAction`:
   - Normaliza los valores de `<input type="datetime-local">` a ISO 8601.
   - Valida con `zod`, incluyendo la regla `fecha_fin >= fecha_inicio` (vía `.refine`).
-  - Resuelve `negocio_id` en el servidor a partir del usuario autenticado (nunca confía en el formulario).
-  - Inserta en `bloqueos_excepcion` y llama a `revalidatePath('/admin/agenda')`.
+  - Resuelve `negocio_id` en el servidor a partir del usuario autenticado y el `slug` validado mediante [lib/empresa.ts](../../lib/empresa.ts) (nunca confía en el formulario).
+  - Inserta en `bloqueos_excepcion` y llama a `revalidarEmpresa(negocio.slug)`, que invalida el layout exacto `/<slug>/admin` y el perfil público del mismo negocio.
 
-### 2. Reservas (`/admin/reservas`)
+### 2. Reservas (`/[slug]/admin/reservas`)
 
 Data table con todas las reservas del negocio, incluyendo el nombre del
 servicio asociado.
 
-- [app/admin/reservas/page.tsx](../app/admin/reservas/page.tsx) — Server Component que hace una consulta anidada de Supabase:
+- [app/[slug]/admin/reservas/page.tsx](../../app/%5Bslug%5D/admin/reservas/page.tsx) — Server Component que hace una consulta anidada de Supabase:
   ```ts
   supabase.from("reservas").select("*, servicio:servicios(nombre)");
   ```
@@ -31,14 +33,14 @@ servicio asociado.
 
 ### 3. Tipos nuevos
 
-En [types/database.ts](../types/database.ts):
+En [types/database.ts](../../types/database.ts):
 
 - `BloqueoExcepcion` y su tabla `bloqueos_excepcion` en `Database`.
 - `ReservaConServicio` — extiende `Reserva` con `servicio: Pick<Servicio, 'nombre'> | null`, usado por el `select` anidado.
 
 ## Interacción con Supabase
 
-- Todas las consultas usan el cliente **SSR** ([lib/supabase/server.ts](../lib/supabase/server.ts)), que respeta la sesión (cookies) y por tanto las políticas RLS: un dueño solo puede ver/crear filas de su propio `negocio_id`.
+- Todas las consultas usan el cliente **SSR** ([lib/supabase/server.ts](../../lib/supabase/server.ts)), que respeta la sesión (cookies) y por tanto las políticas RLS: un dueño solo puede ver/crear filas de su propio `negocio_id`.
 - **Esquema esperado de `bloqueos_excepcion`** (no existía antes de esta fase, asumido igual que el resto de tablas multi-tenant):
 
   ```sql
@@ -67,21 +69,21 @@ En [types/database.ts](../types/database.ts):
 ### Preparación
 
 1. `npm install` (agrega `@supabase/ssr` si aún no está instalado).
-2. Completar `.env.local` a partir de [.env.example](../.env.example).
+2. Completar `.env.local` a partir de [.env.example](../../.env.example).
 3. Crear la tabla `bloqueos_excepcion` en Supabase con el DDL de arriba (o su equivalente) y sus políticas RLS.
 4. Tener al menos un usuario de Supabase Auth con una fila en `negocios` (`user_id` = ese usuario) y algunos `servicios` y `reservas` de prueba.
 
 ### Casos a probar — Agenda
 
-1. Iniciar sesión en `/login` y navegar a `/admin/agenda`.
+1. Iniciar sesión en `/login` y navegar a `/surf-tamarindo/admin/agenda` (sustituir `surf-tamarindo` por el slug del negocio autenticado si es distinto).
 2. Verificar que la lista muestra solo bloqueos futuros (`fecha_fin >= ahora`) del negocio propio.
 3. Crear un bloqueo con fecha fin **anterior** a fecha inicio → debe mostrar el error "La fecha de fin no puede ser anterior a la fecha de inicio." sin llegar a insertar en la BD.
-4. Crear un bloqueo válido → el botón muestra el spinner de carga (`useFormStatus`), al terminar el formulario se limpia y el nuevo bloqueo aparece en la lista (gracias a `revalidatePath`).
+4. Crear un bloqueo válido → el botón muestra el spinner de carga (`useFormStatus`), al terminar el formulario se limpia y el nuevo bloqueo aparece en la lista (gracias a `revalidarEmpresa`).
 5. Confirmar en Supabase que la fila insertada tiene el `negocio_id` correcto (no manipulable desde el cliente).
 
 ### Casos a probar — Reservas
 
-1. Navegar a `/admin/reservas`.
+1. Navegar a `/surf-tamarindo/admin/reservas` (o usar el slug del negocio autenticado).
 2. Verificar que aparecen todas las reservas del negocio (pendientes y pagadas), más recientes primero.
 3. Confirmar que la columna "Servicio" muestra el nombre correcto (JOIN) y no un ID.
 4. Verificar los colores de estado: `pagada` en verde, `pendiente` en ámbar.

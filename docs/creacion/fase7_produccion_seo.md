@@ -1,5 +1,7 @@
 # Fase 7 — Producción, SEO y Pulido Final (Go-to-Market)
 
+> Documento histórico de la fase: se mantiene su intención; las rutas, los enlaces y la jerarquía de archivos reflejan la estructura actual.
+
 ## 1. Resumen
 
 Última fase antes de despliegue: SEO dinámico para compartir enlaces,
@@ -8,7 +10,7 @@ estáticas requeridas por pasarelas de pago/bancos, y analíticas básicas.
 
 ## 2. SEO dinámico (`generateMetadata`)
 
-En [app/[slug]/page.tsx](../app/%5Bslug%5D/page.tsx) se exporta
+En [app/[slug]/page.tsx](../../app/%5Bslug%5D/page.tsx) se exporta
 `generateMetadata({ params })`, una función especial de Next.js (App
 Router) que:
 
@@ -44,12 +46,11 @@ app/global-error.tsx        ← captura errores fatales de TODA la app,
                                Define su propio <html>/<body> porque
                                reemplaza al layout raíz completo.
    └─ app/layout.tsx          (layout raíz normal)
-        └─ app/[slug]/error.tsx   ← captura errores solo dentro de
-                                     /[slug]/** (ej. falla de Supabase
-                                     o de la simulación de pago), sin
-                                     tumbar el resto del sitio (ej.
-                                     /admin sigue funcionando).
-              └─ app/[slug]/page.tsx / layout.tsx
+                  └─ app/[slug]/error.tsx   ← errores del negocio, sin tumbar /login
+                     ├─ app/[slug]/page.tsx   ← perfil público del negocio
+                     └─ app/[slug]/admin/layout.tsx   ← panel Empresa por slug
+                        └─ app/[slug]/admin/error.tsx   ← errores de páginas del panel
+                           └─ app/[slug]/admin/page.tsx (y subrutas)
 ```
 
 Adicionalmente:
@@ -65,8 +66,8 @@ interactiva.
 
 ## 4. Páginas legales
 
-- [app/terminos/page.tsx](../app/terminos/page.tsx)
-- [app/privacidad/page.tsx](../app/privacidad/page.tsx)
+- [app/terminos/page.tsx](../../app/terminos/page.tsx)
+- [app/privacidad/page.tsx](../../app/privacidad/page.tsx)
 
 Contenido genérico (mockeado) pero con estructura real y secciones
 estándar (uso del servicio, pagos, cancelaciones, datos, cookies, etc.),
@@ -76,7 +77,7 @@ revisadas por un abogado antes de producción real.**
 
 ## 5. Analíticas
 
-Se integró `@vercel/analytics/react` en [app/layout.tsx](../app/layout.tsx)
+Se integró `@vercel/analytics/react` en [app/layout.tsx](../../app/layout.tsx)
 (`<Analytics />` dentro de `<body>`, después de `{children}`). Sin
 configuración adicional: si el proyecto se despliega en Vercel, empieza a
 recolectar automáticamente vistas de página y Web Vitals. En otros hosts,

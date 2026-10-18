@@ -1,3 +1,7 @@
+import { obtenerConfiguracion } from "../../lib/plataforma";
+
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Política de Privacidad — Turismo Link",
 };
@@ -7,7 +11,21 @@ export const metadata = {
  * por las pasarelas de pago y bancos para habilitar el cobro en línea.
  * Debe ser revisado por un abogado antes de producción.
  */
-export default function PrivacidadPage() {
+export default async function PrivacidadPage() {
+  const { privacidad_texto } = await obtenerConfiguracion();
+  if (privacidad_texto) {
+    return (
+      <main className="mx-auto min-h-screen max-w-2xl px-4 py-12">
+        <h1 className="text-2xl font-bold text-slate-900">
+          Política de Privacidad
+        </h1>
+        <div className="mt-8 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">
+          {privacidad_texto}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto min-h-screen max-w-2xl px-4 py-12">
       <h1 className="text-2xl font-bold text-slate-900">
