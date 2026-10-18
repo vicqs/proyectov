@@ -23,6 +23,17 @@ function conCabecerasDeAutoria(response: NextResponse): NextResponse {
 }
 
 export async function middleware(request: NextRequest) {
+  // Fail-closed: en producción el modo simulado (con credenciales de prueba
+  // conocidas) solo se permite si se pide explícitamente con USE_MOCK_DB=true.
+  if (
+    isMockMode &&
+    process.env.NODE_ENV === "production" &&
+    process.env.USE_MOCK_DB !== "true"
+  ) {
+    return conCabecerasDeAutoria(
+      new NextResponse("Servicio no configurado.", { status: 503 }),
+    );
+  }
   const pathname = request.nextUrl.pathname;
   const esAccesoAnterior =
     pathname === "/empresa" || pathname.startsWith("/empresa/");

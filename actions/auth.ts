@@ -5,7 +5,6 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "../lib/supabase/server";
 import { isMockMode } from "../lib/mock/client";
 import { mockUsuarios } from "../lib/mock/usuarios";
-import { MOCK_USER_EMAIL, MOCK_USER_PASSWORD } from "../lib/mock/data";
 import { obtenerEmpresaAutenticada } from "../lib/empresa";
 import { rutaPanelEmpresa } from "../lib/rutas-empresa";
 import { obtenerPerfil } from "../lib/sesion";

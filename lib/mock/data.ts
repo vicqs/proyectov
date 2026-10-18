@@ -19,6 +19,9 @@ import type {
 } from "../../types/database";
 import {
   MOCK_ADMIN_EMAIL,
+  MOCK_FINANZAS_EMAIL,
+  MOCK_SOPORTE_EMAIL,
+  MOCK_USER_EMAIL_2,
   MOCK_ADMIN_ID,
   MOCK_FINANZAS_ID,
   MOCK_SOPORTE_ID,
@@ -27,7 +30,7 @@ import {
   MOCK_USER_ID_3,
 } from "./usuarios";
 
-export { MOCK_USER_EMAIL, MOCK_USER_ID, MOCK_USER_PASSWORD } from "./usuarios";
+export { MOCK_USER_EMAIL, MOCK_USER_ID } from "./usuarios";
 
 /**
  * Datos de simulación en memoria. Se reinician cada vez que el servidor de
@@ -207,14 +210,14 @@ export const mockPerfiles: Perfil[] = [
   },
   {
     user_id: MOCK_FINANZAS_ID,
-    email: "finanzas@turismolink.dev",
+    email: MOCK_FINANZAS_EMAIL,
     rol_admin: "finanzas",
     bloqueado: false,
     sesiones_revocadas_desde: null,
   },
   {
     user_id: MOCK_SOPORTE_ID,
-    email: "soporte@turismolink.dev",
+    email: MOCK_SOPORTE_EMAIL,
     rol_admin: "soporte",
     bloqueado: false,
     sesiones_revocadas_desde: null,
@@ -264,7 +267,7 @@ export const mockTickets: Ticket[] = [
     asunto: "No puedo subir mi logo",
     estado: "abierto",
     prioridad: "normal",
-    creado_por: "kayak@turismolink.dev",
+    creado_por: MOCK_USER_EMAIL_2,
     creado_en: enDias(-1),
     actualizado_en: enDias(-1),
   },
@@ -275,7 +278,7 @@ export const mockTicketMensajes: TicketMensaje[] = [
     id: "66666666-6666-4666-8666-666666666662",
     ticket_id: "66666666-6666-4666-8666-666666666661",
     autor_tipo: "empresa",
-    autor_email: "kayak@turismolink.dev",
+    autor_email: MOCK_USER_EMAIL_2,
     mensaje: "Al subir el logo aparece un error. ¿Pueden revisarlo?",
     creado_en: enDias(-1),
   },
