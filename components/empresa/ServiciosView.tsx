@@ -54,7 +54,7 @@ const FORM_VACIO: FormValues = {
 };
 
 const INPUT =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none";
+  "min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus-visible:border-sky-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/25";
 
 /**
  * Gestión de servicios compartida por `/[slug]/admin`: tarjetas
@@ -138,7 +138,7 @@ export default function ServiciosView({
           type="button"
           onClick={abrirNuevo}
           whileTap={{ scale: 0.96 }}
-          className="flex w-full flex-shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 sm:w-auto"
+          className="vuki-focus flex min-h-11 w-full flex-shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 sm:w-auto"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           Nuevo servicio
@@ -151,30 +151,23 @@ export default function ServiciosView({
         <Lista as="section" className="grid gap-4 sm:grid-cols-2">
           {servicios.map((servicio) => (
             <ItemLista key={servicio.id} as="article">
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => abrirEdicion(servicio)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    abrirEdicion(servicio);
-                  }
-                }}
-                className="group relative h-full cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-              >
+              <div className="group relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none">
                 <div className="flex items-start justify-between gap-3">
                   <h2 className="text-base font-semibold text-slate-800">
-                    {servicio.nombre}
+                    <button
+                      type="button"
+                      onClick={() => abrirEdicion(servicio)}
+                      aria-label={`Editar ${servicio.nombre}`}
+                      className="vuki-focus inline-flex min-h-11 items-center rounded-lg text-left after:absolute after:inset-0 after:rounded-2xl after:content-['']"
+                    >
+                      {servicio.nombre}
+                    </button>
                   </h2>
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPorEliminar(servicio);
-                    }}
+                    onClick={() => setPorEliminar(servicio)}
                     aria-label={`Quitar ${servicio.nombre}`}
-                    className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                    className="vuki-focus relative z-10 flex min-h-11 flex-shrink-0 items-center gap-1.5 rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50"
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     Quitar
@@ -313,7 +306,7 @@ export default function ServiciosView({
             type="submit"
             disabled={guardando}
             whileTap={{ scale: 0.97 }}
-            className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="vuki-focus mt-2 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {guardando ? (
               <Loader2 className="h-4 w-4 animate-spin" />

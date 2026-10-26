@@ -1,6 +1,12 @@
 import Link from "next/link";
-import { CalendarCheck, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, CalendarCheck, ShieldCheck, Sparkles } from "lucide-react";
 import VLogo from "./VLogo";
+import EscenaAcceso from "./marketing/EscenaAcceso";
+import {
+  Aparecer,
+  FondoMarca,
+  MovimientoMarca,
+} from "./marketing/MovimientoMarca";
 
 const BENEFICIOS = [
   {
@@ -13,7 +19,7 @@ const BENEFICIOS = [
   },
   {
     icono: ShieldCheck,
-    texto: "Acceso seguro para empresas y para el equipo de Turismo Link.",
+    texto: "Tu operación bajo control. Tu cuenta, protegida.",
   },
 ];
 
@@ -33,89 +39,127 @@ export default function AuthShell({
   pie,
 }: AuthShellProps) {
   return (
-    <main className="grid min-h-screen lg:grid-cols-2">
-      <aside className="relative hidden overflow-hidden bg-slate-900 lg:flex lg:flex-col lg:justify-between lg:p-12">
-        <div
-          aria-hidden="true"
-          className="login-flotar absolute -left-24 -top-24 h-96 w-96 rounded-full bg-sky-500/30 blur-3xl"
-        />
-        <div
-          aria-hidden="true"
-          className="login-flotar absolute -bottom-32 -right-16 h-96 w-96 rounded-full bg-indigo-500/30 blur-3xl [animation-delay:-7s]"
-        />
-        <div className="relative flex items-center gap-3 text-white">
-          <VLogo className="h-10 w-10" />
-          <span className="text-lg font-semibold tracking-tight">
-            Turismo Link
-          </span>
-        </div>
-        <div className="relative max-w-md">
-          <h2 className="text-3xl font-bold leading-tight tracking-tight text-white">
-            Gestiona tu negocio turístico sin complicaciones.
-          </h2>
-          <ul className="mt-8 space-y-4">
-            {BENEFICIOS.map(({ icono: Icono, texto }) => (
-              <li key={texto} className="flex items-start gap-3 text-slate-200">
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10">
-                  <Icono className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span className="text-sm leading-relaxed">{texto}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <p className="relative text-xs text-slate-400">
-          © {new Date().getFullYear()} Turismo Link
-        </p>
-      </aside>
+    <MovimientoMarca>
+      <main className="grid min-h-svh bg-slate-50 lg:grid-cols-[1.05fr_1fr]">
+        <aside className="relative hidden overflow-hidden bg-slate-900 lg:flex lg:flex-col lg:justify-between lg:p-10 xl:p-16">
+          <FondoMarca />
+          <Link
+            href="/"
+            aria-label="Ir al inicio de vuki"
+            className="vuki-focus relative w-fit rounded-xl"
+          >
+            <VLogo
+              showText
+              tone="light"
+              className="h-11 w-11"
+              wordmarkClassName="text-4xl"
+            />
+          </Link>
+          <Aparecer className="relative my-9 max-w-lg">
+            <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-2 text-xs font-medium text-slate-200">
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-emerald-400"
+                aria-hidden="true"
+              />
+              Hecho para el turismo de Costa Rica
+            </p>
+            <h2 className="font-display text-4xl font-bold leading-[1.18] tracking-tight text-white xl:text-5xl">
+              Menos mensajes.
+              <br />
+              Más <span className="text-emerald-400">experiencias.</span>
+            </h2>
+            <p className="mt-5 max-w-sm text-base leading-relaxed text-slate-300">
+              Tu agenda, tus servicios y tus reservas en un solo lugar. Tú
+              encárgate de crear momentos inolvidables.
+            </p>
+            <EscenaAcceso />
+            <ul className="mt-7 space-y-3.5">
+              {BENEFICIOS.map(({ icono: Icono, texto }) => (
+                <li
+                  key={texto}
+                  className="flex items-start gap-3 text-slate-200"
+                >
+                  <Icono
+                    className="mt-0.5 h-4 w-4 shrink-0 text-sky-300"
+                    aria-hidden="true"
+                  />
+                  <span className="text-sm leading-relaxed">{texto}</span>
+                </li>
+              ))}
+            </ul>
+          </Aparecer>
+          <div className="relative flex items-center justify-between gap-4 text-xs text-slate-400">
+            <span>© {new Date().getFullYear()} vuki</span>
+            <span>El monograma de vuki.</span>
+          </div>
+        </aside>
 
-      <section className="flex min-h-screen flex-col bg-slate-50 lg:min-h-0 lg:items-center lg:justify-center lg:bg-white lg:px-8 lg:py-10">
-        <header className="relative overflow-hidden bg-slate-900 px-6 pb-16 pt-10 text-center lg:hidden">
-          <div
-            aria-hidden="true"
-            className="login-flotar absolute -left-16 -top-20 h-56 w-56 rounded-full bg-sky-500/30 blur-3xl"
-          />
-          <div
-            aria-hidden="true"
-            className="login-flotar absolute -bottom-24 -right-10 h-56 w-56 rounded-full bg-indigo-500/30 blur-3xl [animation-delay:-7s]"
-          />
-          <div className="login-entrada relative flex flex-col items-center gap-3">
-            <VLogo className="h-11 w-11" />
-            <span className="text-lg font-semibold tracking-tight text-white">
-              Turismo Link
-            </span>
-            <p className="max-w-xs text-sm text-slate-300">
-              Gestiona tu negocio turístico sin complicaciones.
+        <section className="flex min-h-svh flex-col lg:min-h-0 lg:items-center lg:justify-center lg:bg-white lg:px-10 lg:py-14">
+          <header className="relative overflow-hidden bg-slate-900 px-6 pb-20 pt-8 text-center lg:hidden">
+            <FondoMarca />
+            <div className="relative flex flex-col items-center gap-3">
+              <Link
+                href="/"
+                aria-label="Ir al inicio de vuki"
+                className="vuki-focus rounded-xl"
+              >
+                <VLogo
+                  showText
+                  tone="light"
+                  className="h-11 w-11"
+                  wordmarkClassName="text-4xl"
+                />
+              </Link>
+              <p className="max-w-xs text-sm text-slate-300">
+                Tu negocio turístico, en buenas manos.
+              </p>
+            </div>
+          </header>
+
+          <div className="relative -mt-10 w-full max-w-[440px] self-center px-4 pb-10 lg:mt-0 lg:px-0 lg:pb-0">
+            <Link
+              href="/"
+              className="vuki-focus mb-8 hidden min-h-11 w-fit items-center gap-2 rounded-lg text-sm text-slate-500 transition hover:text-slate-900 lg:inline-flex"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Volver a vuki
+            </Link>
+            <div className="rounded-3xl border border-slate-200/80 bg-white p-7 shadow-xl shadow-slate-900/5 sm:p-9 lg:border-0 lg:p-0 lg:shadow-none">
+              <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-sky-700">
+                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                Tu espacio en vuki
+              </p>
+              <h1 className="font-display text-3xl font-bold tracking-tight text-slate-900">
+                {titulo}
+              </h1>
+              {descripcion && (
+                <p className="mt-3 text-sm leading-relaxed text-slate-500">
+                  {descripcion}
+                </p>
+              )}
+              <div className="mt-8">{children}</div>
+            </div>
+            {pie && <div className="mt-6 text-center text-sm">{pie}</div>}
+            <p className="mt-7 text-center text-xs leading-relaxed text-slate-500">
+              Al continuar aceptas los{" "}
+              <Link
+                href="/terminos"
+                className="vuki-focus rounded underline underline-offset-2 hover:text-slate-900"
+              >
+                términos
+              </Link>{" "}
+              y la{" "}
+              <Link
+                href="/privacidad"
+                className="vuki-focus rounded underline underline-offset-2 hover:text-slate-900"
+              >
+                política de privacidad
+              </Link>
+              .
             </p>
           </div>
-        </header>
-
-        <div className="login-entrada relative -mt-8 w-full max-w-sm self-center px-4 pb-10 [animation-delay:120ms] lg:mt-0 lg:px-0 lg:pb-0">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:border-0 lg:p-0 lg:shadow-none">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              {titulo}
-            </h1>
-            {descripcion && (
-              <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
-                {descripcion}
-              </p>
-            )}
-            <div className="mt-6">{children}</div>
-          </div>
-          {pie && <div className="mt-6 text-center text-sm">{pie}</div>}
-          <p className="mt-6 text-center text-xs text-slate-600">
-            Al continuar aceptas los{" "}
-            <Link href="/terminos" className="underline hover:text-slate-900">
-              términos
-            </Link>{" "}
-            y la{" "}
-            <Link href="/privacidad" className="underline hover:text-slate-900">
-              política de privacidad
-            </Link>
-            .
-          </p>
-        </div>
-      </section>
-    </main>
+        </section>
+      </main>
+    </MovimientoMarca>
   );
 }

@@ -28,7 +28,7 @@ export default function EmpresaError({
       <button
         type="button"
         onClick={reset}
-        className="mt-6 rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-700"
+        className="vuki-focus mt-6 min-h-12 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800"
       >
         Reintentar
       </button>

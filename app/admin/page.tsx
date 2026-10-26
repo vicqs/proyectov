@@ -1,4 +1,14 @@
 import Link from "next/link";
+import {
+  Building2,
+  CalendarCheck,
+  CheckCircle2,
+  Clock,
+  LifeBuoy,
+  ShieldAlert,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 import { requerirAdmin } from "../../lib/admin/auth";
 import { leer } from "../../lib/admin/db";
 import {
@@ -69,17 +79,24 @@ export default async function AdminResumenPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Estadistica
           titulo="Negocios"
+          icono={<Building2 className="h-4 w-4" />}
           valor={String(vivos.length)}
           nota={`${nuevos30} nuevos en 30 días`}
         />
         <Estadistica
           titulo="Activos"
+          icono={<CheckCircle2 className="h-4 w-4" />}
           valor={String(porEstado.activa)}
           tono="bueno"
         />
-        <Estadistica titulo="En prueba" valor={String(porEstado.prueba)} />
+        <Estadistica
+          titulo="En prueba"
+          valor={String(porEstado.prueba)}
+          icono={<Clock className="h-4 w-4" />}
+        />
         <Estadistica
           titulo="Inactivos / suspendidos"
+          icono={<ShieldAlert className="h-4 w-4" />}
           valor={`${porEstado.inactiva} / ${suspendidos}`}
           tono={porEstado.inactiva + suspendidos > 0 ? "malo" : "normal"}
         />
@@ -87,12 +104,14 @@ export default async function AdminResumenPage() {
           <>
             <Estadistica
               titulo="MRR"
+              icono={<Wallet className="h-4 w-4" />}
               valor={usd(calcularMrr(vivos, planes))}
               tono="bueno"
               nota="Suscripciones activas"
             />
             <Estadistica
               titulo="Volumen 30 días"
+              icono={<TrendingUp className="h-4 w-4" />}
               valor={usd(ingresos30)}
               nota="Reservas pagadas"
             />
@@ -100,11 +119,13 @@ export default async function AdminResumenPage() {
         )}
         <Estadistica
           titulo="Reservas totales"
+          icono={<CalendarCheck className="h-4 w-4" />}
           valor={String(reservas.length)}
           nota={`${pagadas.length} pagadas`}
         />
         <Estadistica
           titulo="Atención pendiente"
+          icono={<LifeBuoy className="h-4 w-4" />}
           valor={String(atencion)}
           nota={`${ticketsAbiertos} tickets · ${reportesPendientes} reportes · ${erroresSinResolver} errores`}
           tono={atencion > 0 ? "malo" : "normal"}
@@ -125,7 +146,7 @@ export default async function AdminResumenPage() {
                 >
                   {n.nombre}
                 </Link>
-                <p className="text-xs text-slate-400">/{n.slug}</p>
+                <p className="text-xs text-slate-500">/{n.slug}</p>
               </Celda>
               <Celda>
                 <InsigniaNegocio negocio={n} />

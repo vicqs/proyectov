@@ -45,7 +45,7 @@ create unique index if not exists planes_un_defecto_idx
 alter table planes add column if not exists flags jsonb not null default '{}'::jsonb;
 
 insert into planes (nombre, precio_usd, por_defecto)
-select 'Plan Turismo Link', 15, true
+select 'Plan vuki', 15, true
 where not exists (select 1 from planes);
 
 alter table negocios drop constraint if exists negocios_plan_id_fkey;

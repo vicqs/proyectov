@@ -1,5 +1,6 @@
 import {
   Body,
+  Column,
   Container,
   Head,
   Heading,
@@ -12,6 +13,7 @@ import {
   Section,
   Text,
 } from "@react-email/components";
+import { MARCA } from "../lib/marca";
 
 export interface ReciboTuristaProps {
   negocioNombre: string;
@@ -57,15 +59,24 @@ export default function ReciboTurista({
       </Preview>
       <Body style={main}>
         <Container style={container}>
-          {negocioLogoUrl && (
-            <Img
-              src={negocioLogoUrl}
-              alt={negocioNombre}
-              width="56"
-              height="56"
-              style={logo}
-            />
-          )}
+          <Section>
+            <Row>
+              {negocioLogoUrl && (
+                <Column width="56" style={businessLogoCell}>
+                  <Img
+                    src={negocioLogoUrl}
+                    alt={negocioNombre}
+                    width="56"
+                    height="56"
+                    style={logo}
+                  />
+                </Column>
+              )}
+              <Column style={businessNameCell}>
+                <Text style={businessName}>{negocioNombre}</Text>
+              </Column>
+            </Row>
+          </Section>
 
           <Heading style={heading}>¡Reserva confirmada!</Heading>
 
@@ -78,20 +89,28 @@ export default function ReciboTurista({
 
           <Section style={detailsBox}>
             <Row>
-              <Text style={detailLabel}>Servicio</Text>
-              <Text style={detailValue}>{servicioNombre}</Text>
+              <Column>
+                <Text style={detailLabel}>Servicio</Text>
+                <Text style={detailValue}>{servicioNombre}</Text>
+              </Column>
             </Row>
             <Row>
-              <Text style={detailLabel}>Fecha y hora</Text>
-              <Text style={detailValue}>{fechaFormateada}</Text>
+              <Column>
+                <Text style={detailLabel}>Fecha y hora</Text>
+                <Text style={detailValue}>{fechaFormateada}</Text>
+              </Column>
             </Row>
             <Row>
-              <Text style={detailLabel}>Monto pagado</Text>
-              <Text style={detailValue}>${montoUsd.toFixed(2)} USD</Text>
+              <Column>
+                <Text style={detailLabel}>Monto pagado</Text>
+                <Text style={detailValue}>${montoUsd.toFixed(2)} USD</Text>
+              </Column>
             </Row>
             <Row>
-              <Text style={detailLabel}>ID de transacción</Text>
-              <Text style={detailValueMono}>{trxId}</Text>
+              <Column>
+                <Text style={detailLabel}>ID de transacción</Text>
+                <Text style={detailValueMono}>{trxId}</Text>
+              </Column>
             </Row>
           </Section>
 
@@ -100,7 +119,9 @@ export default function ReciboTurista({
           {gestionUrl && (
             <Text style={footerNote}>
               ¿Necesitas ver o cancelar tu reserva?{" "}
-              <Link href={gestionUrl}>Gestionar mi reserva</Link>
+              <Link href={gestionUrl} style={link}>
+                Gestionar mi reserva
+              </Link>
             </Text>
           )}
 
@@ -111,7 +132,13 @@ export default function ReciboTurista({
 
           {pie && <Text style={footerNote}>{pie}</Text>}
 
-          <Text style={footer}>{negocioNombre} · Turismo Link</Text>
+          <Text style={footer}>
+            {negocioNombre} · Reservado con{" "}
+            <span style={wordmark}>
+              {MARCA.nombre}
+              <span style={wordmarkDot}>.</span>
+            </span>
+          </Text>
         </Container>
       </Body>
     </Html>
@@ -129,30 +156,49 @@ ReciboTurista.PreviewProps = {
 } satisfies ReciboTuristaProps;
 
 const main = {
-  backgroundColor: "#f8fafc",
+  backgroundColor: MARCA.colores.fondo,
   fontFamily:
-    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
   padding: "24px 0",
 };
 
 const container = {
-  backgroundColor: "#ffffff",
-  borderRadius: "16px",
+  backgroundColor: MARCA.colores.blanco,
+  border: "1px solid #e2e8f0",
+  borderTop: `3px solid ${MARCA.colores.esmeralda}`,
+  borderRadius: "20px",
   margin: "0 auto",
   padding: "32px 24px",
   maxWidth: "480px",
 };
 
 const logo = {
+  display: "block" as const,
   borderRadius: "12px",
-  marginBottom: "16px",
-  objectFit: "cover" as const,
+};
+
+const businessLogoCell = {
+  padding: "0 16px 24px 0",
+  verticalAlign: "middle" as const,
+};
+
+const businessNameCell = {
+  padding: "0 0 24px",
+  verticalAlign: "middle" as const,
+};
+
+const businessName = {
+  fontSize: "18px",
+  fontWeight: 700,
+  color: MARCA.colores.oscuro,
+  lineHeight: "26px",
+  margin: "0",
 };
 
 const heading = {
   fontSize: "22px",
   fontWeight: 700,
-  color: "#0f172a",
+  color: MARCA.colores.oscuro,
   margin: "0 0 12px",
 };
 
@@ -164,7 +210,8 @@ const paragraph = {
 };
 
 const detailsBox = {
-  backgroundColor: "#f1f5f9",
+  backgroundColor: MARCA.colores.fondo,
+  border: "1px solid #e2e8f0",
   borderRadius: "12px",
   padding: "16px",
 };
@@ -178,7 +225,7 @@ const detailLabel = {
 const detailValue = {
   fontSize: "14px",
   fontWeight: 600,
-  color: "#0f172a",
+  color: MARCA.colores.oscuro,
   margin: "0 0 12px",
 };
 
@@ -193,6 +240,11 @@ const hr = {
   margin: "24px 0",
 };
 
+const link = {
+  color: "#0369a1",
+  textDecoration: "underline",
+};
+
 const footerNote = {
   fontSize: "13px",
   color: "#64748b",
@@ -201,7 +253,19 @@ const footerNote = {
 
 const footer = {
   fontSize: "12px",
-  color: "#94a3b8",
-  marginTop: "16px",
+  color: "#64748b",
+  lineHeight: "20px",
+  margin: "16px 0 0",
   textAlign: "center" as const,
+};
+
+const wordmark = {
+  color: MARCA.colores.oscuro,
+  fontSize: "14px",
+  fontWeight: 700,
+  letterSpacing: "-0.3px",
+};
+
+const wordmarkDot = {
+  color: MARCA.colores.esmeralda,
 };

@@ -49,7 +49,7 @@ export async function generateMetadata({
 
   if (!data || data.eliminado_en || data.suspendido) {
     return {
-      title: "Negocio no disponible — Turismo Link",
+      title: "Negocio no disponible",
       description: "Este negocio turístico no está disponible.",
       robots: { index: false, follow: false },
     };
@@ -64,6 +64,7 @@ export async function generateMetadata({
     title: titulo,
     description: descripcion,
     openGraph: {
+      siteName: "vuki",
       title: titulo,
       description: descripcion,
       images: [{ url: logo }],

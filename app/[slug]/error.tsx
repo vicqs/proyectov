@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { ServerCrash } from "lucide-react";
+import VLogo from "../../components/VLogo";
 
 /**
  * Error Boundary específico de la vista pública del negocio (`/[slug]`).
@@ -23,9 +24,10 @@ export default function NegocioError({
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-sky-50 to-white px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
-          <ServerCrash className="h-7 w-7 text-amber-600" />
+      <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <VLogo showText className="h-8 w-8" wordmarkClassName="text-2xl" />
+        <div className="mx-auto mb-4 mt-7 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50">
+          <ServerCrash className="h-7 w-7 text-amber-700" aria-hidden="true" />
         </div>
         <h1 className="text-lg font-semibold text-slate-900">
           No pudimos cargar este negocio
@@ -39,7 +41,7 @@ export default function NegocioError({
           <button
             type="button"
             onClick={() => reset()}
-            className="w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-sky-700"
+            className="vuki-focus min-h-12 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             Intentar de nuevo
           </button>

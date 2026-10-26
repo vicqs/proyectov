@@ -17,8 +17,11 @@ import type {
   ServicioPublico,
 } from "../lib/tipos-publicos";
 import { cn } from "../lib/cn";
+import { textoSobre } from "../lib/color";
 import { useTranslations } from "../lib/i18n";
 import AnimatedIconButton from "./AnimatedIconButton";
+import MarcaReserva from "./MarcaReserva";
+import VLogo from "./VLogo";
 
 type Paso = "horario" | "datos" | "pago" | "cargando" | "exito";
 
@@ -80,7 +83,7 @@ const variantesPaso = {
 
 /** Selector de elementos enfocables dentro de la trampa de foco del sheet. */
 const SELECTOR_ENFOCABLES =
-  'button:not([disabled]):not([tabindex="-1"]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  'a[href]:not([tabindex="-1"]), button:not([disabled]):not([tabindex="-1"]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * Bottom sheet premium (estilo iOS) para el checkout simulado. Se desliza
@@ -98,7 +101,7 @@ export default function AnimatedCheckoutSheet({
   reservasExistentes = [],
   onReservaConfirmada,
 }: AnimatedCheckoutSheetProps) {
-  const { t } = useTranslations();
+  const { t, locale } = useTranslations();
   const [paso, setPaso] = useState<Paso>("horario");
   const [direccion, setDireccion] = useState(1);
   const [horarioSeleccionado, setHorarioSeleccionado] =
@@ -253,7 +256,7 @@ export default function AnimatedCheckoutSheet({
           </AnimatedIconButton>
         )}
 
-        <div className="relative overflow-hidden">
+        <div className="relative min-h-0 overflow-y-auto overscroll-contain">
           <AnimatePresence mode="wait" custom={direccion}>
             {/* Paso 1: selección de horario */}
             {paso === "horario" && (
@@ -307,7 +310,10 @@ export default function AnimatedCheckoutSheet({
                         )}
                         style={{
                           ...(!reservado && seleccionado
-                            ? { backgroundColor: colorTema }
+                            ? {
+                                backgroundColor: colorTema,
+                                color: textoSobre(colorTema),
+                              }
                             : undefined),
                           ["--tw-ring-color" as string]: colorTema,
                         }}
@@ -320,7 +326,12 @@ export default function AnimatedCheckoutSheet({
                           </span>
                         )}
                         {!reservado && horario.cuposDisponibles <= 3 && (
-                          <span className="text-[10px] font-semibold text-amber-600">
+                          <span
+                            className={cn(
+                              "text-[10px] font-semibold",
+                              seleccionado ? "text-inherit" : "text-amber-800",
+                            )}
+                          >
                             {horario.cuposDisponibles} {t("quedan")}
                           </span>
                         )}
@@ -337,6 +348,7 @@ export default function AnimatedCheckoutSheet({
                   className="mt-10 h-14 w-full rounded-2xl text-base font-semibold text-white shadow-sm outline-none transition focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-30"
                   style={{
                     backgroundColor: colorTema,
+                    color: textoSobre(colorTema),
                     ["--tw-ring-color" as string]: colorTema,
                   }}
                 >
@@ -442,7 +454,7 @@ export default function AnimatedCheckoutSheet({
                       aria-label={t("quitar_persona")}
                       disabled={cupos <= 1}
                       onClick={() => setCupos((c) => Math.max(1, c - 1))}
-                      className="h-9 w-9 rounded-full bg-white text-lg font-semibold text-slate-700 shadow-sm disabled:opacity-30"
+                      className="vuki-focus h-11 w-11 rounded-full bg-white text-lg font-semibold text-slate-700 shadow-sm disabled:opacity-30"
                     >
                       −
                     </button>
@@ -456,7 +468,7 @@ export default function AnimatedCheckoutSheet({
                         cupos >= (horarioSeleccionado?.cuposDisponibles ?? 1)
                       }
                       onClick={() => setCupos((c) => c + 1)}
-                      className="h-9 w-9 rounded-full bg-white text-lg font-semibold text-slate-700 shadow-sm disabled:opacity-30"
+                      className="vuki-focus h-11 w-11 rounded-full bg-white text-lg font-semibold text-slate-700 shadow-sm disabled:opacity-30"
                     >
                       +
                     </button>
@@ -471,6 +483,7 @@ export default function AnimatedCheckoutSheet({
                   className="mt-10 h-14 w-full rounded-2xl text-base font-semibold text-white shadow-sm outline-none transition focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-30"
                   style={{
                     backgroundColor: colorTema,
+                    color: textoSobre(colorTema),
                     ["--tw-ring-color" as string]: colorTema,
                   }}
                 >
@@ -587,7 +600,7 @@ export default function AnimatedCheckoutSheet({
                   disabled={!pagoValido}
                   onClick={handleConfirmarPago}
                   whileTap={{ scale: 0.97 }}
-                  className="mt-10 h-14 w-full rounded-2xl bg-emerald-600 text-base font-semibold text-white shadow-sm outline-none transition hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-30"
+                  className="mt-10 h-14 w-full rounded-2xl bg-emerald-700 text-base font-semibold text-white shadow-sm outline-none transition hover:bg-emerald-800 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-30"
                 >
                   {t("pagar")} ${(servicio.precioUsd * cupos).toFixed(2)}
                 </motion.button>
@@ -632,6 +645,17 @@ export default function AnimatedCheckoutSheet({
                 role="status"
                 aria-live="polite"
               >
+                <div className="mb-6 rounded-2xl bg-slate-900 px-4 py-4 pr-10 text-white">
+                  <VLogo
+                    showText
+                    tone="light"
+                    className="h-6 w-6"
+                    wordmarkClassName="text-xl"
+                  />
+                  <p className="mt-2 text-xs font-medium text-emerald-200">
+                    {t("reserva_confirmada")}
+                  </p>
+                </div>
                 <div className="flex flex-col items-center text-center">
                   <motion.div
                     initial={{ scale: 0 }}
@@ -723,6 +747,9 @@ export default function AnimatedCheckoutSheet({
                 >
                   {t("listo")}
                 </motion.button>
+                <div className="mt-3 flex justify-center">
+                  <MarcaReserva idioma={locale} />
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

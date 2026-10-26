@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { CreditCard } from "lucide-react";
+import PaginaPublica from "@/components/PaginaPublica";
 import { requerirEmpresa } from "@/lib/empresa";
 import { isStripeMockMode } from "@/lib/stripe";
 import {
@@ -31,42 +32,37 @@ export default async function SuscripcionSimuladaPage({ params }: PageProps) {
   const cancelar = cancelarSuscripcionSimuladaAction.bind(null, negocio.slug);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center gap-2 text-slate-400">
-          <CreditCard className="h-5 w-5" />
-          <span className="text-xs font-medium uppercase tracking-wide">
-            Stripe Checkout (simulado)
-          </span>
-        </div>
-
-        <h1 className="text-lg font-semibold text-slate-900">
-          Suscripción Turismo Link
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">{negocio.nombre}</p>
-
-        <div className="my-4 rounded-lg bg-slate-50 p-4">
-          <p className="text-xs text-slate-500">Total a pagar (mensual)</p>
-          <p className="text-2xl font-bold text-slate-900">$15.00</p>
-        </div>
-
-        <form action={confirmar}>
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-sky-700"
-          >
-            Confirmar suscripción (simulado)
-          </button>
-        </form>
-        <form action={cancelar} className="mt-2">
-          <button
-            type="submit"
-            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-          >
-            Cancelar
-          </button>
-        </form>
+    <PaginaPublica
+      titulo="Suscripción vuki"
+      descripcion={negocio.nombre}
+      etiqueta="Stripe Checkout (simulado)"
+      icono={<CreditCard className="h-4 w-4" />}
+    >
+      <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5">
+        <p className="text-xs font-medium text-emerald-800">
+          Total a pagar (mensual)
+        </p>
+        <p className="mt-1 font-display text-3xl font-bold tracking-tight text-vuki-ink">
+          $15.00
+        </p>
       </div>
-    </main>
+
+      <form action={confirmar}>
+        <button
+          type="submit"
+          className="vuki-focus min-h-12 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+        >
+          Confirmar suscripción (simulado)
+        </button>
+      </form>
+      <form action={cancelar} className="mt-2">
+        <button
+          type="submit"
+          className="vuki-focus min-h-12 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+        >
+          Cancelar
+        </button>
+      </form>
+    </PaginaPublica>
   );
 }

@@ -1,24 +1,25 @@
 # 🗄️ Estructura de Datos — Esquema Relacional Proyectado
 
-Este documento describe el **esquema relacional** de Proyecto V en Supabase/PostgreSQL, tal como lo modela [types/database.ts](../../types/database.ts) (`negocios`, `servicios`, `reservas`, `horarios`).
+Este documento describe el **esquema relacional** de vuki en Supabase/PostgreSQL, tal como lo modela [types/database.ts](../../types/database.ts) (`negocios`, `servicios`, `reservas`, `horarios`).
 
+> **Alcance proyectado:** los campos y tiers de $25/$40 se conservan como propuesta, no como migración de BD ni cambio de los planes/precios operativos. Las referencias a TiloPay/OnvoPay son futuras: **no están implementados** y los pagos de reservas siguen simulados. Stripe mantiene su función actual de cobro de suscripciones SaaS, sin cambios por el rebranding.
 
 ## 1. 🏢 `Company` (Pyme)
 
 Representa a cada negocio turístico suscrito a la plataforma (equivalente a `Negocio` / `negocios` en el modelo actual).
 
-| Campo                  | Tipo                                          | Descripción                                                                                                                                                                                                                                                                                             |
-| ---------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                   | `uuid` (PK)                                   | Identificador único del negocio                                                                                                                                                                                                                                                                         |
-| `slug`                 | `text` (unique)                               | Identificador legible en la URL pública (ej. `surf-tamarindo`)                                                                                                                                                                                                                                          |
-| `nombre`               | `text`                                        | Nombre comercial del negocio                                                                                                                                                                                                                                                                            |
-| `email_contacto`       | `text`                                        | Correo de contacto/administración                                                                                                                                                                                                                                                                       |
-| `color_tema`           | `text`                                        | Color de marca (hex) usado para personalizar el perfil público                                                                                                                                                                                                                                          |
-| `plan_suscripcion`     | `text` (`"esencial" \| "pro"`)                | Plan contratado ($25 o $40/mes — ver [docs/Reglas_Negocio.md](../Reglas_Negocio.md))                                                                                                                                                                                                                       |
-| `estado_suscripcion`   | `text` (`"activa" \| "inactiva" \| "prueba"`) | Estado actual del pago de la suscripción SaaS                                                                                                                                                                                                                                                           |
-| `fecha_proximo_cobro`  | `timestamp`                                   | Próxima fecha de cobro de la suscripción                                                                                                                                                                                                                                                                |
-| `cuenta_bancaria_info` | `jsonb`                                       | Metadatos de la cuenta/credenciales de la pasarela (TiloPay/OnvoPay) del negocio — **nunca** número de tarjeta ni datos sensibles; solo referencias/tokens de la pasarela, ya que los fondos nunca pasan por Proyecto V (ver [docs/Reglas_Negocio.md](../Reglas_Negocio.md#3-🏦-flujo-financiero-y-legal)) |
-| `created_at`           | `timestamp`                                   | Fecha de creación del registro                                                                                                                                                                                                                                                                          |
+| Campo                  | Tipo                                          | Descripción                                                                                                                                                                                                                                                                                        |
+| ---------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                   | `uuid` (PK)                                   | Identificador único del negocio                                                                                                                                                                                                                                                                    |
+| `slug`                 | `text` (unique)                               | Identificador legible en la URL pública (ej. `surf-tamarindo`)                                                                                                                                                                                                                                     |
+| `nombre`               | `text`                                        | Nombre comercial del negocio                                                                                                                                                                                                                                                                       |
+| `email_contacto`       | `text`                                        | Correo de contacto/administración                                                                                                                                                                                                                                                                  |
+| `color_tema`           | `text`                                        | Color de marca (hex) usado para personalizar el perfil público                                                                                                                                                                                                                                     |
+| `plan_suscripcion`     | `text` (`"esencial" \| "pro"`)                | Plan propuesto ($25 o $40/mes; no sustituye tarifas operativas — ver [docs/Reglas_Negocio.md](../Reglas_Negocio.md))                                                                                                                                                                               |
+| `estado_suscripcion`   | `text` (`"activa" \| "inactiva" \| "prueba"`) | Estado actual del pago de la suscripción SaaS                                                                                                                                                                                                                                                      |
+| `fecha_proximo_cobro`  | `timestamp`                                   | Próxima fecha de cobro de la suscripción                                                                                                                                                                                                                                                           |
+| `cuenta_bancaria_info` | `jsonb`                                       | Metadatos previstos de la cuenta/pasarela futura (TiloPay/OnvoPay) del negocio — **nunca** número de tarjeta ni datos sensibles; solo referencias/tokens de la pasarela, ya que los fondos nunca pasan por vuki (ver [docs/Reglas_Negocio.md](../Reglas_Negocio.md#3-🏦-flujo-financiero-y-legal)) |
+| `created_at`           | `timestamp`                                   | Fecha de creación del registro                                                                                                                                                                                                                                                                     |
 
 ## 2. 🏄 `Service` (Servicio, ej. Clase de Surf)
 
@@ -59,16 +60,16 @@ Reservas confirmadas y pagadas por turistas.
 
 Franjas horarias disponibles por servicio, con control de capacidad.
 
-| Campo               | Tipo                       | Descripción                                                                                       |
-| ------------------- | -------------------------- | ------------------------------------------------------------------------------------------------- |
-| `id`                | `uuid` (PK)                | Identificador único del horario                                                                   |
-| `service_id`        | `uuid` (FK → `Service.id`) | Servicio al que pertenece el horario                                                              |
-| `dia_semana`        | `integer` (`0`–`6`)        | Día de la semana (para horarios recurrentes) o `null` si es fecha específica                      |
-| `fecha_hora`        | `timestamp`                | Fecha y hora exacta de la sesión (para instancias puntuales) |
-| `horas_disponibles` | `text[]` / `jsonb`         | Lista de horas disponibles cuando el horario es recurrente por día de semana                      |
-| `max_capacidad`     | `integer`                  | Cupos totales disponibles (equivalente a `cuposTotales`)                                          |
-| `cupos_disponibles` | `integer`                  | Cupos aún no reservados (se decrementa con cada `Booking`)                                        |
-| `created_at`        | `timestamp`                | Fecha de creación del registro                                                                    |
+| Campo               | Tipo                       | Descripción                                                                  |
+| ------------------- | -------------------------- | ---------------------------------------------------------------------------- |
+| `id`                | `uuid` (PK)                | Identificador único del horario                                              |
+| `service_id`        | `uuid` (FK → `Service.id`) | Servicio al que pertenece el horario                                         |
+| `dia_semana`        | `integer` (`0`–`6`)        | Día de la semana (para horarios recurrentes) o `null` si es fecha específica |
+| `fecha_hora`        | `timestamp`                | Fecha y hora exacta de la sesión (para instancias puntuales)                 |
+| `horas_disponibles` | `text[]` / `jsonb`         | Lista de horas disponibles cuando el horario es recurrente por día de semana |
+| `max_capacidad`     | `integer`                  | Cupos totales disponibles (equivalente a `cuposTotales`)                     |
+| `cupos_disponibles` | `integer`                  | Cupos aún no reservados (se decrementa con cada `Booking`)                   |
+| `created_at`        | `timestamp`                | Fecha de creación del registro                                               |
 
 ## 🔗 Relaciones
 
@@ -80,4 +81,3 @@ Company (1) ──< Service (N) ──< Schedule (N) ──< Booking (N)
 - Un `Service` tiene muchos `Schedule` (franjas horarias).
 - Un `Schedule` tiene muchas `Booking` (hasta agotar `max_capacidad`).
 - `Booking.service_id` se mantiene como referencia directa además de `schedule_id` para simplificar reportes y queries de finanzas sin necesidad de join adicional.
-

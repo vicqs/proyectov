@@ -47,6 +47,10 @@ const diccionario = {
     personas: "Personas (cupos)",
     quitar_persona: "Quitar una persona",
     agregar_persona: "Agregar una persona",
+    enlace_no_disponible: "Enlace no disponible",
+    agenda_inactiva:
+      "La agenda de este negocio no está disponible temporalmente.",
+    reserva_confirmada: "Tu reserva está confirmada",
   },
   en: {
     servicios_disponibles: "Available services",
@@ -81,6 +85,9 @@ const diccionario = {
     personas: "Guests",
     quitar_persona: "Remove one guest",
     agregar_persona: "Add one guest",
+    enlace_no_disponible: "Link unavailable",
+    agenda_inactiva: "This business's booking page is temporarily unavailable.",
+    reserva_confirmada: "Your booking is confirmed",
   },
 } as const;
 

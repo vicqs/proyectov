@@ -35,15 +35,7 @@ export default function ServicioCard({
       whileHover={{ y: -6 }}
       whileTap={{ scale: 0.97 }}
       transition={{ type: "spring", stiffness: 300, damping: 22 }}
-      aria-label={
-        servicio.nombre +
-        " — $" +
-        servicio.precioUsd.toFixed(2) +
-        ", " +
-        servicio.duracionMin +
-        " min"
-      }
-      className="group relative block h-64 w-full overflow-hidden rounded-3xl text-left shadow-sm outline-none transition-shadow duration-300 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-offset-2 sm:h-72"
+      className="group relative block h-64 w-full overflow-hidden rounded-3xl text-left shadow-sm outline-none transition-shadow duration-300 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none sm:h-72"
       style={{ ["--tw-ring-color" as string]: colorTema }}
     >
       <Image
@@ -53,7 +45,7 @@ export default function ServicioCard({
         fill
         loading={prioritaria ? "eager" : "lazy"}
         sizes="(max-width: 640px) 100vw, 480px"
-        className="object-cover transition-transform duration-500 group-hover:scale-105"
+        className="object-cover transition-transform duration-500 group-hover:scale-105 motion-reduce:transform-none motion-reduce:transition-none"
       />
 
       {/* Degradado oscuro para legibilidad del texto */}

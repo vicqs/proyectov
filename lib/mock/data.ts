@@ -227,7 +227,7 @@ export const mockPerfiles: Perfil[] = [
 export const mockPlanes: Plan[] = [
   {
     id: ID_PLAN,
-    nombre: "Plan Turismo Link",
+    nombre: "Plan vuki",
     precio_usd: 15,
     stripe_price_id: null,
     activo: true,

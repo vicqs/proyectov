@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
+import VLogo from "../components/VLogo";
 
 /**
  * Error Boundary raíz de toda la aplicación. Next.js lo usa cuando un error
@@ -24,9 +25,13 @@ export default function GlobalError({
     <html lang="es">
       <body>
         <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100">
-              <AlertTriangle className="h-7 w-7 text-red-600" />
+          <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <VLogo showText className="h-8 w-8" wordmarkClassName="text-2xl" />
+            <div className="mx-auto mb-4 mt-7 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50">
+              <AlertTriangle
+                className="h-7 w-7 text-red-600"
+                aria-hidden="true"
+              />
             </div>
             <h1 className="text-lg font-semibold text-slate-900">
               Algo salió mal
@@ -43,7 +48,7 @@ export default function GlobalError({
             <button
               type="button"
               onClick={() => reset()}
-              className="mt-6 w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-sky-700"
+              className="vuki-focus mt-6 min-h-12 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
               Intentar de nuevo
             </button>

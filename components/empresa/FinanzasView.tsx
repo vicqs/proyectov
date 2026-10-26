@@ -164,7 +164,12 @@ export default function FinanzasView({
                 Aún no hay pagos procesados para este negocio.
               </p>
             ) : (
-              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div
+                role="region"
+                aria-label="Pagos procesados"
+                tabIndex={0}
+                className="vuki-focus overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"
+              >
                 <table className="min-w-full text-left text-sm">
                   <thead className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                     <tr>

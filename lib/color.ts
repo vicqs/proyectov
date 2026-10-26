@@ -1,7 +1,9 @@
-/** Colores de marca: valores por defecto, validación y utilidades de contraste. */
+import { MARCA } from "./marca";
 
-export const COLOR_PRIMARIO_DEFECTO = "#0284c7";
-export const COLOR_SECUNDARIO_DEFECTO = "#6366f1";
+/** Los colores guardados por cada negocio siempre prevalecen sobre estos defaults. */
+
+export const COLOR_PRIMARIO_DEFECTO = MARCA.colores.azul;
+export const COLOR_SECUNDARIO_DEFECTO = MARCA.colores.esmeralda;
 
 export const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
@@ -15,7 +17,11 @@ export const PARES_MARCA: {
   primario: string;
   secundario: string;
 }[] = [
-  { nombre: "Océano", primario: "#0284c7", secundario: "#6366f1" },
+  {
+    nombre: "Océano",
+    primario: MARCA.colores.azul,
+    secundario: MARCA.colores.esmeralda,
+  },
   { nombre: "Selva", primario: "#059669", secundario: "#0d9488" },
   { nombre: "Atardecer", primario: "#ea580c", secundario: "#db2777" },
   { nombre: "Café", primario: "#b45309", secundario: "#65a30d" },

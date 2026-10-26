@@ -23,6 +23,9 @@ export const SLUGS_RESERVADOS_BASE = [
   "robots.txt",
   "sitemap.xml",
   "favicon.ico",
+  "icon.svg",
+  "apple-icon",
+  "opengraph-image",
   "_next",
   "static",
   "public",
@@ -149,7 +152,7 @@ export async function slugReservado(slug: string): Promise<boolean> {
 
 const PLAN_RESPALDO: Plan = {
   id: "respaldo",
-  nombre: "Plan Turismo Link",
+  nombre: "Plan vuki",
   precio_usd: PRECIO_POR_DEFECTO_USD,
   stripe_price_id: null,
   activo: true,

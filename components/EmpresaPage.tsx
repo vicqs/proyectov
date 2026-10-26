@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import EncabezadoPanel from "./EncabezadoPanel";
 
 interface EmpresaPageProps {
   titulo: string;
@@ -18,21 +19,14 @@ export default function EmpresaPage({
   children,
 }: EmpresaPageProps) {
   return (
-    <main className="mx-auto max-w-6xl px-6 py-12 sm:px-10 2xl:max-w-7xl">
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-      >
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            {titulo}
-          </h1>
-          {descripcion && (
-            <p className="mt-1 text-sm text-slate-600">{descripcion}</p>
-          )}
-        </div>
-        {accion}
+    <main className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8 2xl:max-w-7xl">
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+        <EncabezadoPanel
+          contexto="empresa"
+          titulo={titulo}
+          descripcion={descripcion}
+          accion={accion}
+        />
       </motion.div>
       <div className="mt-8">{children}</div>
     </main>
@@ -105,13 +99,26 @@ export function KpiCard({
   acento?: boolean;
 }) {
   return (
-    <ItemLista className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-slate-600">
-        {icono}
-        {titulo}
-      </p>
+    <ItemLista
+      className={`relative min-w-0 overflow-hidden rounded-3xl border bg-white p-5 shadow-sm shadow-slate-900/[0.03] ${acento ? "border-(--marca-2-borde)" : "border-(--marca-borde)"}`}
+    >
+      <div
+        aria-hidden="true"
+        className={`absolute inset-x-0 top-0 h-0.5 ${acento ? "bg-(--marca-2)" : "bg-(--marca)"}`}
+      />
+      <div className="flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${acento ? "bg-(--marca-2-fondo) text-(--marca-2-texto)" : "bg-(--marca-fondo) text-(--marca-texto)"}`}
+        >
+          {icono}
+        </span>
+        <p className="text-xs font-semibold leading-relaxed text-slate-600">
+          {titulo}
+        </p>
+      </div>
       <p
-        className={`mt-2 text-2xl font-bold ${acento ? "text-emerald-600" : "text-slate-900"}`}
+        className={`mt-4 break-words font-display text-2xl font-bold tracking-tight ${acento ? "text-(--marca-2-texto)" : "text-vuki-ink"}`}
       >
         {valor}
       </p>

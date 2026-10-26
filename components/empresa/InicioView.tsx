@@ -135,7 +135,7 @@ export default function InicioView({
             : ""}
         </p>
       )}
-      <Lista className="grid grid-cols-2 gap-4">
+      <Lista className="grid grid-cols-1 gap-4 min-[390px]:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           icono={<CalendarCheck className="h-3.5 w-3.5" aria-hidden="true" />}
           titulo="Reservas"
@@ -145,6 +145,7 @@ export default function InicioView({
           icono={<DollarSign className="h-3.5 w-3.5" aria-hidden="true" />}
           titulo="Total cobrado"
           valor={`$${totalCobrado.toFixed(2)}`}
+          acento
         />
         {reservasHoy !== undefined && (
           <KpiCard
@@ -158,6 +159,7 @@ export default function InicioView({
             icono={<TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />}
             titulo="Cobrado (7 días)"
             valor={`$${ingresosSemana.toFixed(2)}`}
+            acento
           />
         )}
       </Lista>
@@ -189,12 +191,14 @@ export default function InicioView({
       )}
 
       <section className="mt-8">
-        <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-slate-600">
-          <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+        <h2 className="mb-4 flex items-center gap-3 font-display text-lg font-semibold tracking-tight text-vuki-ink">
+          <span className="rounded-xl bg-(--marca-fondo) p-2 text-(--marca-texto)">
+            <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+          </span>
           Próximas reservas
         </h2>
         {proximasReservas.length === 0 ? (
-          <p className="text-sm text-slate-500">
+          <p className="rounded-2xl border border-dashed border-(--marca-borde) bg-(--marca-fondo) p-5 text-sm leading-relaxed text-slate-600">
             No tienes reservas pendientes o pagadas por ahora.
           </p>
         ) : (
@@ -203,9 +207,9 @@ export default function InicioView({
               <ItemLista
                 as="li"
                 key={reserva.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-(--marca-borde) bg-white p-4 shadow-sm shadow-slate-900/[0.03]"
               >
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
                   <span
                     className="flex items-center gap-1.5"
                     suppressHydrationWarning
@@ -219,7 +223,7 @@ export default function InicioView({
                       timeStyle: "short",
                     })}
                   </span>
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex min-w-0 items-center gap-1.5 [overflow-wrap:anywhere]">
                     <Mail
                       className="h-4 w-4 text-slate-400"
                       aria-hidden="true"
@@ -239,33 +243,34 @@ export default function InicioView({
       </section>
 
       <section className="mt-8">
-        <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-slate-600">
-          <ListChecks className="h-4 w-4" aria-hidden="true" />
+        <h2 className="mb-4 flex items-center gap-3 font-display text-lg font-semibold tracking-tight text-vuki-ink">
+          <span className="rounded-xl bg-(--marca-2-fondo) p-2 text-(--marca-2-texto)">
+            <ListChecks className="h-4 w-4" aria-hidden="true" />
+          </span>
           Tus servicios
         </h2>
         {servicios.length === 0 ? (
-          <p className="text-sm text-slate-500">Aún no has creado servicios.</p>
+          <p className="rounded-2xl border border-dashed border-(--marca-2-borde) bg-(--marca-2-fondo) p-5 text-sm text-slate-600">
+            Aún no has creado servicios.
+          </p>
         ) : (
           <Lista className="space-y-3">
             {servicios.map((servicio) => (
               <ItemLista
                 key={servicio.id}
-                className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-(--marca-2-borde) bg-white p-5 shadow-sm shadow-slate-900/[0.03]"
               >
                 <div>
                   <p className="font-semibold text-slate-900">
                     {servicio.nombre}
                   </p>
-                  <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-600">
                     <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                     {servicio.duracionMin} min
                   </p>
                 </div>
-                <span className="flex items-center gap-1 text-lg font-bold text-slate-900">
-                  <DollarSign
-                    className="h-4 w-4 text-gray-400"
-                    aria-hidden="true"
-                  />
+                <span className="flex items-center gap-1 rounded-full bg-(--marca-2-fondo) px-3 py-1 font-display text-lg font-bold text-(--marca-2-texto)">
+                  <DollarSign className="h-4 w-4" aria-hidden="true" />
                   {servicio.precioUsd.toFixed(2)}
                 </span>
               </ItemLista>

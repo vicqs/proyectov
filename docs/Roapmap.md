@@ -1,6 +1,8 @@
-# 🗺️ Roadmap — Proyecto V
+# 🗺️ Roadmap — vuki
 
 Roadmap de desarrollo estructurado en 3 fases, desde el prototipo actual hasta el lanzamiento beta con pymes piloto. Usa checkboxes para llevar seguimiento accionable del avance.
+
+> **Lectura del roadmap:** se conservan las casillas como seguimiento histórico de las fases, no como auditoría del estado actual ni como validación del rebranding. La integración de suscripciones con **Stripe** ya existe y no se modifica; se mantienen los planes/precios configurados y el respaldo de **$15 USD**. Los tiers **Esencial ($25)** / **Pro ($40)** son aspiracionales; **TiloPay/OnvoPay no están implementados** y los pagos de reservas siguen simulados.
 
 ---
 

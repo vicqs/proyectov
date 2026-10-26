@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CalendarCheck } from "lucide-react";
 import { supabaseAdmin } from "../../../lib/supabase";
 import {
   etiquetaHorario,
@@ -8,10 +9,12 @@ import {
 } from "../../../lib/horarios";
 import type { Negocio, Reserva, Servicio } from "../../../types/database";
 import CancelarReservaButton from "./CancelarReservaButton";
+import MarcaReserva from "../../../components/MarcaReserva";
+import PaginaPublica from "../../../components/PaginaPublica";
 
 // Enlace privado: no debe indexarse ni compartirse en buscadores.
 export const metadata: Metadata = {
-  title: "Mi reserva — Turismo Link",
+  title: "Mi reserva",
   robots: { index: false, follow: false },
 };
 
@@ -78,19 +81,22 @@ export default async function ReservaPublicaPage({
   if (reserva.trx_id) filas.push(["ID de transacción", reserva.trx_id]);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-12">
-      <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-        Tu reserva
-      </h1>
-      <p className="mt-1 text-sm text-gray-500">
-        A nombre de {reserva.nombre_cliente || reserva.email_cliente}
-      </p>
-
-      <dl className="mt-6 divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white px-5 shadow-sm">
+    <PaginaPublica
+      titulo="Tu reserva"
+      etiqueta="Gestiona tu experiencia"
+      icono={<CalendarCheck className="h-4 w-4" />}
+      descripcion={`A nombre de ${reserva.nombre_cliente || reserva.email_cliente}`}
+      pie={
+        <div className="flex justify-center">
+          <MarcaReserva />
+        </div>
+      }
+    >
+      <dl className="divide-y divide-sky-100 rounded-2xl border border-sky-100 bg-sky-50/30 px-4">
         {filas.map(([etiqueta, valor]) => (
           <div key={etiqueta} className="flex justify-between gap-4 py-3">
-            <dt className="text-sm text-gray-500">{etiqueta}</dt>
-            <dd className="text-right text-sm font-medium text-slate-900">
+            <dt className="text-sm text-slate-600">{etiqueta}</dt>
+            <dd className="min-w-0 break-words text-right text-sm font-medium text-slate-900">
               {valor}
             </dd>
           </div>
@@ -128,11 +134,11 @@ export default async function ReservaPublicaPage({
       {negocio && (
         <Link
           href={`/${negocio.slug}`}
-          className="mt-6 text-center text-sm font-semibold text-sky-600 hover:underline"
+          className="vuki-focus mt-6 flex min-h-11 items-center justify-center rounded-lg text-center text-sm font-semibold text-sky-800 hover:underline"
         >
           Volver a {negocio.nombre}
         </Link>
       )}
-    </main>
+    </PaginaPublica>
   );
 }

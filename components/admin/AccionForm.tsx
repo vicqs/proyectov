@@ -10,7 +10,7 @@ type Accion = (
 ) => Promise<ResultadoAccion>;
 
 const VARIANTES = {
-  primario: "bg-sky-600 text-white hover:bg-sky-700",
+  primario: "bg-vuki-ink text-white hover:bg-slate-800",
   peligro: "bg-red-600 text-white hover:bg-red-700",
   neutro: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
 } as const;
@@ -66,9 +66,11 @@ export function AccionForm({
       <button
         type="submit"
         disabled={pendiente || deshabilitado}
-        className={`inline-flex min-h-10 items-center whitespace-nowrap justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${VARIANTES[variante]}`}
+        className={`vuki-focus inline-flex min-h-11 items-center whitespace-nowrap justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${VARIANTES[variante]}`}
       >
-        {pendiente && <Loader2 className="h-4 w-4 animate-spin" />}
+        {pendiente && (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        )}
         {boton}
       </button>
       {estado.error && (
@@ -77,7 +79,7 @@ export function AccionForm({
         </p>
       )}
       {estado.ok && !estado.error && (
-        <p role="status" className="w-full text-sm text-emerald-600">
+        <p role="status" className="w-full text-sm text-emerald-700">
           {estado.ok}
         </p>
       )}

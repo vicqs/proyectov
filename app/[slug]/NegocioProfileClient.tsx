@@ -4,9 +4,10 @@ import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { MessageCircle, ShieldAlert } from "lucide-react";
+import { MessageCircle, Unlink } from "lucide-react";
 import AnimatedCheckoutSheet from "../../components/AnimatedCheckoutSheet";
 import ServicioCard from "../../components/ServicioCard";
+import MarcaReserva from "../../components/MarcaReserva";
 import type { HorarioPublico, ServicioPublico } from "../../lib/tipos-publicos";
 import { LocaleProvider, useTranslations } from "../../lib/i18n";
 import { reservarYPagarAction } from "../../actions/pago-simulado";
@@ -100,17 +101,26 @@ function NegocioProfileContenido({
 
   if (!suscripcionActiva) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-white px-6 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-          <ShieldAlert className="h-8 w-8 text-red-600" aria-hidden="true" />
+      <main className="flex min-h-[85svh] flex-col items-center justify-center bg-slate-50 px-6 py-16 text-center">
+        <div className="w-full max-w-sm rounded-3xl border border-slate-200/80 bg-white px-6 py-10 shadow-xl shadow-slate-900/5 sm:px-8">
+          <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-3xl bg-sky-50 text-sky-700">
+            <Unlink
+              className="h-11 w-11"
+              strokeWidth={1.5}
+              aria-hidden="true"
+            />
+          </div>
+          <p className="mt-7 break-words text-xs font-medium text-slate-500">
+            {negocio.nombre}
+          </p>
+          <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-slate-900">
+            {t("enlace_no_disponible")}
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600">
+            {t("agenda_inactiva")}
+          </p>
+          <MarcaReserva idioma={locale} className="mt-7" />
         </div>
-        <h1 className="mt-6 text-2xl font-bold tracking-tight text-slate-900">
-          Enlace no disponible
-        </h1>
-        <p className="mt-2 max-w-sm text-sm leading-relaxed text-slate-600">
-          {negocio.nombre} no tiene una suscripción activa en este momento, por
-          lo que su enlace público de reservas no está disponible.
-        </p>
       </main>
     );
   }
@@ -246,6 +256,9 @@ function NegocioProfileContenido({
             </motion.div>
           )}
         </section>
+        <div className="mt-10 flex justify-center border-t border-slate-100 pt-5">
+          <MarcaReserva idioma={locale} />
+        </div>
       </div>
 
       <AnimatePresence>

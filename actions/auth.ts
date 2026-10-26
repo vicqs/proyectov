@@ -53,7 +53,7 @@ export async function loginAction(
   if (perfil?.bloqueado) {
     await supabase.auth.signOut();
     return {
-      error: "Tu cuenta está bloqueada. Contacta a soporte de Turismo Link.",
+      error: "Tu cuenta está bloqueada. Contacta a soporte de vuki.",
     };
   }
   if (rolEfectivo(user?.email, perfil?.rol_admin)) redirect("/admin");

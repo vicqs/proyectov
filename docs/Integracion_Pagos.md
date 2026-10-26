@@ -1,12 +1,14 @@
 # 💰 Integración de Pagos — Arquitectura de Cobro
 
-Este documento detalla la arquitectura de cobro de Proyecto V: cómo se levanta el modal de pago en el frontend sin tocar datos de tarjeta, cómo se reciben las confirmaciones vía webhook en el backend, y los estados posibles de una transacción.
+Este documento detalla la arquitectura de cobro de vuki: cómo se plantea levantar el modal de pago en el frontend sin tocar datos de tarjeta, recibir las confirmaciones vía webhook en el backend y representar los estados posibles de una transacción.
+
+> **Estado operativo (2026-10-26):** Stripe se utiliza para las suscripciones SaaS y los pagos de reservas turísticas siguen simulados. **TiloPay/OnvoPay no están implementados**. Las secciones sobre sus modales y webhooks describen la arquitectura objetivo, no capacidades activadas por el rebranding; no se cambian precios, planes ni la integración actual con Stripe.
 
 ## 1. 🖼️ Flujo del modal (Frontend) — Cumplimiento PCI
 
-El frontend **nunca captura ni almacena datos de tarjeta directamente**. En lugar de un formulario propio de tarjeta, la integración real con **TiloPay** u **OnvoPay** funciona levantando su **Modal/Iframe seguro** (hosted fields), embebido dentro del mismo paso `"pago"` del flujo de checkout ([components/AnimatedCheckoutSheet.tsx](../components/AnimatedCheckoutSheet.tsx)).
+En una integración real, el frontend **no debe capturar ni almacenar datos de tarjeta directamente**. En lugar de un formulario propio de tarjeta, la propuesta con **TiloPay** u **OnvoPay** contempla su **Modal/Iframe seguro** (hosted fields), embebido dentro del mismo paso `"pago"` del flujo de checkout ([components/AnimatedCheckoutSheet.tsx](../components/AnimatedCheckoutSheet.tsx)).
 
-### Cómo funciona
+### Flujo previsto para una integración real
 
 1. El turista completa los pasos previos (servicio, horario, datos personales — ver [docs/Flujo_Reservas.md](Flujo_Reservas.md)).
 2. Al llegar al paso de pago, el frontend solicita al backend (Route Handler, ej. [app/api/checkout/route.ts](../app/api/checkout/route.ts)) la creación de una **reserva en estado `pendiente`** y, con esa referencia (`reserva_id`), inicia una sesión/intención de pago con la pasarela.
@@ -15,20 +17,20 @@ El frontend **nunca captura ni almacena datos de tarjeta directamente**. En luga
 
 ### Por qué esto importa (PCI-DSS)
 
-- Al delegar la captura de datos sensibles al iframe de la pasarela, **el alcance de cumplimiento PCI-DSS de Proyecto V se reduce drásticamente** (SAQ-A en vez de SAQ-D): nuestros servidores y frontend nunca "tocan", transmiten ni almacenan el PAN (número de tarjeta) completo.
-- Esto es coherente con el rol de "puente tecnológico, no PayFac" descrito en [docs/Reglas_Negocio.md](Reglas_Negocio.md): Proyecto V no maneja fondos ni datos de pago, solo orquesta la experiencia de usuario.
+- En la arquitectura objetivo, delegar la captura de datos sensibles al iframe de la pasarela busca **reducir el alcance de cumplimiento PCI-DSS de vuki**, evitando que nuestros servidores y frontend "toquen", transmitan o almacenen el PAN (número de tarjeta) completo. La clasificación aplicable (por ejemplo, SAQ-A frente a SAQ-D) no queda validada por este rebranding.
+- Esto es coherente con el rol de "puente tecnológico, no PayFac" descrito en [docs/Reglas_Negocio.md](Reglas_Negocio.md): vuki no maneja fondos ni datos de pago, solo orquesta la experiencia de usuario.
 
-> ⚠️ **Estado actual (simulado)**: el paso `"pago"` de `AnimatedCheckoutSheet.tsx` hoy simula estos campos con inputs propios (`numeroTarjeta`, `vencimiento`, `cvc`) únicamente para fines de demostración visual — **no se conecta a ninguna pasarela real todavía** y no debe usarse en producción tal cual. Ver [docs/Roapmap.md](Roapmap.md#⚙️-fase-2-mvp-técnico).
+> ⚠️ **Estado actual (simulado)**: el paso `"pago"` de [components/AnimatedCheckoutSheet.tsx](../components/AnimatedCheckoutSheet.tsx) simula campos de tarjeta únicamente para demostración visual — **no se conecta a una pasarela real de reservas** y no debe usarse en producción tal cual ni introducirse información de tarjetas reales. Esto no sustituye ni altera el cobro de suscripciones con Stripe. Ver [docs/Roapmap.md](Roapmap.md#⚙️-fase-2-mvp-técnico).
 
 ## 2. 🔔 Manejo de webhooks (Backend)
 
 La confirmación real del pago **nunca depende de lo que ocurra en el navegador del turista** (que podría cerrar la pestaña, perder conexión, etc.). La fuente de verdad es el **webhook asíncrono** que la pasarela envía al servidor.
 
-### Flujo del webhook
+### Flujo previsto del webhook de reservas
 
-Ya existe un precedente funcional de este patrón en [app/api/webhooks/pago/route.ts](../app/api/webhooks/pago/route.ts) (y su equivalente [app/api/webhooks/stripe/route.ts](../app/api/webhooks/stripe/route.ts)), implementado como **Route Handler de Next.js** (`app/api/.../route.ts`, método `POST`):
+El repositorio contiene un webhook genérico de reservas en [app/api/webhooks/pago/route.ts](../app/api/webhooks/pago/route.ts) y el webhook de suscripciones de Stripe en [app/api/webhooks/stripe/route.ts](../app/api/webhooks/stripe/route.ts), como **Route Handlers de Next.js** (método `POST`). **No son conectores de TiloPay/OnvoPay**; el flujo siguiente describe el contrato objetivo para una integración de reservas:
 
-1. **Recepción**: la pasarela (TiloPay/OnvoPay) hace un `POST` a un endpoint público, ej. `app/api/webhooks/tilopay/route.ts`, con el resultado de la transacción (`reserva_id` o referencia externa, estado, `trx_id`).
+1. **Recepción**: en una integración futura, la pasarela (TiloPay/OnvoPay) enviaría un `POST` a un endpoint público de esa integración con el resultado de la transacción (`reserva_id` o referencia externa, estado, `trx_id`).
 2. **Verificación de firma (seguridad crítica)**: antes de procesar cualquier dato, se valida que la notificación provenga realmente de la pasarela:
    - Se lee el **cuerpo crudo** (`request.text()`) — nunca se parsea a JSON antes de verificar la firma.
    - Se calcula un **HMAC-SHA256** del cuerpo crudo usando un secreto compartido (`PAGO_WEBHOOK_SECRET` o equivalente específico de la pasarela) y se compara contra la firma recibida en un header (ej. `x-signature`) usando `crypto.timingSafeEqual` para evitar ataques de _timing attack_.
@@ -38,7 +40,7 @@ Ya existe un precedente funcional de este patrón en [app/api/webhooks/pago/rout
 5. **Efectos secundarios post-confirmación**: solo cuando el pago se marca como aprobado se disparan acciones dependientes, como el envío de correos de confirmación (`enviarCorreosConfirmacion`, vía [lib/email.ts](../lib/email.ts) + Resend) y el bloqueo definitivo del cupo (decremento de `cupos_disponibles`).
 6. **Respuesta `200 OK`**: se responde `200` a la pasarela **únicamente después de procesar exitosamente** el webhook, confirmando su recepción. Si no se responde `200` (o hay timeout/error), la mayoría de pasarelas **reintentan el envío automáticamente** — por eso la idempotencia del paso 4 es indispensable.
 
-### Buenas prácticas aplicadas
+### Buenas prácticas de referencia
 
 - Nunca confiar en datos enviados desde el cliente (ej. `negocio_id`) — siempre derivarlos de la base de datos a partir de una referencia validada (ej. `servicio_id`), como ya hace [app/api/checkout/route.ts](../app/api/checkout/route.ts).
 - Usar `supabaseAdmin` (cliente con service role) solo dentro de Route Handlers server-side, nunca expuesto al navegador.
@@ -46,7 +48,7 @@ Ya existe un precedente funcional de este patrón en [app/api/webhooks/pago/rout
 
 ## 3. 🔄 Estados de transacción
 
-Todo pago dentro del sistema transita por un conjunto acotado de estados, reflejados tanto en la reserva (`Booking.estado_pago`, ver [docs/bd/Estructura_Datos.md](bd/Estructura_Datos.md)) como en la UI:
+El diseño objetivo contempla un conjunto acotado de estados, reflejados tanto en la reserva (`Booking.estado_pago`, ver [docs/bd/Estructura_Datos.md](bd/Estructura_Datos.md)) como en la UI. Esta tabla no declara cobros ni reembolsos bancarios de reservas implementados:
 
 | Estado          | Significado                                                                                                                                                               | Disparador                                                                                                   |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |

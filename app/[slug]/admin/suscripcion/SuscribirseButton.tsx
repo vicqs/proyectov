@@ -15,16 +15,19 @@ export default function SuscribirseButton() {
     <button
       type="submit"
       disabled={pending}
-      className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-70"
+      className="vuki-focus flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
     >
       {pending ? (
         <>
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2
+            className="h-4 w-4 animate-spin motion-reduce:animate-none"
+            aria-hidden="true"
+          />
           Redirigiendo a la pasarela de pago...
         </>
       ) : (
         <>
-          <Rocket className="h-4 w-4" />
+          <Rocket className="h-4 w-4" aria-hidden="true" />
           Suscribirse ahora
         </>
       )}

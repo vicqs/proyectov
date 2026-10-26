@@ -19,7 +19,7 @@ export function aplicarVariables(
 
 const resendApiKey = process.env.RESEND_API_KEY;
 const emailFrom =
-  process.env.EMAIL_FROM ?? "Turismo Link <notificaciones@localhost.dev>";
+  process.env.EMAIL_FROM ?? "vuki <notificaciones@localhost.dev>";
 
 if (!isMockMode && (!resendApiKey || !process.env.EMAIL_FROM)) {
   throw new Error(

@@ -1,18 +1,20 @@
-# 🏝️ Proyecto V — Reservas sin comisiones para pymes turísticas
+# 🏝️ vuki — Reservas sin comisiones para pymes turísticas
 
-**Proyecto V** es una plataforma SaaS de reservas diseñada para micro y pequeñas empresas turísticas de Costa Rica (escuelas de surf, tours, hospedajes boutique, actividades de aventura, etc.).
+**vuki** es una plataforma SaaS de reservas diseñada para micro y pequeñas empresas turísticas de Costa Rica (escuelas de surf, tours, hospedajes boutique, actividades de aventura, etc.).
 
-A diferencia de los marketplaces tradicionales, Proyecto V **no cobra comisión por reserva**: el negocio paga una suscripción fija mensual y recibe los pagos de sus clientes de forma **directa**, manteniendo el 100% de sus ingresos por servicio. 💸
+A diferencia de los marketplaces tradicionales, vuki **no cobra comisión por reserva**: el negocio paga una suscripción fija mensual y recibe los pagos de sus clientes de forma **directa**, manteniendo el 100% de sus ingresos por servicio. 💸
 
 ## ✨ Propuesta de valor
 
 - 🚫 **Cero comisiones** por transacción — el turista paga, el negocio recibe.
 - 🔗 **"Link en bio" transaccional**: un perfil público (`/[slug]`) con servicios, agenda y botón de pago, ideal para compartir en Instagram/WhatsApp.
 - 📅 **Agenda y disponibilidad en tiempo real** con bloqueos y excepciones de horario.
-- 💳 **Pagos directos** vía pasarela (Stripe) y simulación de pago local para pruebas.
+- 💳 **Suscripciones vía Stripe** y **pagos de reservas simulados** para pruebas.
 - 📊 **Panel de empresa** para gestionar servicios, reservas, finanzas y personalización de marca.
 - ✉️ **Notificaciones automáticas** por correo (Resend + React Email) a negocio y turista.
 - 🌐 **Multi-idioma** (i18n) y arquitectura multi-tenant vía `negocio_id`.
+
+> **Alcance operativo:** el cobro directo al turista es parte del modelo propuesto; los pagos de reservas siguen simulados y **TiloPay/OnvoPay no están implementados**. Se mantienen los planes y descuentos configurados, el precio de respaldo de **$15 USD** y el cobro de suscripciones con Stripe. Los planes de **$25/$40** descritos en [docs/Reglas_Negocio.md](docs/Reglas_Negocio.md) son aspiracionales, no una modificación de las tarifas vigentes por el rebranding.
 
 ## 🛠️ Stack tecnológico
 
@@ -24,7 +26,7 @@ A diferencia de los marketplaces tradicionales, Proyecto V **no cobra comisión 
 | Estado global | **Zustand**                                           |
 | Animaciones   | **Framer Motion**                                     |
 | Backend / DB  | **Supabase** (PostgreSQL, `@supabase/ssr`)            |
-| Pagos         | **Stripe** (suscripciones y checkout)                 |
+| Pagos         | **Stripe** (suscripciones); reservas simuladas        |
 | Emails        | **Resend** + **React Email**                          |
 | Validación    | **Zod**                                               |
 | Utilidades    | `clsx`, `tailwind-merge`, `lucide-react`              |
@@ -32,7 +34,7 @@ A diferencia de los marketplaces tradicionales, Proyecto V **no cobra comisión 
 
 ## 🏗️ Estructura de la aplicación
 
-Proyecto V tiene dos grandes superficies, cada una disponible (conectada a Supabase o a la capa mock local):
+vuki tiene dos grandes superficies, cada una disponible (conectada a Supabase o a la capa mock local):
 
 ### 1. Vista pública del negocio
 
@@ -86,7 +88,6 @@ npm run dev
 ```
 
 La aplicación quedará disponible en [http://localhost:3000](http://localhost:3000).
-
 
 ### Otros comandos útiles
 

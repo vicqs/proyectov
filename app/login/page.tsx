@@ -6,7 +6,7 @@ export default function LoginPage() {
   return (
     <AuthShell
       titulo="Bienvenido de nuevo"
-      descripcion="Inicia sesión para entrar a tu panel. El equipo de Turismo Link usa este mismo acceso con su cuenta interna."
+      descripcion="Entra a tu cuenta y continúa creando experiencias. Empresas y equipo de vuki usan este mismo acceso."
     >
       <LoginForm />
     </AuthShell>

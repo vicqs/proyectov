@@ -1,4 +1,4 @@
-# 🔧 Variables de Entorno y Despliegue — Proyecto V
+# 🔧 Variables de Entorno y Despliegue — vuki
 
 Este documento detalla las variables de entorno requeridas, la diferencia entre el entorno de desarrollo (mock local) y producción, y la estrategia recomendada para desplegar en Vercel.
 
@@ -10,18 +10,24 @@ Este documento detalla las variables de entorno requeridas, la diferencia entre 
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`      | Clave anónima (pública) de Supabase, usada por el cliente/middleware para operaciones respetando Row Level Security (RLS).                                                                   |
 | `SUPABASE_SERVICE_ROLE_KEY`          | Clave de servicio (privada, **solo servidor**) de Supabase con permisos elevados, usada en Route Handlers para operaciones administrativas (bypass de RLS). Nunca debe exponerse al cliente. |
 | `USE_MOCK_DB`                        | Flag booleano (`"true"/"false"`) que fuerza el uso de la capa mock (`lib/mock/*`) en vez de Supabase real, incluso si hay credenciales configuradas. Útil para desarrollo local sin backend. |
-| `NEXT_PUBLIC_APP_URL`                | URL pública base de la aplicación (ej. `https://proyecto-v.app`), usada para construir URLs absolutas (retorno de checkout, links en emails).                                                |
+| `NEXT_PUBLIC_APP_URL`                | URL pública base de la aplicación (ejemplo ilustrativo: `https://example.com`, no dominio operativo), usada para construir URLs absolutas (retorno de checkout, links en emails).            |
 | `RESEND_API_KEY`                     | Clave de API de Resend, usada para el envío de correos transaccionales (confirmaciones de reserva, alertas a la pyme).                                                                       |
-| `EMAIL_FROM`                         | Dirección "From" usada en los correos enviados vía Resend (ej. `Proyecto V <notificaciones@proyectov.app>`).                                                                                 |
+| `EMAIL_FROM`                         | Nombre visible y dirección "From" de Resend (ejemplo ilustrativo: `vuki <notificaciones@example.com>`; no sustituye la dirección/dominio verificados del despliegue).                        |
 | `STRIPE_SECRET_KEY`                  | Clave secreta de Stripe (servidor), usada para gestionar la suscripción SaaS de las pymes.                                                                                                   |
 | `STRIPE_PRICE_ID`                    | Identificador del precio/plan de Stripe usado al crear sesiones de checkout de suscripción.                                                                                                  |
 | `STRIPE_WEBHOOK_SECRET`              | Secreto usado para verificar la firma de los webhooks entrantes de Stripe (confirmación de suscripción).                                                                                     |
-| `PAGO_WEBHOOK_SECRET`                | Secreto compartido (HMAC) para verificar la firma de los webhooks de confirmación de pago de reservas (pasarela bancaria/TiloPay/OnvoPay).                                                   |
+| `PAGO_WEBHOOK_SECRET`                | Secreto compartido (HMAC) del webhook genérico de confirmación de reservas; su existencia no implica una integración real con TiloPay/OnvoPay.                                               |
 | `TILOPAY_SECRET_KEY` _(futuro)_      | Clave secreta de la API de TiloPay, para iniciar sesiones de pago desde el servidor (ver [docs/Integracion_Pagos.md](Integracion_Pagos.md)).                                                 |
 | `ONVOPAY_SECRET_KEY` _(futuro)_      | Clave secreta de la API de OnvoPay (alternativa a TiloPay), según la pasarela elegida por la pyme o el mercado.                                                                              |
 | `DATABASE_URL` _(futuro / opcional)_ | Cadena de conexión directa a PostgreSQL, si se requiere acceso fuera del cliente de Supabase (ej. migraciones, scripts de administración).                                                   |
 
 > 🔒 Ninguna clave secreta (`*_SECRET_KEY`, `*_SERVICE_ROLE_KEY`, `*_WEBHOOK_SECRET`) debe llevar el prefijo `NEXT_PUBLIC_` — ese prefijo hace que Next.js la incluya en el bundle del navegador. Solo las variables explícitamente públicas (URL, IDs no sensibles) deben usarlo.
+
+### Revisión operativa de marca (manual)
+
+- Revisar manualmente el **nombre visible** de `EMAIL_FROM` en cada entorno para usar **vuki**, preservando la dirección y el dominio de envío verificados en Resend. Este documento no cambia valores reales de despliegue, dominios ni nombres de claves de entorno.
+- Revisar manualmente los textos y plantillas almacenados en `configuracion_plataforma`: `terminos_texto`, `privacidad_texto` y `plantillas_correo` (asuntos, encabezados y pies). Ajustar únicamente la denominación del producto donde corresponda, preservando autoría, identidad de cada negocio, condiciones económicas y variables como `{{negocio}}` / `{{servicio}}`.
+- Estos valores administrados **no se migran ni se reemplazan automáticamente en runtime** por este rebranding. La revisión del remitente y del contenido persistido es independiente del cambio documental.
 
 ## 2. 🌎 Entornos: Desarrollo (Mock local) vs. Producción
 
@@ -33,7 +39,7 @@ Este documento detalla las variables de entorno requeridas, la diferencia entre 
 ### Producción
 
 - Se conecta a una instancia real de **Supabase** (`NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` reales, `USE_MOCK_DB` ausente o `false`), persistiendo negocios, servicios, horarios y reservas de forma duradera.
-- Los pagos de la suscripción SaaS pasan por **Stripe** con claves reales, y los pagos de las reservas turísticas pasan por la pasarela real (**TiloPay/OnvoPay**) una vez completada la Fase 2 del roadmap (ver [docs/Roapmap.md](Roapmap.md)).
+- La integración actual de suscripciones SaaS utiliza **Stripe** cuando se configuran claves reales. Los pagos de reservas turísticas **siguen simulados**: **TiloPay/OnvoPay son opciones futuras, no integraciones implementadas** (ver [docs/Roapmap.md](Roapmap.md)). El cambio de marca no altera precios, planes ni Stripe.
 - Los webhooks (`STRIPE_WEBHOOK_SECRET`, `PAGO_WEBHOOK_SECRET`) deben apuntar a URLs públicas HTTPS reales y verificarse estrictamente antes de procesar cualquier evento (ver [docs/Integracion_Pagos.md](Integracion_Pagos.md#2-🔔-manejo-de-webhooks-backend)).
 - Los correos se envían realmente a turistas y pymes vía Resend, usando un dominio verificado en `EMAIL_FROM`.
 
@@ -43,11 +49,11 @@ Next.js 15 se beneficia directamente de la infraestructura de **Vercel** (su cre
 
 ### Pasos recomendados
 
-1. **Conectar el repositorio**: importar el repositorio de Proyecto V en el dashboard de Vercel (vía GitHub/GitLab), seleccionando el framework detectado automáticamente como Next.js.
-2. **Configurar variables de entorno**: cargar todas las variables de la sección 1 en _Project Settings → Environment Variables_, diferenciando entre entornos **Production**, **Preview** y **Development** (ej. usar credenciales de prueba de Stripe/TiloPay en Preview, y credenciales reales solo en Production).
+1. **Conectar el repositorio**: importar el repositorio de vuki en el dashboard de Vercel (vía GitHub/GitLab), seleccionando el framework detectado automáticamente como Next.js.
+2. **Configurar variables de entorno**: cargar las variables operativas de la sección 1 en _Project Settings → Environment Variables_, diferenciando entre entornos **Production**, **Preview** y **Development** (ej. usar credenciales de prueba de Stripe en Preview, y credenciales reales solo en Production). Las variables marcadas como futuras no habilitan una integración implementada.
 3. **Build settings**: usar los comandos por defecto (`next build` / `next start`) — no requieren ajuste manual, Vercel los detecta automáticamente desde `package.json`.
 4. **Aprovechar Server Components y Route Handlers como Serverless Functions**: cada `route.ts` bajo `app/api/*` (checkout, webhooks) se despliega automáticamente como una función serverless independiente, con escalado automático según demanda — ideal para picos de tráfico ante campañas de una pyme en redes sociales.
 5. **Edge Runtime donde aplique**: evaluar mover el `middleware.ts` (autenticación/Supabase SSR) y páginas públicas de solo lectura (perfil `/ [slug]`) a **Edge Runtime** para reducir la latencia percibida por turistas que acceden desde distintas regiones, especialmente relevante para una audiencia internacional (turistas).
-6. **Dominios personalizados**: configurar el dominio de producción (ej. `proyectov.app`) y asegurarse de que `NEXT_PUBLIC_APP_URL` coincida exactamente, ya que se usa para construir URLs de retorno de checkout y enlaces en correos.
-8. **Webhooks apuntando al dominio de producción**: una vez desplegado, actualizar en los dashboards de Stripe y de la pasarela de pago (TiloPay/OnvoPay) las URLs de webhook para que apunten a `https://<dominio>/api/webhooks/*`.
-9. **Monitoreo**: habilitar **Vercel Analytics** (ya integrado vía `@vercel/analytics` en el proyecto) y revisar los logs de Functions para detectar errores en Route Handlers críticos (checkout, webhooks) tempranamente.
+6. **Dominios personalizados**: configurar el dominio real de producción (ejemplo meramente ilustrativo: `example.com`) y asegurarse de que `NEXT_PUBLIC_APP_URL` coincida exactamente, ya que se usa para construir URLs de retorno de checkout y enlaces en correos. Este rebranding documental no cambia dominios reales.
+7. **Webhooks apuntando al dominio de producción**: una vez desplegado, configurar la URL del webhook de suscripciones en Stripe para que apunte al dominio real (`https://<dominio>/api/webhooks/stripe`). La configuración de TiloPay/OnvoPay solo correspondería a una integración futura; no se incorpora con este cambio.
+8. **Monitoreo**: habilitar **Vercel Analytics** (ya integrado vía `@vercel/analytics` en el proyecto) y revisar los logs de Functions para detectar errores en Route Handlers críticos (checkout, webhooks) tempranamente.

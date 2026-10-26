@@ -72,12 +72,12 @@ export default async function SuscripcionPage({
         </div>
       )}
 
-      <div className="mb-6 flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-sky-100 bg-white p-5 shadow-sm">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
             Estado de la cuenta
           </p>
-          <p className="mt-1 text-lg font-semibold text-slate-900">
+          <p className="mt-1 font-display text-lg font-semibold text-vuki-ink">
             {negocio.nombre}
           </p>
         </div>
@@ -108,7 +108,7 @@ export default async function SuscripcionPage({
             href={`/${negocio.slug}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 flex h-12 w-full items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800"
+            className="vuki-focus mt-4 flex h-12 w-full items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             Ver enlace público ↗
           </Link>
@@ -118,7 +118,7 @@ export default async function SuscripcionPage({
             >
               <button
                 type="submit"
-                className="mt-3 h-12 w-full rounded-2xl border border-red-200 bg-white text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                className="vuki-focus mt-3 h-12 w-full rounded-2xl border border-red-200 bg-white text-sm font-semibold text-red-600 transition hover:bg-red-50"
               >
                 Cancelar suscripción (simular impago)
               </button>
@@ -126,7 +126,7 @@ export default async function SuscripcionPage({
           )}
         </div>
       ) : (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-3xl border border-sky-100 border-t-4 border-t-vuki-ocean bg-linear-to-br from-white to-sky-50/60 p-6 shadow-sm sm:p-8">
           {negocio.estado_suscripcion === "inactiva" && (
             <div className="mb-4 flex items-center gap-2 text-sm text-red-600">
               <ShieldAlert className="h-4 w-4" />
@@ -135,12 +135,12 @@ export default async function SuscripcionPage({
             </div>
           )}
 
-          <p className="text-xs font-semibold uppercase tracking-widest text-sky-600">
-            Plan Turismo Link
+          <p className="text-xs font-semibold uppercase tracking-widest text-sky-700">
+            Plan vuki
           </p>
-          <p className="mt-1 text-4xl font-bold tracking-tight text-slate-900">
+          <p className="mt-2 font-display text-4xl font-bold tracking-tight text-vuki-ink">
             $15{" "}
-            <span className="text-base font-medium text-slate-400">/ mes</span>
+            <span className="text-base font-medium text-slate-500">/ mes</span>
           </p>
 
           <ul className="my-5 space-y-2">
@@ -149,7 +149,10 @@ export default async function SuscripcionPage({
                 key={beneficio}
                 className="flex items-start gap-2 text-sm text-slate-600"
               >
-                <Circle className="mt-1 h-2 w-2 shrink-0 fill-sky-500 text-sky-500" />
+                <Circle
+                  className="mt-1 h-2 w-2 shrink-0 fill-vuki-emerald text-vuki-emerald"
+                  aria-hidden="true"
+                />
                 {beneficio}
               </li>
             ))}

@@ -102,7 +102,7 @@ export default async function NegociosPage({
           <tr key={n.id}>
             <Celda>
               <p className="font-medium text-slate-900">{n.nombre}</p>
-              <p className="text-xs text-slate-400">/{n.slug}</p>
+              <p className="text-xs text-slate-500">/{n.slug}</p>
             </Celda>
             <Celda>
               <InsigniaNegocio negocio={n} />

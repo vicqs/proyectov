@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Flag } from "lucide-react";
 import { supabaseAdmin } from "@/lib/supabase";
 import { AccionForm } from "@/components/admin/AccionForm";
 import { reportarPerfilAction } from "@/actions/reportar";
 import { funcionActivaNegocio } from "@/lib/plataforma";
+import PaginaPublica from "@/components/PaginaPublica";
 
 const INPUT =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none";
+  "min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus-visible:border-vuki-ocean focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vuki-ocean/20";
 
 export const metadata = { title: "Reportar perfil", robots: { index: false } };
 
@@ -25,20 +27,34 @@ export default async function ReportarPage({
   if (!(await funcionActivaNegocio(negocio, "reportes_publicos"))) notFound();
 
   return (
-    <main className="mx-auto max-w-lg px-6 py-16">
-      <h1 className="text-2xl font-bold text-slate-900">
-        Reportar {negocio.nombre}
-      </h1>
-      <p className="mt-1 text-sm text-slate-600">
-        Cuéntanos qué te preocupa de este perfil. Lo revisará nuestro equipo.
-      </p>
-      <div className="mt-6">
+    <PaginaPublica
+      titulo={`Reportar ${negocio.nombre}`}
+      etiqueta="Ayúdanos a cuidar la comunidad"
+      icono={<Flag className="h-4 w-4" />}
+      descripcion="Cuéntanos qué te preocupa de este perfil. Lo revisará nuestro equipo."
+      pie={
+        <Link
+          href={`/${encodeURIComponent(slug)}`}
+          className="vuki-focus inline-flex min-h-11 items-center rounded-lg text-sm font-semibold text-sky-800 hover:underline"
+        >
+          Volver al perfil
+        </Link>
+      }
+    >
+      <div>
         <AccionForm
           accion={reportarPerfilAction.bind(null, slug)}
           boton="Enviar reporte"
           limpiarAlOk
         >
+          <label
+            htmlFor="reporte-motivo"
+            className="block text-sm font-medium text-slate-700"
+          >
+            Motivo del reporte
+          </label>
           <select
+            id="reporte-motivo"
             name="motivo"
             required
             className={INPUT}
@@ -49,14 +65,28 @@ export default async function ReportarPage({
             <option value="suplantacion">Suplantación</option>
             <option value="otro">Otro</option>
           </select>
+          <label
+            htmlFor="reporte-detalle"
+            className="block text-sm font-medium text-slate-700"
+          >
+            Detalles (opcional)
+          </label>
           <textarea
+            id="reporte-detalle"
             name="detalle"
             rows={4}
             maxLength={1000}
             placeholder="Detalles (opcional)"
             className={INPUT}
           />
+          <label
+            htmlFor="reporte-email"
+            className="block text-sm font-medium text-slate-700"
+          >
+            Tu correo (opcional)
+          </label>
           <input
+            id="reporte-email"
             name="email"
             type="email"
             placeholder="Tu correo (opcional)"
@@ -64,12 +94,6 @@ export default async function ReportarPage({
           />
         </AccionForm>
       </div>
-      <Link
-        href={`/${encodeURIComponent(slug)}`}
-        className="mt-6 inline-block py-2 text-sm text-sky-700 hover:underline"
-      >
-        Volver al perfil
-      </Link>
-    </main>
+    </PaginaPublica>
   );
 }

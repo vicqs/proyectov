@@ -48,6 +48,7 @@ export default async function SoportePage({
         <select
           name="estado"
           defaultValue={estado}
+          aria-label="Estado del ticket"
           className={`${CLASE_INPUT} sm:w-44`}
         >
           <option value="">Todos</option>
