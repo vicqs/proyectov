@@ -1,5 +1,10 @@
+import LegalPage from "../../components/LegalPage";
+import { obtenerConfiguracion } from "../../lib/plataforma";
+
+export const dynamic = "force-dynamic";
+
 export const metadata = {
-  title: "Términos y Condiciones — Turismo Link",
+  title: "Términos y Condiciones",
 };
 
 /**
@@ -7,26 +12,28 @@ export const metadata = {
  * por las pasarelas de pago (Tilopay, Stripe) y bancos para habilitar el
  * cobro en línea. Debe ser revisado por un abogado antes de producción.
  */
-export default function TerminosPage() {
-  return (
-    <main className="mx-auto min-h-screen max-w-2xl px-4 py-12">
-      <h1 className="text-2xl font-bold text-slate-900">
-        Términos y Condiciones
-      </h1>
-      <p className="mt-2 text-sm text-slate-400">
-        Última actualización: 27 de agosto de 2026
-      </p>
+export default async function TerminosPage() {
+  const { terminos_texto } = await obtenerConfiguracion();
+  if (terminos_texto) {
+    return (
+      <LegalPage tipo="terminos">
+        <div className="whitespace-pre-wrap">{terminos_texto}</div>
+      </LegalPage>
+    );
+  }
 
-      <section className="prose prose-slate mt-8 max-w-none space-y-6 text-sm leading-relaxed text-slate-600">
+  return (
+    <LegalPage tipo="terminos" fechaActualizacion="27 de agosto de 2026">
+      <section className="space-y-8 sm:space-y-10">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">
             1. Aceptación de los términos
           </h2>
           <p>
-            Al acceder y utilizar la plataforma Turismo Link ("la Plataforma"),
-            tanto como negocio afiliado ("la Pyme") o como turista que realiza
-            una reserva ("el Usuario"), aceptas quedar vinculado por estos
-            Términos y Condiciones.
+            Al acceder y utilizar la plataforma vuki ("la Plataforma"), tanto
+            como negocio afiliado ("la Pyme") o como turista que realiza una
+            reserva ("el Usuario"), aceptas quedar vinculado por estos Términos
+            y Condiciones.
           </p>
         </div>
 
@@ -35,7 +42,7 @@ export default function TerminosPage() {
             2. Descripción del servicio
           </h2>
           <p>
-            Turismo Link es un intermediario tecnológico que permite a negocios
+            vuki es un intermediario tecnológico que permite a negocios
             turísticos publicar servicios, gestionar su agenda y recibir pagos
             en línea de sus clientes. La Plataforma no presta directamente los
             servicios turísticos ofrecidos por las pymes.
@@ -48,7 +55,7 @@ export default function TerminosPage() {
           </h2>
           <p>
             Los pagos realizados por los Usuarios se procesan a través de
-            pasarelas de pago de terceros. Turismo Link retiene una comisión de
+            pasarelas de pago de terceros. vuki retiene una comisión de
             intermediación sobre cada transacción exitosa, detallada en el panel
             de administración de cada Pyme.
           </p>
@@ -59,10 +66,9 @@ export default function TerminosPage() {
             4. Suscripción del servicio
           </h2>
           <p>
-            El uso del panel de administración por parte de las Pymes está
-            sujeto al pago de una suscripción mensual, la cual se renueva
-            automáticamente salvo cancelación expresa por parte del titular de
-            la cuenta.
+            El uso del panel de empresa por parte de las Pymes está sujeto al
+            pago de una suscripción mensual, la cual se renueva automáticamente
+            salvo cancelación expresa por parte del titular de la cuenta.
           </p>
         </div>
 
@@ -72,7 +78,7 @@ export default function TerminosPage() {
           </h2>
           <p>
             Las políticas de cancelación y reembolso de cada servicio turístico
-            son definidas por la Pyme correspondiente. Turismo Link no se hace
+            son definidas por la Pyme correspondiente. vuki no se hace
             responsable por disputas entre el Usuario y la Pyme derivadas de la
             prestación del servicio turístico.
           </p>
@@ -83,9 +89,9 @@ export default function TerminosPage() {
             6. Limitación de responsabilidad
           </h2>
           <p>
-            Turismo Link no garantiza la disponibilidad ininterrumpida de la
-            Plataforma y no será responsable por daños indirectos derivados del
-            uso o la imposibilidad de uso del servicio.
+            vuki no garantiza la disponibilidad ininterrumpida de la Plataforma
+            y no será responsable por daños indirectos derivados del uso o la
+            imposibilidad de uso del servicio.
           </p>
         </div>
 
@@ -97,6 +103,6 @@ export default function TerminosPage() {
           </p>
         </div>
       </section>
-    </main>
+    </LegalPage>
   );
 }

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin } from "../../../lib/supabase";
+import { construirHorarios } from "../../../lib/horarios";
+import {
+  COLUMNAS_OPERATIVIDAD,
+  errorReservaNoPermitida,
+} from "../../../lib/reservas-guard";
 
 /**
  * Esquema de validación estricta del cuerpo del request.
@@ -42,14 +47,69 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { data: negocio } = await supabaseAdmin
+      .from("negocios")
+      .select(COLUMNAS_OPERATIVIDAD)
+      .eq("id", servicio.negocio_id)
+      .single();
+    const bloqueo = negocio
+      ? await errorReservaNoPermitida(negocio)
+      : "Este negocio no acepta reservas por ahora.";
+    if (!negocio || bloqueo) {
+      return NextResponse.json({ error: bloqueo }, { status: 409 });
+    }
+
+    // Mismas reglas que el perfil público: horario real, cupos y sin duplicados.
+    const emailNorm = email_cliente.trim().toLowerCase();
+    const [{ data: reservas }, { data: bloqueos }, { data: horariosDb }] =
+      await Promise.all([
+        supabaseAdmin.from("reservas").select("*").eq("negocio_id", negocio.id),
+        supabaseAdmin
+          .from("bloqueos_excepcion")
+          .select("*")
+          .eq("negocio_id", negocio.id),
+        supabaseAdmin.from("horarios").select("*").eq("negocio_id", negocio.id),
+      ]);
+
+    if (
+      (reservas ?? []).some(
+        (r) =>
+          r.estado !== "cancelada" &&
+          r.servicio_id === servicio_id &&
+          r.email_cliente.trim().toLowerCase() === emailNorm,
+      )
+    ) {
+      return NextResponse.json(
+        { error: "Este correo ya tiene una reserva para este servicio." },
+        { status: 409 },
+      );
+    }
+
+    const slot = construirHorarios(
+      (horariosDb ?? []).filter((h) => h.servicio_id === servicio_id),
+      reservas ?? [],
+      bloqueos ?? [],
+      true,
+    ).find(
+      (h) => new Date(h.fechaHora).getTime() === new Date(fecha_hora).getTime(),
+    );
+    if (!slot || slot.cuposDisponibles < 1) {
+      return NextResponse.json(
+        { error: "El horario no está disponible." },
+        { status: 409 },
+      );
+    }
+
     // Acción 1: crear la reserva en estado 'pendiente'.
     const { data: reserva, error: reservaError } = await supabaseAdmin
       .from("reservas")
       .insert({
         servicio_id,
         negocio_id: servicio.negocio_id,
-        fecha_hora,
-        email_cliente,
+        fecha_hora: slot.fechaHora,
+        email_cliente: emailNorm,
+        cupos: 1,
+        token_gestion: crypto.randomUUID(),
         estado: "pendiente",
       })
       .select("id")

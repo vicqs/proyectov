@@ -11,12 +11,6 @@ if (!isMockMode && (!supabaseUrl || !supabaseServiceRoleKey)) {
   );
 }
 
-if (isMockMode) {
-  console.warn(
-    "⚠ Ejecutando en modo SIMULADO (sin Supabase real). Los datos se guardan solo en memoria y se pierden al reiniciar. Define credenciales reales en .env.local y USE_MOCK_DB=false para desactivarlo.",
-  );
-}
-
 /**
  * Cliente de Supabase para uso exclusivo en el servidor (Server Components,
  * Route Handlers). Usa la Service Role Key, por lo que NUNCA debe importarse

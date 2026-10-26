@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle } from "lucide-react";
 
@@ -27,6 +28,23 @@ export default function ConfirmDialog({
   onConfirmar,
   onCancelar,
 }: ConfirmDialogProps) {
+  const onCancelarRef = useRef(onCancelar);
+  useEffect(() => {
+    onCancelarRef.current = onCancelar;
+  });
+  useEffect(() => {
+    if (!abierto) return;
+    const anterior = document.activeElement as HTMLElement | null;
+    function alPresionarTecla(evento: KeyboardEvent) {
+      if (evento.key === "Escape") onCancelarRef.current();
+    }
+    document.addEventListener("keydown", alPresionarTecla);
+    return () => {
+      document.removeEventListener("keydown", alPresionarTecla);
+      anterior?.focus?.();
+    };
+  }, [abierto]);
+
   return (
     <AnimatePresence>
       {abierto && (
@@ -73,9 +91,10 @@ export default function ConfirmDialog({
             <div className="mt-6 flex justify-end gap-2">
               <motion.button
                 type="button"
+                autoFocus
                 onClick={onCancelar}
                 whileTap={{ scale: 0.96 }}
-                className="rounded-xl px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
+                className="min-h-10 rounded-xl px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
               >
                 {textoCancelar}
               </motion.button>

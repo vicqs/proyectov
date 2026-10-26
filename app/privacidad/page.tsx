@@ -1,5 +1,10 @@
+import LegalPage from "../../components/LegalPage";
+import { obtenerConfiguracion } from "../../lib/plataforma";
+
+export const dynamic = "force-dynamic";
+
 export const metadata = {
-  title: "Política de Privacidad — Turismo Link",
+  title: "Política de Privacidad",
 };
 
 /**
@@ -7,17 +12,19 @@ export const metadata = {
  * por las pasarelas de pago y bancos para habilitar el cobro en línea.
  * Debe ser revisado por un abogado antes de producción.
  */
-export default function PrivacidadPage() {
-  return (
-    <main className="mx-auto min-h-screen max-w-2xl px-4 py-12">
-      <h1 className="text-2xl font-bold text-slate-900">
-        Política de Privacidad
-      </h1>
-      <p className="mt-2 text-sm text-slate-400">
-        Última actualización: 27 de agosto de 2026
-      </p>
+export default async function PrivacidadPage() {
+  const { privacidad_texto } = await obtenerConfiguracion();
+  if (privacidad_texto) {
+    return (
+      <LegalPage tipo="privacidad">
+        <div className="whitespace-pre-wrap">{privacidad_texto}</div>
+      </LegalPage>
+    );
+  }
 
-      <section className="prose prose-slate mt-8 max-w-none space-y-6 text-sm leading-relaxed text-slate-600">
+  return (
+    <LegalPage tipo="privacidad" fechaActualizacion="27 de agosto de 2026">
+      <section className="space-y-8 sm:space-y-10">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">
             1. Datos que recopilamos
@@ -97,6 +104,6 @@ export default function PrivacidadPage() {
           </p>
         </div>
       </section>
-    </main>
+    </LegalPage>
   );
 }

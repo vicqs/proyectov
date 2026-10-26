@@ -10,9 +10,9 @@ import { useEffect } from "react";
 export default function Watermark() {
   useEffect(() => {
     console.info(
-      "%c🏝️ Turismo Link %c\nSystem Architected & Developed by Victor Quiros Suarez.\nAll Rights Reserved. © " +
+      "%c✓ vuki. %c\nSystem Architected & Developed by Victor Quiros Suarez.\nAll Rights Reserved. © " +
         new Date().getFullYear(),
-      "font-size:16px; font-weight:bold; color:#0ea5e9; padding:4px 0;",
+      "font-size:16px; font-weight:bold; color:#0284c7; padding:4px 0;",
       "font-size:12px; color:#64748b;",
     );
   }, []);

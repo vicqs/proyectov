@@ -2,30 +2,132 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Clock, DollarSign } from "lucide-react";
-import type { MockNegocio, MockServicio } from "../../lib/mockData";
-import CheckoutMock from "../../components/CheckoutMock";
+import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
+import { MessageCircle, Unlink } from "lucide-react";
+import AnimatedCheckoutSheet from "../../components/AnimatedCheckoutSheet";
+import ServicioCard from "../../components/ServicioCard";
+import MarcaReserva from "../../components/MarcaReserva";
+import type { HorarioPublico, ServicioPublico } from "../../lib/tipos-publicos";
+import { LocaleProvider, useTranslations } from "../../lib/i18n";
+import { reservarYPagarAction } from "../../actions/pago-simulado";
 
-interface NegocioProfileClientProps {
-  negocio: MockNegocio;
+export interface NegocioPublico {
+  nombre: string;
+  descripcion: string;
+  portadaUrl: string;
+  logoUrl: string;
+  colorTema: string;
+  colorSecundario: string;
+  whatsapp?: string;
 }
 
+interface NegocioProfileClientProps {
+  negocio: NegocioPublico;
+  servicios: ServicioPublico[];
+  horarios: HorarioPublico[];
+  suscripcionActiva: boolean;
+  pago?: string;
+}
+
+const contenedorLista = {
+  oculto: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.08 } },
+};
+
+const itemLista = {
+  oculto: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0 },
+};
+
 /**
- * Vista interactiva del perfil público (Client Component): tarjetas de
- * servicios + apertura del modal de checkout simulado. Se separa del
- * `page.tsx` (Server Component) para poder seguir exportando
- * `generateMetadata` (SEO/Open Graph) desde el servidor.
+ * Perfil público real (/[slug]): experiencia premium de reservas
+ * (header inmersivo, idioma ES/EN, tarjetas con imagen y checkout animado
+ * por pasos), alimentada con datos reales del negocio.
  */
-export default function NegocioProfileClient({
+export default function NegocioProfileClient(props: NegocioProfileClientProps) {
+  return (
+    <LocaleProvider>
+      <NegocioProfileContenido {...props} />
+    </LocaleProvider>
+  );
+}
+
+function NegocioProfileContenido({
   negocio,
+  servicios,
+  horarios,
+  suscripcionActiva,
+  pago,
 }: NegocioProfileClientProps) {
+  const router = useRouter();
+  const { t, locale, setLocale } = useTranslations();
   const [servicioSeleccionado, setServicioSeleccionado] =
-    useState<MockServicio | null>(null);
+    useState<ServicioPublico | null>(null);
+  const [huboReserva, setHuboReserva] = useState(false);
+
+  const horariosDelServicio = servicioSeleccionado
+    ? horarios.filter((h) => h.servicioId === servicioSeleccionado.id)
+    : [];
+
+  async function handleReservaConfirmada(
+    horarioId: string,
+    nombreCliente: string,
+    emailCliente: string,
+    cupos: number,
+  ) {
+    const horario = horarios.find((h) => h.id === horarioId);
+    if (!servicioSeleccionado || !horario) {
+      return { error: "El horario ya no está disponible." };
+    }
+    const resultado = await reservarYPagarAction({
+      servicioId: servicioSeleccionado.id,
+      email: emailCliente,
+      nombre: nombreCliente.trim() || undefined,
+      fechaHora: horario.fechaHora,
+      cupos,
+    });
+    if (!resultado.error) setHuboReserva(true);
+    return resultado;
+  }
+
+  function cerrarSheet() {
+    setServicioSeleccionado(null);
+    if (huboReserva) {
+      setHuboReserva(false);
+      router.refresh();
+    }
+  }
+
+  if (!suscripcionActiva) {
+    return (
+      <main className="flex min-h-[85svh] flex-col items-center justify-center bg-slate-50 px-6 py-16 text-center">
+        <div className="w-full max-w-sm rounded-3xl border border-slate-200/80 bg-white px-6 py-10 shadow-xl shadow-slate-900/5 sm:px-8">
+          <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-3xl bg-sky-50 text-sky-700">
+            <Unlink
+              className="h-11 w-11"
+              strokeWidth={1.5}
+              aria-hidden="true"
+            />
+          </div>
+          <p className="mt-7 break-words text-xs font-medium text-slate-500">
+            {negocio.nombre}
+          </p>
+          <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-slate-900">
+            {t("enlace_no_disponible")}
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600">
+            {t("agenda_inactiva")}
+          </p>
+          <MarcaReserva idioma={locale} className="mt-7" />
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-slate-50 pb-16">
-      {/* Header con portada + logo */}
-      <div className="relative h-48 w-full sm:h-64">
+    <main className="min-h-screen bg-white pb-24">
+      <div className="relative h-[30vh] min-h-[220px] w-full">
         <Image
           src={negocio.portadaUrl}
           alt={`Portada de ${negocio.nombre}`}
@@ -34,84 +136,143 @@ export default function NegocioProfileClient({
           className="object-cover"
           sizes="100vw"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
-      </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-white via-white/10 to-black/20" />
 
-      <div className="relative mx-auto -mt-12 max-w-md px-4 sm:max-w-lg">
-        <div className="flex items-end gap-4">
-          <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border-4 border-white shadow-md sm:h-24 sm:w-24">
-            <Image
-              src={negocio.logoUrl}
-              alt={`Logo de ${negocio.nombre}`}
-              fill
-              className="object-cover"
-              sizes="96px"
-            />
-          </div>
-        </div>
-
-        <header className="mt-4">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            {negocio.nombre}
-          </h1>
-          <p className="mt-1 text-sm leading-relaxed text-slate-500">
-            {negocio.descripcion}
-          </p>
-        </header>
-
-        <section className="mt-6 space-y-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-            Servicios disponibles
-          </h2>
-
-          {negocio.servicios.map((servicio) => (
+        <div
+          role="group"
+          aria-label="Language / Idioma"
+          className="absolute right-4 top-4 flex overflow-hidden rounded-full border border-white/40 bg-white/80 text-xs font-semibold shadow-sm backdrop-blur-sm"
+        >
+          {(["es", "en"] as const).map((idioma) => (
             <button
-              key={servicio.id}
+              key={idioma}
               type="button"
-              onClick={() => setServicioSeleccionado(servicio)}
-              className="w-full rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
-              style={{ borderColor: undefined }}
+              aria-pressed={locale === idioma}
+              onClick={() => setLocale(idioma)}
+              className={`px-3 py-2 outline-none transition focus-visible:ring-2 focus-visible:ring-slate-900 ${
+                locale === idioma
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-700 hover:bg-white"
+              }`}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-base font-semibold text-slate-900">
-                    {servicio.nombre}
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {servicio.descripcion}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center gap-4 text-sm text-slate-500">
-                <span className="flex items-center gap-1.5">
-                  <DollarSign className="h-4 w-4 text-slate-400" />$
-                  {servicio.precioUsd.toFixed(2)}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Clock className="h-4 w-4 text-slate-400" />
-                  {servicio.duracionMin} min
-                </span>
-              </div>
-
-              <span
-                className="mt-4 inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium text-white"
-                style={{ backgroundColor: negocio.colorTema }}
-              >
-                Reservar
-              </span>
+              {idioma.toUpperCase()}
             </button>
           ))}
-        </section>
+        </div>
       </div>
 
-      {servicioSeleccionado && (
-        <CheckoutMock
-          servicio={servicioSeleccionado}
-          negocioNombre={negocio.nombre}
-          onClose={() => setServicioSeleccionado(null)}
-        />
-      )}
+      <div className="relative mx-auto -mt-16 max-w-md px-6 sm:max-w-xl sm:px-8">
+        {pago === "exitoso" && (
+          <div
+            role="status"
+            className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm text-emerald-700"
+          >
+            ¡Pago confirmado! Revisa tu correo para ver el recibo.
+          </div>
+        )}
+        {pago === "cancelado" && (
+          <div
+            role="status"
+            className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700"
+          >
+            El pago fue cancelado. Tu reserva quedó pendiente.
+          </div>
+        )}
+
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="relative h-28 w-28 shrink-0 overflow-hidden rounded-3xl border-4 border-white shadow-xl sm:h-32 sm:w-32"
+        >
+          <Image
+            src={negocio.logoUrl}
+            alt={`Logo de ${negocio.nombre}`}
+            fill
+            className="object-cover"
+            sizes="128px"
+          />
+        </motion.div>
+
+        <motion.header
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="mt-8"
+        >
+          <h1 className="break-words text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+            {negocio.nombre}
+          </h1>
+          <div
+            aria-hidden="true"
+            className="mt-3 h-1 w-16 rounded-full"
+            style={{
+              backgroundImage: `linear-gradient(90deg, ${negocio.colorTema}, ${negocio.colorSecundario})`,
+            }}
+          />
+          <p className="mt-3 max-w-md whitespace-pre-line break-words text-base leading-relaxed text-slate-600">
+            {negocio.descripcion}
+          </p>
+          {negocio.whatsapp && (
+            <a
+              href={`https://wa.me/${negocio.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Hola ${negocio.nombre}, quisiera consultar sobre una reserva.`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-emerald-700"
+            >
+              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              WhatsApp
+            </a>
+          )}
+        </motion.header>
+
+        <section className="mt-14">
+          <h2 className="mb-6 text-sm font-semibold uppercase tracking-widest text-slate-600">
+            {t("servicios_disponibles")}
+          </h2>
+
+          {servicios.length === 0 ? (
+            <p className="text-sm text-slate-600">
+              Este negocio aún no tiene servicios disponibles.
+            </p>
+          ) : (
+            <motion.div
+              variants={contenedorLista}
+              initial="oculto"
+              animate="visible"
+              className="grid grid-cols-1 gap-5 sm:grid-cols-2"
+            >
+              {servicios.map((servicio, i) => (
+                <motion.div key={servicio.id} variants={itemLista}>
+                  <ServicioCard
+                    prioritaria={i < 2}
+                    servicio={servicio}
+                    colorTema={negocio.colorTema}
+                    colorSecundario={negocio.colorSecundario}
+                    onSeleccionar={setServicioSeleccionado}
+                  />
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </section>
+        <div className="mt-10 flex justify-center border-t border-slate-100 pt-5">
+          <MarcaReserva idioma={locale} />
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {servicioSeleccionado && (
+          <AnimatedCheckoutSheet
+            servicio={servicioSeleccionado}
+            negocioNombre={negocio.nombre}
+            colorTema={negocio.colorTema}
+            horariosDisponibles={horariosDelServicio}
+            onReservaConfirmada={handleReservaConfirmada}
+            onClose={cerrarSheet}
+          />
+        )}
+      </AnimatePresence>
     </main>
   );
 }

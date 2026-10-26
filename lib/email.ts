@@ -4,10 +4,22 @@ import ReciboTurista, {
 } from "../emails/ReciboTurista";
 import AlertaPyme, { type AlertaPymeProps } from "../emails/AlertaPyme";
 import { isMockMode } from "./mock/client";
+import { obtenerConfiguracion } from "./plataforma";
+import { registrarSistema } from "./registro";
+
+/** Sustituye {{negocio}} y {{servicio}} en textos configurables. */
+export function aplicarVariables(
+  texto: string,
+  vars: { negocio: string; servicio: string },
+): string {
+  return texto
+    .replaceAll("{{negocio}}", vars.negocio)
+    .replaceAll("{{servicio}}", vars.servicio);
+}
 
 const resendApiKey = process.env.RESEND_API_KEY;
 const emailFrom =
-  process.env.EMAIL_FROM ?? "Turismo Link <notificaciones@localhost.dev>";
+  process.env.EMAIL_FROM ?? "vuki <notificaciones@localhost.dev>";
 
 if (!isMockMode && (!resendApiKey || !process.env.EMAIL_FROM)) {
   throw new Error(
@@ -26,6 +38,8 @@ export interface DatosConfirmacionReserva {
   montoUsd: number;
   trxId: string;
   emailCliente: string;
+  /** Enlace privado para que el turista vea o cancele su reserva. */
+  gestionUrl?: string;
 }
 
 export interface ResultadoEnvioCorreos {
@@ -47,8 +61,19 @@ export async function enviarCorreosConfirmacion(
     console.info(
       `✉ [modo simulado] Se habrían enviado el recibo a "${datos.emailCliente}" y la alerta a "${datos.negocioEmail}" para la reserva ${datos.trxId}.`,
     );
+    await registrarSistema({
+      tipo: "correo",
+      origen: "confirmacion_reserva",
+      estado: "ok",
+      detalle: `Simulado para la reserva ${datos.trxId}`,
+    });
     return { reciboTuristaOk: true, alertaPymeOk: true };
   }
+
+  const config = await obtenerConfiguracion();
+  const vars = { negocio: datos.negocioNombre, servicio: datos.servicioNombre };
+  const pRecibo = config.plantillas_correo.recibo ?? {};
+  const pAlerta = config.plantillas_correo.alerta ?? {};
 
   const reciboProps: ReciboTuristaProps = {
     negocioNombre: datos.negocioNombre,
@@ -58,6 +83,11 @@ export async function enviarCorreosConfirmacion(
     montoUsd: datos.montoUsd,
     trxId: datos.trxId,
     emailCliente: datos.emailCliente,
+    gestionUrl: datos.gestionUrl,
+    encabezado: pRecibo.encabezado
+      ? aplicarVariables(pRecibo.encabezado, vars)
+      : undefined,
+    pie: pRecibo.pie ? aplicarVariables(pRecibo.pie, vars) : undefined,
   };
 
   const alertaProps: AlertaPymeProps = {
@@ -66,19 +96,27 @@ export async function enviarCorreosConfirmacion(
     fechaHora: datos.fechaHora,
     emailCliente: datos.emailCliente,
     montoUsd: datos.montoUsd,
+    encabezado: pAlerta.encabezado
+      ? aplicarVariables(pAlerta.encabezado, vars)
+      : undefined,
+    pie: pAlerta.pie ? aplicarVariables(pAlerta.pie, vars) : undefined,
   };
 
   const [reciboResult, alertaResult] = await Promise.allSettled([
     resend!.emails.send({
       from: emailFrom,
       to: datos.emailCliente,
-      subject: `Tu reserva con ${datos.negocioNombre} fue confirmada`,
+      subject: pRecibo.asunto
+        ? aplicarVariables(pRecibo.asunto, vars)
+        : `Tu reserva con ${datos.negocioNombre} fue confirmada`,
       react: ReciboTurista(reciboProps),
     }),
     resend!.emails.send({
       from: emailFrom,
       to: datos.negocioEmail,
-      subject: `Nueva reserva pagada: ${datos.servicioNombre}`,
+      subject: pAlerta.asunto
+        ? aplicarVariables(pAlerta.asunto, vars)
+        : `Nueva reserva pagada: ${datos.servicioNombre}`,
       react: AlertaPyme(alertaProps),
     }),
   ]);
@@ -101,10 +139,44 @@ export async function enviarCorreosConfirmacion(
     );
   }
 
+  const reciboOk =
+    reciboResult.status === "fulfilled" && !reciboResult.value.error;
+  const alertaOk =
+    alertaResult.status === "fulfilled" && !alertaResult.value.error;
+  await registrarSistema({
+    tipo: "correo",
+    origen: "confirmacion_reserva",
+    estado: reciboOk && alertaOk ? "ok" : "error",
+    detalle: `recibo=${reciboOk ? "ok" : "fallo"}, alerta=${alertaOk ? "ok" : "fallo"} (${datos.trxId})`,
+  });
+
   return {
-    reciboTuristaOk:
-      reciboResult.status === "fulfilled" && !reciboResult.value.error,
-    alertaPymeOk:
-      alertaResult.status === "fulfilled" && !alertaResult.value.error,
+    reciboTuristaOk: reciboOk,
+    alertaPymeOk: alertaOk,
   };
+}
+
+/** Correo de texto plano (comunicados). Nunca lanza; devuelve si se envió. */
+export async function enviarCorreoTexto(datos: {
+  to: string;
+  asunto: string;
+  texto: string;
+}): Promise<boolean> {
+  if (isMockMode) {
+    console.info(
+      `✉ [modo simulado] Comunicado a "${datos.to}": ${datos.asunto}`,
+    );
+    return true;
+  }
+  try {
+    const r = await resend!.emails.send({
+      from: emailFrom,
+      to: datos.to,
+      subject: datos.asunto,
+      text: datos.texto,
+    });
+    return !r.error;
+  } catch {
+    return false;
+  }
 }

@@ -11,10 +11,17 @@ import {
   User,
   X,
 } from "lucide-react";
-import type { DemoHorario, DemoReserva, DemoServicio } from "../lib/demoStore";
+import type {
+  HorarioPublico,
+  ReservaPublica,
+  ServicioPublico,
+} from "../lib/tipos-publicos";
 import { cn } from "../lib/cn";
+import { textoSobre } from "../lib/color";
 import { useTranslations } from "../lib/i18n";
 import AnimatedIconButton from "./AnimatedIconButton";
+import MarcaReserva from "./MarcaReserva";
+import VLogo from "./VLogo";
 
 type Paso = "horario" | "datos" | "pago" | "cargando" | "exito";
 
@@ -45,20 +52,21 @@ function vencimientoValido(valor: string): boolean {
 }
 
 interface AnimatedCheckoutSheetProps {
-  servicio: DemoServicio;
+  servicio: ServicioPublico;
   negocioNombre: string;
   colorTema: string;
   onClose: () => void;
-  /** Horarios disponibles del servicio (editables en /demo/admin/horarios), con cupos. */
-  horariosDisponibles: DemoHorario[];
+  /** Horarios disponibles del servicio (editables en /[slug]/admin/horarios), con cupos. */
+  horariosDisponibles: HorarioPublico[];
   /** Reservas ya existentes para este mismo servicio (para validar duplicados por correo). */
-  reservasExistentes?: DemoReserva[];
+  reservasExistentes?: ReservaPublica[];
   /** Se llama al confirmar el pago simulado, con los datos para registrar la reserva. */
   onReservaConfirmada: (
     horarioId: string,
     nombreCliente: string,
     emailCliente: string,
-  ) => void;
+    cupos: number,
+  ) => void | Promise<{ error?: string; trxId?: string } | void>;
 }
 
 const variantesPaso = {
@@ -75,7 +83,7 @@ const variantesPaso = {
 
 /** Selector de elementos enfocables dentro de la trampa de foco del sheet. */
 const SELECTOR_ENFOCABLES =
-  'button:not([disabled]):not([tabindex="-1"]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  'a[href]:not([tabindex="-1"]), button:not([disabled]):not([tabindex="-1"]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * Bottom sheet premium (estilo iOS) para el checkout simulado. Se desliza
@@ -93,20 +101,22 @@ export default function AnimatedCheckoutSheet({
   reservasExistentes = [],
   onReservaConfirmada,
 }: AnimatedCheckoutSheetProps) {
-  const { t } = useTranslations();
+  const { t, locale } = useTranslations();
   const [paso, setPaso] = useState<Paso>("horario");
   const [direccion, setDireccion] = useState(1);
   const [horarioSeleccionado, setHorarioSeleccionado] =
-    useState<DemoHorario | null>(null);
+    useState<HorarioPublico | null>(null);
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
+  const [cupos, setCupos] = useState(1);
   const [errorEmail, setErrorEmail] = useState<string | null>(null);
   const [numeroTarjeta, setNumeroTarjeta] = useState("");
   const [vencimiento, setVencimiento] = useState("");
   const [cvc, setCvc] = useState("");
-  const [trxIdSimulado] = useState(
+  const [trxIdSimulado, setTrxIdSimulado] = useState(
     () => `TL-${Date.now().toString().slice(-8)}`,
   );
+  const [errorPago, setErrorPago] = useState<string | null>(null);
 
   const idTitulo = useId();
   const idNombre = useId();
@@ -189,14 +199,31 @@ export default function AnimatedCheckoutSheet({
   const pagoValido =
     numeroTarjetaValido && vencimientoValido(vencimiento) && cvcValido;
 
-  function handleConfirmarPago() {
+  async function handleConfirmarPago() {
+    setErrorPago(null);
     irA("cargando");
-    setTimeout(() => {
-      if (horarioSeleccionado) {
-        onReservaConfirmada(horarioSeleccionado.id, nombre, email);
+    const espera = new Promise((resolve) => setTimeout(resolve, 3000));
+    let resultado: { error?: string; trxId?: string } | void = undefined;
+    if (horarioSeleccionado) {
+      try {
+        resultado = await onReservaConfirmada(
+          horarioSeleccionado.id,
+          nombre,
+          email.trim().toLowerCase(),
+          cupos,
+        );
+      } catch {
+        resultado = { error: "No se pudo procesar el pago. Intenta de nuevo." };
       }
-      irA("exito");
-    }, 3000);
+    }
+    await espera;
+    if (resultado && resultado.error) {
+      setErrorPago(resultado.error);
+      irA("pago");
+      return;
+    }
+    if (resultado && resultado.trxId) setTrxIdSimulado(resultado.trxId);
+    irA("exito");
   }
 
   return (
@@ -229,7 +256,7 @@ export default function AnimatedCheckoutSheet({
           </AnimatedIconButton>
         )}
 
-        <div className="relative overflow-hidden">
+        <div className="relative min-h-0 overflow-y-auto overscroll-contain">
           <AnimatePresence mode="wait" custom={direccion}>
             {/* Paso 1: selección de horario */}
             {paso === "horario" && (
@@ -283,7 +310,10 @@ export default function AnimatedCheckoutSheet({
                         )}
                         style={{
                           ...(!reservado && seleccionado
-                            ? { backgroundColor: colorTema }
+                            ? {
+                                backgroundColor: colorTema,
+                                color: textoSobre(colorTema),
+                              }
                             : undefined),
                           ["--tw-ring-color" as string]: colorTema,
                         }}
@@ -293,6 +323,16 @@ export default function AnimatedCheckoutSheet({
                         {reservado && (
                           <span className="text-[10px] font-semibold uppercase tracking-wide">
                             {t("reservado")}
+                          </span>
+                        )}
+                        {!reservado && horario.cuposDisponibles <= 3 && (
+                          <span
+                            className={cn(
+                              "text-[10px] font-semibold",
+                              seleccionado ? "text-inherit" : "text-amber-800",
+                            )}
+                          >
+                            {horario.cuposDisponibles} {t("quedan")}
                           </span>
                         )}
                       </motion.button>
@@ -308,6 +348,7 @@ export default function AnimatedCheckoutSheet({
                   className="mt-10 h-14 w-full rounded-2xl text-base font-semibold text-white shadow-sm outline-none transition focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-30"
                   style={{
                     backgroundColor: colorTema,
+                    color: textoSobre(colorTema),
                     ["--tw-ring-color" as string]: colorTema,
                   }}
                 >
@@ -403,6 +444,37 @@ export default function AnimatedCheckoutSheet({
                   </div>
                 </div>
 
+                <div className="mt-5 flex items-center justify-between rounded-2xl bg-slate-100 px-4 py-3">
+                  <span className="text-sm font-medium text-slate-700">
+                    {t("personas")}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      aria-label={t("quitar_persona")}
+                      disabled={cupos <= 1}
+                      onClick={() => setCupos((c) => Math.max(1, c - 1))}
+                      className="vuki-focus h-11 w-11 rounded-full bg-white text-lg font-semibold text-slate-700 shadow-sm disabled:opacity-30"
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center text-base font-semibold text-slate-900">
+                      {cupos}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={t("agregar_persona")}
+                      disabled={
+                        cupos >= (horarioSeleccionado?.cuposDisponibles ?? 1)
+                      }
+                      onClick={() => setCupos((c) => c + 1)}
+                      className="vuki-focus h-11 w-11 rounded-full bg-white text-lg font-semibold text-slate-700 shadow-sm disabled:opacity-30"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
                 <motion.button
                   type="button"
                   disabled={!nombre || !email}
@@ -411,6 +483,7 @@ export default function AnimatedCheckoutSheet({
                   className="mt-10 h-14 w-full rounded-2xl text-base font-semibold text-white shadow-sm outline-none transition focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-30"
                   style={{
                     backgroundColor: colorTema,
+                    color: textoSobre(colorTema),
                     ["--tw-ring-color" as string]: colorTema,
                   }}
                 >
@@ -443,7 +516,7 @@ export default function AnimatedCheckoutSheet({
                 <div className="mb-6 rounded-2xl bg-slate-50 p-5">
                   <p className="text-xs text-gray-500">{t("total_a_pagar")}</p>
                   <p className="text-3xl font-bold tracking-tight text-slate-900">
-                    ${servicio.precioUsd.toFixed(2)}
+                    ${(servicio.precioUsd * cupos).toFixed(2)}
                   </p>
                 </div>
 
@@ -516,14 +589,20 @@ export default function AnimatedCheckoutSheet({
                   </div>
                 </div>
 
+                {errorPago && (
+                  <p role="alert" className="mt-5 text-sm text-red-600">
+                    {errorPago}
+                  </p>
+                )}
+
                 <motion.button
                   type="button"
                   disabled={!pagoValido}
                   onClick={handleConfirmarPago}
                   whileTap={{ scale: 0.97 }}
-                  className="mt-10 h-14 w-full rounded-2xl bg-emerald-600 text-base font-semibold text-white shadow-sm outline-none transition hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-30"
+                  className="mt-10 h-14 w-full rounded-2xl bg-emerald-700 text-base font-semibold text-white shadow-sm outline-none transition hover:bg-emerald-800 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-30"
                 >
-                  {t("pagar")} ${servicio.precioUsd.toFixed(2)}
+                  {t("pagar")} ${(servicio.precioUsd * cupos).toFixed(2)}
                 </motion.button>
               </motion.div>
             )}
@@ -566,6 +645,17 @@ export default function AnimatedCheckoutSheet({
                 role="status"
                 aria-live="polite"
               >
+                <div className="mb-6 rounded-2xl bg-slate-900 px-4 py-4 pr-10 text-white">
+                  <VLogo
+                    showText
+                    tone="light"
+                    className="h-6 w-6"
+                    wordmarkClassName="text-xl"
+                  />
+                  <p className="mt-2 text-xs font-medium text-emerald-200">
+                    {t("reserva_confirmada")}
+                  </p>
+                </div>
                 <div className="flex flex-col items-center text-center">
                   <motion.div
                     initial={{ scale: 0 }}
@@ -643,7 +733,7 @@ export default function AnimatedCheckoutSheet({
                     <div className="flex justify-between border-t border-emerald-200 pt-2.5">
                       <dt className="text-gray-500">{t("total_pagado")}</dt>
                       <dd className="font-bold text-emerald-700">
-                        ${servicio.precioUsd.toFixed(2)}
+                        ${(servicio.precioUsd * cupos).toFixed(2)}
                       </dd>
                     </div>
                   </dl>
@@ -657,6 +747,9 @@ export default function AnimatedCheckoutSheet({
                 >
                   {t("listo")}
                 </motion.button>
+                <div className="mt-3 flex justify-center">
+                  <MarcaReserva idioma={locale} />
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

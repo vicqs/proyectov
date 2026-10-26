@@ -7,7 +7,7 @@ const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
  * En modo simulado (sin credenciales reales de Supabase/Stripe) no se
  * inicializa el SDK de Stripe: la Server Action de billing usa en su lugar
  * un flujo de checkout simulado dentro de la propia app (ver
- * `/admin/suscripcion/simulado`).
+ * `/[slug]/admin/suscripcion/simulado`).
  */
 export const isStripeMockMode = isMockMode || !stripeSecretKey;
 
