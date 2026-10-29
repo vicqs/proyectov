@@ -7,6 +7,11 @@ import { actualizar, insertar, leer, leerUno } from "../../lib/admin/db";
 import { indexar, montoReserva } from "../../lib/admin/datos";
 import { campo, revalidarAdmin } from "../../lib/admin/util";
 import { revalidarEmpresa } from "../../lib/empresa";
+import {
+  admiteReembolsoPasarela,
+  esPagoManual,
+  esTrxPasarela,
+} from "../../lib/pagos";
 
 export async function cancelarReservaAction(
   id: string,
@@ -32,7 +37,7 @@ export async function cancelarReservaAction(
     revalidarAdmin();
     if (negocio) revalidarEmpresa(negocio.slug);
     return {
-      ok: reserva.trx_id
+      ok: esTrxPasarela(reserva.trx_id)
         ? "Reserva cancelada. Registra el reembolso si el cliente ya pagó."
         : "Reserva cancelada.",
     };
@@ -47,13 +52,14 @@ export async function registrarReembolsoAction(
   return accionAdmin("reservas", async (admin) => {
     const reserva = await leerUno("reservas", { eq: { id } });
     if (!reserva) return { error: "Reserva no encontrada." };
-    if (
-      !(
-        reserva.estado === "pagada" ||
-        (reserva.estado === "cancelada" && reserva.trx_id)
-      )
-    ) {
-      return { error: "Solo se reembolsan reservas pagadas." };
+    if (esPagoManual(reserva.trx_id)) {
+      return {
+        error:
+          "Las reservas con pago manual se gestionan directamente con el comercio, fuera de la pasarela.",
+      };
+    }
+    if (!admiteReembolsoPasarela(reserva)) {
+      return { error: "Solo se reembolsan reservas pagadas por pasarela." };
     }
     const servicios = indexar(
       await leer("servicios", { eq: { negocio_id: reserva.negocio_id } }),

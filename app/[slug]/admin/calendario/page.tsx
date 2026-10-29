@@ -1,23 +1,105 @@
-import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { requerirEmpresa, type EmpresaPageProps } from "@/lib/empresa";
 import { rutaPanelEmpresa } from "@/lib/rutas-empresa";
-import { construirHorarios, estaBloqueado, etiquetaDia } from "@/lib/horarios";
+import { construirHorarios, estaBloqueado } from "@/lib/horarios";
+import { COLOR_PRIMARIO_DEFECTO, esHex, textoSobre } from "@/lib/color";
 import type {
   BloqueoExcepcion,
   Horario,
   Reserva,
   Servicio,
 } from "@/types/database";
-import EmpresaPage from "@/components/EmpresaPage";
+import CalendarioView, {
+  type CalendarioDiaItem,
+} from "@/components/empresa/CalendarioView";
 
-const DIA_MS = 86_400_000;
+const MIN_OFFSET = -52;
+const MAX_OFFSET = 52;
 
-function formatoHora(iso: string) {
+const DIAS_CORTOS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const DIAS_MIN = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+const DIAS_LARGOS = [
+  "Domingo",
+  "Lunes",
+  "Martes",
+  "Miércoles",
+  "Jueves",
+  "Viernes",
+  "Sábado",
+];
+const MESES_CORTOS = [
+  "ene",
+  "feb",
+  "mar",
+  "abr",
+  "may",
+  "jun",
+  "jul",
+  "ago",
+  "sep",
+  "oct",
+  "nov",
+  "dic",
+];
+const MESES_LARGOS = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
+
+function formatoHora(iso: string): string {
   const f = new Date(iso);
   const h = f.getHours();
   const m = String(f.getMinutes()).padStart(2, "0");
   return `${h % 12 === 0 ? 12 : h % 12}:${m} ${h < 12 ? "a.m." : "p.m."}`;
+}
+
+function claveFechaLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatoFechaCorta(d: Date, incluirAnio = false): string {
+  const base = `${DIAS_MIN[d.getDay()]} ${d.getDate()} ${MESES_CORTOS[d.getMonth()]}`;
+  return incluirAnio ? `${base} ${d.getFullYear()}` : base;
+}
+
+function obtenerEtiquetaPeriodo(offset: number): string {
+  if (offset === 0) return "Esta semana";
+  if (offset === 1) return "Próxima semana";
+  if (offset === -1) return "Semana pasada";
+  return offset > 1
+    ? `En ${offset} semanas`
+    : `Hace ${Math.abs(offset)} semanas`;
+}
+
+function formatoHorarioBloqueo(
+  b: BloqueoExcepcion,
+  iniDia: number,
+  finDia: number,
+): string {
+  const iniB = new Date(b.fecha_inicio).getTime();
+  const finB = new Date(b.fecha_fin).getTime();
+  if (iniB <= iniDia && finB >= finDia - 60_000) {
+    return "Todo el día";
+  }
+  if (iniB > iniDia && finB < finDia - 60_000) {
+    return `${formatoHora(b.fecha_inicio)} – ${formatoHora(b.fecha_fin)}`;
+  }
+  if (iniB > iniDia) {
+    return `Desde ${formatoHora(b.fecha_inicio)}`;
+  }
+  return `Hasta ${formatoHora(b.fecha_fin)}`;
 }
 
 /**
@@ -33,14 +115,23 @@ export default async function CalendarioPage({
   const [{ slug }, { semana }] = await Promise.all([params, searchParams]);
   const { supabase, negocio } = await requerirEmpresa(slug);
   const offset = Math.max(
-    -52,
-    Math.min(52, Number.parseInt(semana ?? "0", 10) || 0),
+    MIN_OFFSET,
+    Math.min(MAX_OFFSET, Number.parseInt(semana ?? "0", 10) || 0),
   );
 
-  const inicio = new Date();
-  inicio.setHours(0, 0, 0, 0);
+  const ahoraMs = Date.now();
+  const hoy = new Date(ahoraMs);
+  hoy.setHours(0, 0, 0, 0);
+  const hoyMs = hoy.getTime();
+
+  const manana = new Date(hoy);
+  manana.setDate(hoy.getDate() + 1);
+  const mananaMs = manana.getTime();
+
+  const inicio = new Date(hoy);
   inicio.setDate(inicio.getDate() - inicio.getDay() + offset * 7);
-  const fin = new Date(inicio.getTime() + 7 * DIA_MS);
+  const fin = new Date(inicio);
+  fin.setDate(inicio.getDate() + 7);
 
   let servicios: Servicio[] = [];
   let horarios: Horario[] = [];
@@ -51,7 +142,11 @@ export default async function CalendarioPage({
     const desde = inicio.toISOString();
     const hasta = fin.toISOString();
     const [s, h, r, b] = await Promise.all([
-      supabase.from("servicios").select("*").eq("negocio_id", negocio.id),
+      supabase
+        .from("servicios")
+        .select("*")
+        .eq("negocio_id", negocio.id)
+        .order("nombre", { ascending: true }),
       supabase
         .from("horarios")
         .select("*")
@@ -77,129 +172,167 @@ export default async function CalendarioPage({
     bloqueos = (b.data ?? []) as BloqueoExcepcion[];
   }
 
+  const servicioPorId = new Map(servicios.map((s) => [s.id, s]));
   const nombreServicio = (id: string) =>
-    servicios.find((x) => x.id === id)?.nombre ?? "Servicio";
+    servicioPorId.get(id)?.nombre ?? "Servicio";
 
-  const slots = construirHorarios(
+  const inicioMs = inicio.getTime();
+  const finMs = fin.getTime();
+
+  const slotsSemana = construirHorarios(
     horarios.filter((h) => {
       const t = new Date(h.fecha_hora).getTime();
-      return t >= inicio.getTime() && t < fin.getTime();
+      return t >= inicioMs && t < finMs;
     }),
     reservas,
     [],
   );
 
-  const dias = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(inicio.getTime() + i * DIA_MS);
-    const ini = d.getTime();
-    return {
-      fecha: d,
-      iso: d.toISOString(),
-      slots: slots.filter((s) => {
-        const t = new Date(s.fechaHora).getTime();
-        return t >= ini && t < ini + DIA_MS;
-      }),
-      bloqueos: bloqueos.filter(
-        (b) =>
-          new Date(b.fecha_inicio).getTime() < ini + DIA_MS &&
-          new Date(b.fecha_fin).getTime() >= ini,
-      ),
-    };
+  const reservasActivas = reservas
+    .filter((r) => {
+      const t = new Date(r.fecha_hora).getTime();
+      return r.estado !== "cancelada" && t >= inicioMs && t < finMs;
+    })
+    .sort(
+      (a, b) =>
+        new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime(),
+    );
+
+  const fechasFechas = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(inicio);
+    d.setDate(inicio.getDate() + i);
+    const sig = new Date(d);
+    sig.setDate(d.getDate() + 1);
+    return { fecha: d, ini: d.getTime(), finDia: sig.getTime() };
   });
 
-  const rango = `${etiquetaDia(dias[0].iso)} – ${etiquetaDia(dias[6].iso)}`;
+  const reservasAsignadas = new Set<string>();
+
+  const dias: CalendarioDiaItem[] = fechasFechas.map(
+    ({ fecha, ini, finDia }) => {
+      const slotsDia = slotsSemana
+        .filter((s) => {
+          const t = new Date(s.fechaHora).getTime();
+          return t >= ini && t < finDia;
+        })
+        .map((s) => {
+          const slotMs = new Date(s.fechaHora).getTime();
+          const srv = servicioPorId.get(s.servicioId);
+          const reservasSlot = reservasActivas
+            .filter(
+              (r) =>
+                r.servicio_id === s.servicioId &&
+                new Date(r.fecha_hora).getTime() === slotMs,
+            )
+            .map((r) => {
+              reservasAsignadas.add(r.id);
+              const nombre = r.nombre_cliente?.trim();
+              return {
+                id: r.id,
+                cliente: nombre || r.email_cliente,
+                email: nombre ? r.email_cliente : undefined,
+                cupos: r.cupos ?? 1,
+                estado: (r.estado === "pagada" ? "pagada" : "pendiente") as
+                  | "pendiente"
+                  | "pagada",
+              };
+            });
+
+          return {
+            id: s.id,
+            servicioId: s.servicioId,
+            servicioNombre: srv?.nombre ?? "Servicio",
+            duracionMin: srv?.duracion_min,
+            hora: formatoHora(s.fechaHora),
+            cuposTotales: s.cuposTotales,
+            cuposDisponibles: s.cuposDisponibles,
+            bloqueado: estaBloqueado(s.fechaHora, bloqueos),
+            yaPaso: slotMs < ahoraMs,
+            reservas: reservasSlot,
+          };
+        });
+
+      const reservasSueltas = reservasActivas
+        .filter((r) => {
+          const t = new Date(r.fecha_hora).getTime();
+          return t >= ini && t < finDia && !reservasAsignadas.has(r.id);
+        })
+        .map((r) => {
+          const nombre = r.nombre_cliente?.trim();
+          return {
+            id: r.id,
+            servicioId: r.servicio_id,
+            servicioNombre: nombreServicio(r.servicio_id),
+            hora: formatoHora(r.fecha_hora),
+            cliente: nombre || r.email_cliente,
+            email: nombre ? r.email_cliente : undefined,
+            cupos: r.cupos ?? 1,
+            estado: (r.estado === "pagada" ? "pagada" : "pendiente") as
+              | "pendiente"
+              | "pagada",
+          };
+        });
+
+      const bloqueosDia = bloqueos
+        .filter((b) => {
+          const iniB = new Date(b.fecha_inicio).getTime();
+          const finB = new Date(b.fecha_fin).getTime();
+          return iniB < finDia && (finB > ini || iniB === ini);
+        })
+        .map((b) => ({
+          id: b.id,
+          motivo: b.motivo,
+          horarioTexto: formatoHorarioBloqueo(b, ini, finDia),
+        }));
+
+      return {
+        clave: claveFechaLocal(fecha),
+        iso: fecha.toISOString(),
+        diaNumero: fecha.getDate(),
+        diaSemanaCorto: DIAS_CORTOS[fecha.getDay()],
+        diaSemanaLargo: DIAS_LARGOS[fecha.getDay()],
+        mesCorto: MESES_CORTOS[fecha.getMonth()],
+        mesLargo: MESES_LARGOS[fecha.getMonth()],
+        esHoy: ini === hoyMs,
+        esManana: ini === mananaMs,
+        esPasado: finDia <= hoyMs,
+        slots: slotsDia,
+        reservasSueltas,
+        bloqueos: bloqueosDia,
+      };
+    },
+  );
+
+  const primerDia = fechasFechas[0].fecha;
+  const ultimoDia = fechasFechas[6].fecha;
+  const distintoAnio =
+    primerDia.getFullYear() !== ultimoDia.getFullYear() ||
+    primerDia.getFullYear() !== hoy.getFullYear();
+  const rangoSemana = `${formatoFechaCorta(primerDia, distintoAnio)} – ${formatoFechaCorta(ultimoDia, distintoAnio)}`;
+
   const rutaCalendario = rutaPanelEmpresa(negocio.slug, "calendario");
   const enlace = (n: number) =>
     n === 0 ? rutaCalendario : `${rutaCalendario}?semana=${n}`;
-  const botonNav =
-    "flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50";
+
+  const colorMarca = esHex(negocio.color_tema)
+    ? negocio.color_tema
+    : COLOR_PRIMARIO_DEFECTO;
 
   return (
-    <EmpresaPage
-      titulo="Calendario"
-      descripcion={`Semana del ${rango}: horarios, ocupación y bloqueos.`}
-      accion={
-        <div className="flex items-center gap-2">
-          <Link
-            href={enlace(offset - 1)}
-            aria-label="Semana anterior"
-            className={botonNav}
-          >
-            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          </Link>
-          <Link href={enlace(0)} className={botonNav}>
-            Hoy
-          </Link>
-          <Link
-            href={enlace(offset + 1)}
-            aria-label="Semana siguiente"
-            className={botonNav}
-          >
-            <ChevronRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
-        </div>
-      }
-    >
-      <ul className="space-y-4">
-        {dias.map((dia) => (
-          <li
-            key={dia.iso}
-            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-          >
-            <h2 className="mb-3 text-sm font-semibold capitalize text-slate-800">
-              {etiquetaDia(dia.iso)}
-            </h2>
-
-            {dia.bloqueos.map((b) => (
-              <p
-                key={b.id}
-                className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700"
-              >
-                Bloqueado: {b.motivo}
-              </p>
-            ))}
-
-            {dia.slots.length === 0 && dia.bloqueos.length === 0 ? (
-              <p className="text-xs text-slate-400">Sin horarios.</p>
-            ) : (
-              <ul className="space-y-2">
-                {dia.slots.map((s) => {
-                  const ocupados = s.cuposTotales - s.cuposDisponibles;
-                  const bloqueado = estaBloqueado(s.fechaHora, bloqueos);
-                  return (
-                    <li
-                      key={s.id}
-                      className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm"
-                    >
-                      <span className="text-slate-700">
-                        <span className="font-semibold">
-                          {formatoHora(s.fechaHora)}
-                        </span>{" "}
-                        · {nombreServicio(s.servicioId)}
-                      </span>
-                      <span
-                        className={`whitespace-nowrap text-xs font-semibold ${
-                          bloqueado
-                            ? "text-red-600"
-                            : s.cuposDisponibles === 0
-                              ? "text-red-600"
-                              : s.cuposDisponibles <= 2
-                                ? "text-amber-600"
-                                : "text-emerald-600"
-                        }`}
-                      >
-                        {bloqueado
-                          ? "Bloqueado"
-                          : `${ocupados}/${s.cuposTotales} cupos`}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </li>
-        ))}
-      </ul>
-    </EmpresaPage>
+    <CalendarioView
+      rangoSemana={rangoSemana}
+      etiquetaPeriodo={obtenerEtiquetaPeriodo(offset)}
+      offset={offset}
+      enlaceAnterior={offset > MIN_OFFSET ? enlace(offset - 1) : undefined}
+      enlaceHoy={enlace(0)}
+      enlaceSiguiente={offset < MAX_OFFSET ? enlace(offset + 1) : undefined}
+      hrefHorarios={rutaPanelEmpresa(negocio.slug, "horarios")}
+      hrefAgenda={rutaPanelEmpresa(negocio.slug, "agenda")}
+      hrefReservas={rutaPanelEmpresa(negocio.slug, "reservas")}
+      hrefServicios={rutaPanelEmpresa(negocio.slug, "servicios")}
+      textoMarca={textoSobre(colorMarca)}
+      servicios={servicios.map((s) => ({ id: s.id, nombre: s.nombre }))}
+      dias={dias}
+    />
   );
 }

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarCheck } from "lucide-react";
 import { supabaseAdmin } from "../../../lib/supabase";
+import { esPagoManual } from "../../../lib/pagos";
 import {
   etiquetaHorario,
   HORAS_LIMITE_CANCELACION,
@@ -78,7 +79,11 @@ export default async function ReservaPublicaPage({
   if (servicio) {
     filas.push(["Total", `$${(servicio.precio_usd * cupos).toFixed(2)} USD`]);
   }
-  if (reserva.trx_id) filas.push(["ID de transacción", reserva.trx_id]);
+  if (reserva.trx_id)
+    filas.push([
+      "ID de transacción",
+      esPagoManual(reserva.trx_id) ? "Pago directo al comercio" : reserva.trx_id,
+    ]);
 
   return (
     <PaginaPublica

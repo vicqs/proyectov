@@ -20,6 +20,7 @@ import {
 import { tienePermiso } from "../../lib/roles";
 import { estadoEfectivo } from "../../lib/negocio-estado";
 import { fechaCorta, usd } from "../../lib/admin/formato";
+import { esCobroPasarela } from "../../lib/pagos";
 import {
   Celda,
   Estadistica,
@@ -52,7 +53,8 @@ export default async function AdminResumenPage() {
 
   const idxServicios = indexar(servicios);
   const pagadas = reservas.filter((r) => r.estado === "pagada");
-  const ingresos30 = pagadas
+  const ingresos30 = reservas
+    .filter(esCobroPasarela)
     .filter((r) => new Date(r.fecha_hora).getTime() >= hace30)
     .reduce((a, r) => a + montoReserva(r, idxServicios), 0);
 

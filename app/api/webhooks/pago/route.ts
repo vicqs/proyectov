@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { supabaseAdmin } from "../../../../lib/supabase";
 import { enviarCorreosConfirmacion } from "../../../../lib/email";
+import { esPagoManual } from "../../../../lib/pagos";
 import { registrarSistema } from "../../../../lib/registro";
 
 /**
@@ -13,7 +14,10 @@ import { registrarSistema } from "../../../../lib/registro";
 const webhookSchema = z.object({
   reserva_id: z.string().uuid(),
   estado: z.enum(["pendiente", "pagada"]),
-  trx_id: z.string().optional(),
+  trx_id: z
+    .string()
+    .refine((v) => !esPagoManual(v), "Prefijo trx_id reservado")
+    .optional(),
 });
 
 const PAGO_WEBHOOK_SECRET = process.env.PAGO_WEBHOOK_SECRET;

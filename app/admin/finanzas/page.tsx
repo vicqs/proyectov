@@ -8,6 +8,7 @@ import {
   montoReserva,
 } from "../../../lib/admin/datos";
 import { fechaHora, usd } from "../../../lib/admin/formato";
+import { esCobroPasarela, esTrxPasarela } from "../../../lib/pagos";
 import {
   CLASE_BOTON_NEUTRO,
   Celda,
@@ -25,7 +26,7 @@ export default async function FinanzasAdminPage() {
   const vivos = negocios.filter((n) => !n.eliminado_en);
   const idx = indexar(servicios);
   const nombreNegocio = new Map(negocios.map((n) => [n.id, n.nombre]));
-  const pagadas = reservas.filter((r) => r.estado === "pagada");
+  const pagadas = reservas.filter(esCobroPasarela);
 
   const mrr = calcularMrr(vivos, planes);
   const volumenTotal = pagadas.reduce((a, r) => a + montoReserva(r, idx), 0);
@@ -51,7 +52,8 @@ export default async function FinanzasAdminPage() {
   const reembolsadas = new Set(reembolsos.map((r) => r.reserva_id));
   const conteoTrx = new Map<string, number>();
   for (const r of reservas) {
-    if (r.trx_id) conteoTrx.set(r.trx_id, (conteoTrx.get(r.trx_id) ?? 0) + 1);
+    if (r.trx_id && esTrxPasarela(r.trx_id))
+      conteoTrx.set(r.trx_id, (conteoTrx.get(r.trx_id) ?? 0) + 1);
   }
   const discrepancias: {
     reserva: string;
@@ -72,7 +74,7 @@ export default async function FinanzasAdminPage() {
       });
     }
     if (
-      r.estado === "pagada" &&
+      esCobroPasarela(r) &&
       (r.monto_usd === null || r.monto_usd === undefined)
     ) {
       discrepancias.push({ ...base, problema: "Pagada sin monto registrado" });
@@ -86,13 +88,17 @@ export default async function FinanzasAdminPage() {
         problema: "Pendiente con fecha ya vencida",
       });
     }
-    if (r.estado === "cancelada" && r.trx_id && !reembolsadas.has(r.id)) {
+    if (
+      r.estado === "cancelada" &&
+      esTrxPasarela(r.trx_id) &&
+      !reembolsadas.has(r.id)
+    ) {
       discrepancias.push({
         ...base,
         problema: "Cancelada con pago sin reembolso registrado",
       });
     }
-    if (r.trx_id && (conteoTrx.get(r.trx_id) ?? 0) > 1) {
+    if (r.trx_id && esTrxPasarela(r.trx_id) && (conteoTrx.get(r.trx_id) ?? 0) > 1) {
       discrepancias.push({
         ...base,
         problema: `Transacción duplicada (${r.trx_id})`,

@@ -2,53 +2,101 @@
 
 import { z } from "zod";
 import { createSupabaseServerClient } from "../lib/supabase/server";
-import { obtenerEmpresaOperativa, revalidarEmpresa } from "../lib/empresa";
+import {
+  obtenerEmpresaAutenticada,
+  obtenerEmpresaOperativa,
+  revalidarEmpresa,
+} from "../lib/empresa";
 import type { Negocio } from "../types/database";
 import { obtenerConfiguracion } from "../lib/plataforma";
+import { obtenerPaisPorIso, totalDigitosPais } from "../lib/telefono";
 
 const STORAGE_BUCKET = "negocios-media";
 const TIPOS_PERMITIDOS = ["image/png", "image/jpeg", "image/webp"];
 
-const personalizacionSchema = z.object({
-  whatsapp: z
-    .string()
-    .transform((v) => v.replace(/[\s()+-]/g, ""))
-    .refine((v) => v === "" || /^\d{8,15}$/.test(v), {
-      message:
-        "WhatsApp inválido: usa solo números con código de país (ej. 50688887777)",
-    }),
-  nombre: z
-    .string()
-    .trim()
-    .min(2, "El nombre es muy corto")
-    .max(100, "El nombre debe tener menos de 100 caracteres"),
-  descripcion: z
-    .string()
-    .max(1000, "La biografía debe tener menos de 1000 caracteres"),
-  color_tema: z
-    .string()
-    .regex(
-      /^#([0-9a-fA-F]{6})$/,
-      "El color debe estar en formato HEX (ej. #0284c7)",
-    ),
-  color_secundario: z
-    .string()
-    .regex(
-      /^#([0-9a-fA-F]{6})$/,
-      "El color secundario debe estar en formato HEX",
-    ),
-});
+const personalizacionSchema = z
+  .object({
+    whatsapp: z.string().transform((v) => v.replace(/\D/g, "")),
+    whatsapp_pais: z.string().optional(),
+    cuenta_iban: z
+      .string()
+      .optional()
+      .transform((v) =>
+        v !== undefined ? v.replace(/\s+/g, "").toUpperCase() : undefined,
+      ),
+    nombre: z
+      .string()
+      .trim()
+      .min(2, "El nombre es muy corto")
+      .max(100, "El nombre debe tener menos de 100 caracteres"),
+    descripcion: z
+      .string()
+      .max(1000, "La biografía debe tener menos de 1000 caracteres"),
+    color_tema: z
+      .string()
+      .regex(
+        /^#([0-9a-fA-F]{6})$/,
+        "El color debe estar en formato HEX (ej. #0284c7)",
+      ),
+    color_secundario: z
+      .string()
+      .regex(
+        /^#([0-9a-fA-F]{6})$/,
+        "El color secundario debe estar en formato HEX",
+      ),
+  })
+  .superRefine((datos, ctx) => {
+    if (
+      datos.cuenta_iban &&
+      !/^[A-Z]{2}[0-9A-Z]{12,32}$/.test(datos.cuenta_iban)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["cuenta_iban"],
+        message:
+          "Cuenta IBAN inválida: usa el código de país seguido de los dígitos (ej. CR00 0000 0000 0000 0000 00).",
+      });
+    }
+    if (!datos.whatsapp) return;
+    if (datos.whatsapp_pais) {
+      const pais = obtenerPaisPorIso(datos.whatsapp_pais);
+      const esperados = totalDigitosPais(pais);
+      const esperadoTotal = pais.codigo.length + esperados;
+      if (
+        !datos.whatsapp.startsWith(pais.codigo) ||
+        datos.whatsapp.length !== esperadoTotal
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["whatsapp"],
+          message: `WhatsApp inválido para ${pais.nombre} (+${pais.codigo}): ingresa los ${esperados} dígitos del número (ej. ${pais.ejemplo}).`,
+        });
+      }
+      return;
+    }
+    if (!/^\d{8,15}$/.test(datos.whatsapp)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["whatsapp"],
+        message:
+          "WhatsApp inválido: usa solo números con código de país (ej. +506 8888 7777).",
+      });
+    }
+  });
 
 export interface PersonalizacionActionState {
   error?: string;
   success?: boolean;
+  savedAt?: number;
+  logoUrl?: string | null;
+  portadaUrl?: string | null;
 }
 
 /**
- * Server Action que actualiza la biografía, el color de marca y, si el
- * usuario adjuntó archivos, el logo y/o la imagen de portada del negocio.
- * Todo el flujo (validación, subida a Storage y update en la tabla) ocurre
- * en el servidor con el cliente SSR, respetando RLS.
+ * Server Action que actualiza la biografía, el color de marca, el WhatsApp,
+ * la cuenta IBAN y, si el usuario adjuntó archivos o solicitó quitarlos, el
+ * logo y/o la imagen de portada del negocio. Todo el flujo ocurre en el
+ * servidor con el cliente SSR, respetando RLS.
  */
 export async function actualizarPersonalizacionAction(
   slug: string,
@@ -62,6 +110,10 @@ export async function actualizarPersonalizacionAction(
     color_secundario:
       formData.get("color_secundario") || formData.get("color_tema"),
     whatsapp: formData.get("whatsapp") ?? "",
+    whatsapp_pais: (formData.get("whatsapp_pais") as string | null) ?? undefined,
+    cuenta_iban: formData.has("cuenta_iban")
+      ? String(formData.get("cuenta_iban") ?? "")
+      : undefined,
   });
 
   if (!parsed.success) {
@@ -75,6 +127,8 @@ export async function actualizarPersonalizacionAction(
   const maxBytes = max_imagen_mb * 1024 * 1024;
   const logoFile = formData.get("logo") as File | null;
   const portadaFile = formData.get("portada") as File | null;
+  const eliminarLogo = formData.get("eliminar_logo") === "true";
+  const eliminarPortada = formData.get("eliminar_portada") === "true";
 
   const updatePayload: Partial<Negocio> = {
     nombre: parsed.data.nombre,
@@ -82,6 +136,9 @@ export async function actualizarPersonalizacionAction(
     color_tema: parsed.data.color_tema,
     color_secundario: parsed.data.color_secundario,
     whatsapp: parsed.data.whatsapp || null,
+    ...(parsed.data.cuenta_iban !== undefined
+      ? { cuenta_iban: parsed.data.cuenta_iban }
+      : {}),
   };
 
   try {
@@ -93,6 +150,8 @@ export async function actualizarPersonalizacionAction(
         "logo",
         maxBytes,
       );
+    } else if (eliminarLogo) {
+      updatePayload.logo_url = null;
     }
 
     if (portadaFile && portadaFile.size > 0) {
@@ -103,6 +162,8 @@ export async function actualizarPersonalizacionAction(
         "portada",
         maxBytes,
       );
+    } else if (eliminarPortada) {
+      updatePayload.imagen_portada_url = null;
     }
   } catch (uploadError) {
     console.error("Error al subir imagen a Supabase Storage:", uploadError);
@@ -127,7 +188,89 @@ export async function actualizarPersonalizacionAction(
   }
 
   revalidarEmpresa(negocio.slug);
-  return { success: true };
+  return {
+    success: true,
+    savedAt: Date.now(),
+    logoUrl:
+      updatePayload.logo_url !== undefined
+        ? updatePayload.logo_url
+        : negocio.logo_url,
+    portadaUrl:
+      updatePayload.imagen_portada_url !== undefined
+        ? updatePayload.imagen_portada_url
+        : negocio.imagen_portada_url,
+  };
+}
+
+export interface CambiarContrasenaEmpresaState {
+  error?: string;
+  success?: boolean;
+  savedAt?: number;
+}
+
+const cambiarContrasenaSchema = z
+  .object({
+    actual: z.string().min(1, "Ingresa tu contraseña actual."),
+    nueva: z
+      .string()
+      .min(8, "La nueva contraseña debe tener al menos 8 caracteres.")
+      .max(72, "La contraseña es demasiado larga."),
+    confirmar: z.string(),
+  })
+  .refine((v) => v.nueva === v.confirmar, {
+    message: "La confirmación no coincide con la nueva contraseña.",
+    path: ["confirmar"],
+  })
+  .refine((v) => v.nueva !== v.actual, {
+    message: "La nueva contraseña debe ser diferente a la actual.",
+    path: ["nueva"],
+  });
+
+/**
+ * Permite al dueño autenticado actualizar su contraseña desde el panel sin
+ * cerrar sesión, verificando primero su contraseña actual.
+ */
+export async function cambiarContrasenaEmpresaAction(
+  slug: string,
+  _prevState: CambiarContrasenaEmpresaState,
+  formData: FormData,
+): Promise<CambiarContrasenaEmpresaState> {
+  const ctx = await obtenerEmpresaAutenticada(slug);
+  if ("error" in ctx) return { error: ctx.error };
+  const { supabase, user } = ctx;
+
+  if (!user.email) {
+    return { error: "No se pudo verificar el correo de tu sesión." };
+  }
+
+  const parsed = cambiarContrasenaSchema.safeParse({
+    actual: formData.get("actual") ?? "",
+    nueva: formData.get("nueva") ?? "",
+    confirmar: formData.get("confirmar") ?? "",
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+
+  const { error: verifyError } = await supabase.auth.signInWithPassword({
+    email: user.email,
+    password: parsed.data.actual,
+  });
+
+  if (verifyError) {
+    return { error: "Tu contraseña actual no es correcta." };
+  }
+
+  const { error: updateError } = await supabase.auth.updateUser({
+    password: parsed.data.nueva,
+  });
+
+  if (updateError) {
+    return { error: "No se pudo actualizar la contraseña. Intenta de nuevo." };
+  }
+
+  return { success: true, savedAt: Date.now() };
 }
 
 /** Comprueba los primeros bytes (firma) para que el contenido coincida con el MIME declarado. */

@@ -19,6 +19,7 @@ import {
 } from "../../../../lib/plataforma";
 import { estadoEfectivo } from "../../../../lib/negocio-estado";
 import { facturasPendientes } from "../../../../lib/facturas-pendientes";
+import { esCobroPasarela } from "../../../../lib/pagos";
 import {
   fechaCorta,
   fechaHora,
@@ -178,7 +179,9 @@ async function Resumen({
   ]);
   const idx = indexar(servicios);
   const pagadas = reservas.filter((r) => r.estado === "pagada");
-  const ingresos = pagadas.reduce((a, r) => a + montoReserva(r, idx), 0);
+  const ingresos = reservas
+    .filter(esCobroPasarela)
+    .reduce((a, r) => a + montoReserva(r, idx), 0);
   const precio = calcularPrecio(negocio, planes);
 
   return (

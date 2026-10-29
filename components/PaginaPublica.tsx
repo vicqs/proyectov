@@ -10,6 +10,7 @@ export default function PaginaPublica({
   icono,
   children,
   pie,
+  accion,
 }: {
   titulo: string;
   descripcion?: ReactNode;
@@ -17,6 +18,8 @@ export default function PaginaPublica({
   icono?: ReactNode;
   children: ReactNode;
   pie?: ReactNode;
+  /** Elemento a la derecha del logo (p. ej. selector de idioma). */
+  accion?: ReactNode;
 }) {
   return (
     <main className="relative isolate min-h-[85svh] overflow-hidden bg-vuki-surface px-4 py-10 sm:py-14">
@@ -25,13 +28,16 @@ export default function PaginaPublica({
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-80 bg-linear-to-br from-sky-100/70 via-white to-emerald-100/50"
       />
       <div className="mx-auto w-full max-w-lg">
-        <Link
-          href="/"
-          aria-label="vuki · inicio"
-          className="vuki-focus mb-7 inline-flex min-h-11 items-center rounded-xl"
-        >
-          <VLogo showText className="h-9 w-9" />
-        </Link>
+        <div className="mb-7 flex items-center justify-between gap-3">
+          <Link
+            href="/"
+            aria-label="vuki · inicio"
+            className="vuki-focus inline-flex min-h-11 items-center rounded-xl"
+          >
+            <VLogo showText className="h-9 w-9" />
+          </Link>
+          {accion}
+        </div>
         <section className="overflow-hidden rounded-3xl border border-sky-100 bg-white shadow-xl shadow-sky-950/[0.05]">
           <header className="relative border-b border-sky-100 bg-linear-to-br from-sky-50 via-white to-emerald-50/70 px-6 py-7 sm:px-8">
             <div

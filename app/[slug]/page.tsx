@@ -11,13 +11,15 @@ import type { ServicioPublico } from "../../lib/tipos-publicos";
 import type { Negocio, Reserva, Servicio } from "../../types/database";
 import type { BloqueoExcepcion, Horario } from "../../types/database";
 import NegocioProfileClient from "./NegocioProfileClient";
-import Link from "next/link";
 import { motivoNoOperativo } from "../../lib/negocio-estado";
 import {
   funcionActivaNegocio,
   obtenerConfiguracion,
   flagActiva,
 } from "../../lib/plataforma";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -58,7 +60,10 @@ export async function generateMetadata({
   const negocio = data;
   const titulo = `${negocio.nombre} — Reserva y paga en línea`;
   const descripcion = negocio.descripcion ?? DESCRIPCION_DEFAULT;
-  const logo = negocio.logo_url ?? LOGO_POR_DEFECTO;
+  const logo =
+    negocio.logo_url && !negocio.logo_url.startsWith("data:")
+      ? negocio.logo_url
+      : LOGO_POR_DEFECTO;
 
   return {
     title: titulo,
@@ -137,7 +142,7 @@ export default async function NegocioPublicPage({
     descripcion: s.descripcion ?? "",
     precioUsd: s.precio_usd,
     duracionMin: s.duracion_min,
-    imagenUrl: s.imagen_url ?? IMAGEN_SERVICIO_DEFAULT,
+    imagenUrl: s.imagen_url ?? negocio.logo_url ?? IMAGEN_SERVICIO_DEFAULT,
   }));
 
   const horarios = construirHorarios(
@@ -166,7 +171,7 @@ export default async function NegocioPublicPage({
             negocio.color_secundario ??
             negocio.color_tema ??
             COLOR_TEMA_DEFAULT,
-          whatsapp: negocio.whatsapp ?? undefined,
+          whatsapp: negocio.whatsapp?.trim() || undefined,
         }}
         servicios={servicios}
         horarios={horarios}
@@ -176,17 +181,12 @@ export default async function NegocioPublicPage({
           flagActiva(config, "reservas_publicas")
         }
         pago={pago}
+        hrefReportar={
+          (await funcionActivaNegocio(negocio, "reportes_publicos"))
+            ? `/${encodeURIComponent(slug)}/reportar`
+            : undefined
+        }
       />
-      {(await funcionActivaNegocio(negocio, "reportes_publicos")) && (
-        <p className="pb-6 text-center text-xs text-slate-600">
-          <Link
-            href={`/${encodeURIComponent(slug)}/reportar`}
-            className="inline-block px-2 py-2 hover:underline focus-visible:underline"
-          >
-            Reportar este perfil
-          </Link>
-        </p>
-      )}
     </>
   );
 }

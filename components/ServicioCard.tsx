@@ -3,7 +3,10 @@
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { Clock } from "lucide-react";
-import type { ServicioPublico } from "../lib/tipos-publicos";
+import {
+  esImagenOptimizable,
+  type ServicioPublico,
+} from "../lib/tipos-publicos";
 import { textoSobre } from "../lib/color";
 
 interface ServicioCardProps {
@@ -32,14 +35,15 @@ export default function ServicioCard({
     <motion.button
       type="button"
       onClick={() => onSeleccionar(servicio)}
-      whileHover={{ y: -6 }}
-      whileTap={{ scale: 0.97 }}
+      whileHover={{ y: -5 }}
+      whileTap={{ scale: 0.98 }}
       transition={{ type: "spring", stiffness: 300, damping: 22 }}
-      className="group relative block h-64 w-full overflow-hidden rounded-3xl text-left shadow-sm outline-none transition-shadow duration-300 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none sm:h-72"
+      className="group relative block h-64 w-full overflow-hidden rounded-3xl text-left shadow-sm ring-1 ring-black/5 outline-none transition-shadow duration-300 after:pointer-events-none after:absolute after:inset-0 after:rounded-3xl after:ring-1 after:ring-inset after:ring-white/15 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none sm:h-72"
       style={{ ["--tw-ring-color" as string]: colorTema }}
     >
       <Image
         src={servicio.imagenUrl}
+        unoptimized={!esImagenOptimizable(servicio.imagenUrl)}
         alt=""
         aria-hidden="true"
         fill
@@ -56,9 +60,11 @@ export default function ServicioCard({
           <h3 className="break-words text-xl font-semibold tracking-tight text-white">
             {servicio.nombre}
           </h3>
-          <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-white/90">
-            {servicio.descripcion}
-          </p>
+          {servicio.descripcion && (
+            <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-white/90">
+              {servicio.descripcion}
+            </p>
+          )}
         </div>
 
         <div className="flex items-center justify-between pt-1">
@@ -68,7 +74,7 @@ export default function ServicioCard({
           </span>
 
           <span
-            className="rounded-full px-4 py-2 text-sm font-semibold shadow-lg backdrop-blur-sm"
+            className="rounded-full px-4 py-2 text-sm font-semibold shadow-lg backdrop-blur-sm transition-transform duration-200 group-hover:scale-[1.03] motion-reduce:transform-none"
             style={{
               backgroundImage: `linear-gradient(135deg, ${colorTema}, ${colorSecundario})`,
               color: textoSobre(colorTema),

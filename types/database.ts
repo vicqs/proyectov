@@ -3,6 +3,24 @@
  * Arquitectura multi-tenant: todo dato de dominio está aislado por `negocio_id`.
  */
 
+import type {
+  ClientIdType,
+  FinancialTransaction,
+  FiscalCurrency,
+  InvoiceStatus,
+  ServiceFiscalSummary,
+  VoucherType,
+} from "./finanzas";
+
+export type {
+  ClientIdType,
+  FinancialTransaction,
+  FiscalCurrency,
+  InvoiceStatus,
+  ServiceFiscalSummary,
+  VoucherType,
+};
+
 export type EstadoReserva = "pendiente" | "pagada" | "cancelada";
 
 /** Estado de la suscripción SaaS de la pyme (cobro de $15 USD/mes). */
@@ -200,10 +218,14 @@ export type Servicio = {
   id: string; // UUID
   negocio_id: string; // UUID (FK -> negocios.id)
   nombre: string;
-  precio_usd: number; // Decimal
+  precio_usd: number; // Decimal (IVA incluido)
   duracion_min: number;
   descripcion?: string | null;
   imagen_url?: string | null;
+  /** Código CABYS de 13 dígitos (Ministerio de Hacienda / BCCR). */
+  cabys_code?: string;
+  /** Tarifa de IVA aplicable en decimal (ej. 0.13 general o 0.04 turismo ICT). */
+  iva_rate?: number;
 };
 
 export type Reserva = {
@@ -218,6 +240,16 @@ export type Reserva = {
   estado: EstadoReserva;
   trx_id?: string | null;
   monto_usd?: number | null; // Monto cobrado al momento del pago (precio × cupos)
+  /** Metadatos fiscales y de facturación electrónica (Ministerio de Hacienda - CR). */
+  cabys_code?: string;
+  voucher_type?: VoucherType;
+  client_id_type?: ClientIdType;
+  client_tax_id?: string | null;
+  currency?: FiscalCurrency;
+  exchange_rate_bccr?: number;
+  iva_rate?: number;
+  invoice_status?: InvoiceStatus;
+  invoice_consecutive?: string | null;
 };
 
 /** Reserva extendida con el nombre del servicio (JOIN reservas + servicios). */
@@ -379,6 +411,26 @@ export type Database = {
         Insert: Partial<Reembolso> &
           Pick<Reembolso, "reserva_id" | "negocio_id" | "monto_usd">;
         Update: Partial<Reembolso>;
+        Relationships: [];
+      };
+      financial_transactions: {
+        Row: { [K in keyof FinancialTransaction]: FinancialTransaction[K] };
+        Insert: Partial<{
+          [K in keyof FinancialTransaction]: FinancialTransaction[K];
+        }> &
+          Pick<
+            FinancialTransaction,
+            | "negocio_id"
+            | "service_date"
+            | "transaction_ref"
+            | "service_name"
+            | "cabys_code"
+            | "client_email"
+            | "gross_amount"
+          >;
+        Update: Partial<{
+          [K in keyof FinancialTransaction]: FinancialTransaction[K];
+        }>;
         Relationships: [];
       };
     };
