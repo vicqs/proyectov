@@ -24,8 +24,8 @@ export default async function PrivacidadPage() {
 
   return (
     <LegalPage tipo="privacidad" fechaActualizacion="27 de agosto de 2026">
-      <section className="space-y-8 sm:space-y-10">
-        <div>
+      <section className="space-y-6 sm:space-y-8">
+        <div className="-mx-4 rounded-2xl border border-transparent px-4 py-3 transition-colors hover:border-slate-200/70 hover:bg-slate-50/70">
           <h2 className="text-lg font-semibold text-slate-900">
             1. Datos que recopilamos
           </h2>
@@ -37,7 +37,7 @@ export default async function PrivacidadPage() {
           </p>
         </div>
 
-        <div>
+        <div className="-mx-4 rounded-2xl border border-transparent px-4 py-3 transition-colors hover:border-slate-200/70 hover:bg-slate-50/70">
           <h2 className="text-lg font-semibold text-slate-900">
             2. Uso de los datos
           </h2>
@@ -48,7 +48,7 @@ export default async function PrivacidadPage() {
           </p>
         </div>
 
-        <div>
+        <div className="-mx-4 rounded-2xl border border-transparent px-4 py-3 transition-colors hover:border-slate-200/70 hover:bg-slate-50/70">
           <h2 className="text-lg font-semibold text-slate-900">
             3. Compartición con terceros
           </h2>
@@ -60,7 +60,7 @@ export default async function PrivacidadPage() {
           </p>
         </div>
 
-        <div>
+        <div className="-mx-4 rounded-2xl border border-transparent px-4 py-3 transition-colors hover:border-slate-200/70 hover:bg-slate-50/70">
           <h2 className="text-lg font-semibold text-slate-900">
             4. Almacenamiento y seguridad
           </h2>
@@ -72,7 +72,7 @@ export default async function PrivacidadPage() {
           </p>
         </div>
 
-        <div>
+        <div className="-mx-4 rounded-2xl border border-transparent px-4 py-3 transition-colors hover:border-slate-200/70 hover:bg-slate-50/70">
           <h2 className="text-lg font-semibold text-slate-900">
             5. Derechos del usuario
           </h2>
@@ -83,7 +83,7 @@ export default async function PrivacidadPage() {
           </p>
         </div>
 
-        <div>
+        <div className="-mx-4 rounded-2xl border border-transparent px-4 py-3 transition-colors hover:border-slate-200/70 hover:bg-slate-50/70">
           <h2 className="text-lg font-semibold text-slate-900">
             6. Cookies y analíticas
           </h2>
@@ -94,7 +94,7 @@ export default async function PrivacidadPage() {
           </p>
         </div>
 
-        <div>
+        <div className="-mx-4 rounded-2xl border border-transparent px-4 py-3 transition-colors hover:border-slate-200/70 hover:bg-slate-50/70">
           <h2 className="text-lg font-semibold text-slate-900">
             7. Cambios a esta política
           </h2>

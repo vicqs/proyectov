@@ -4,6 +4,7 @@ import {
   mockBloqueos,
   mockComunicados,
   mockConfiguracion,
+  mockFinancialTransactions,
   mockHorarios,
   mockNegocios,
   mockNotas,
@@ -24,15 +25,11 @@ const globalMock = globalThis as unknown as {
   __neMockTablas?: Record<string, Fila[]>;
 };
 
-/**
- * Referencia mutable de cada tabla en memoria. Se guarda en `globalThis` para
- * que acciones, páginas y layouts vean los mismos datos aunque Next los
- * compile en bundles distintos durante el desarrollo.
- */
-const TABLAS: Record<string, Fila[]> = (globalMock.__neMockTablas ??= {
+const TABLAS_INICIALES: Record<string, Fila[]> = {
   negocios: mockNegocios as unknown as Fila[],
   servicios: mockServicios as unknown as Fila[],
   reservas: mockReservas as unknown as Fila[],
+  financial_transactions: mockFinancialTransactions as unknown as Fila[],
   bloqueos_excepcion: mockBloqueos as unknown as Fila[],
   horarios: mockHorarios as unknown as Fila[],
   perfiles: mockPerfiles as unknown as Fila[],
@@ -47,7 +44,42 @@ const TABLAS: Record<string, Fila[]> = (globalMock.__neMockTablas ??= {
   reportes_perfil: mockReportes as unknown as Fila[],
   registro_sistema: mockRegistroSistema as unknown as Fila[],
   reembolsos: mockReembolsos as unknown as Fila[],
-});
+};
+
+/**
+ * Referencia mutable de cada tabla en memoria. Se guarda en `globalThis` para
+ * que acciones, páginas y layouts vean los mismos datos aunque Next los
+ * compile en bundles distintos durante el desarrollo.
+ */
+const TABLAS: Record<string, Fila[]> = (globalMock.__neMockTablas ??= {});
+
+for (const [nombre, semilla] of Object.entries(TABLAS_INICIALES)) {
+  if (!TABLAS[nombre]) {
+    TABLAS[nombre] = semilla;
+  } else {
+    for (const filaSemilla of semilla) {
+      const existente = TABLAS[nombre].find((f) => f.id === filaSemilla.id);
+      if (existente) {
+        for (const [campo, valor] of Object.entries(filaSemilla)) {
+          if (
+            existente[campo] === undefined ||
+            (valor !== undefined && valor !== null && valor !== "" && !existente[campo])
+          ) {
+            existente[campo] = valor;
+          }
+        }
+      }
+    }
+  }
+}
+
+for (const filas of Object.values(TABLAS)) {
+  for (const fila of filas) {
+    if (typeof fila.id === "string" && fila.id.startsWith("mock-")) {
+      fila.id = crypto.randomUUID();
+    }
+  }
+}
 
 /** Valores por defecto que en Postgres rellenan los `default` de las columnas. */
 const DEFAULTS: Record<string, () => Fila> = {
@@ -95,6 +127,13 @@ const DEFAULTS: Record<string, () => Fila> = {
     sesiones_revocadas_desde: null,
   }),
   negocios: () => ({ creado_en: ahora() }),
+  financial_transactions: () => ({
+    voucher_type: "TE",
+    currency: "USD",
+    invoice_status: "pending",
+    invoice_consecutive: null,
+    created_at: ahora(),
+  }),
 };
 
 function ahora() {
@@ -290,9 +329,9 @@ class MockQueryBuilder<T extends Record<string, unknown>>
     });
   }
 
-  private nuevaFila(p: Partial<T>, i: number): Fila {
+  private nuevaFila(p: Partial<T>, _i?: number): Fila {
     return {
-      id: `mock-${this.tabla}-${Date.now()}-${i}-${Math.floor(Math.random() * 100000)}`,
+      id: crypto.randomUUID(),
       ...(DEFAULTS[this.tabla]?.() ?? {}),
       ...p,
     } as Fila;
@@ -368,7 +407,7 @@ class MockQueryBuilder<T extends Record<string, unknown>>
       filas = filas.map((fila) => ({
         ...fila,
         servicio:
-          mockServicios.find((servicio) => servicio.id === fila.servicio_id) ??
+          getTabla("servicios").find((servicio) => servicio.id === fila.servicio_id) ??
           null,
       }));
     }

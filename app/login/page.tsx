@@ -6,7 +6,7 @@ export default function LoginPage() {
   return (
     <AuthShell
       titulo="Bienvenido de nuevo"
-      descripcion="Entra a tu cuenta y continúa creando experiencias. Empresas y equipo de vuki usan este mismo acceso."
+      descripcion="Ingresa a tu panel para gestionar servicios, reservas y finanzas."
     >
       <LoginForm />
     </AuthShell>

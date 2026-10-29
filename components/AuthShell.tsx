@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, CalendarCheck, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, ShieldCheck } from "lucide-react";
 import VLogo from "./VLogo";
 import EscenaAcceso from "./marketing/EscenaAcceso";
 import {
@@ -8,19 +8,10 @@ import {
   MovimientoMarca,
 } from "./marketing/MovimientoMarca";
 
-const BENEFICIOS = [
-  {
-    icono: CalendarCheck,
-    texto: "Reservas, horarios y cupos en un solo lugar.",
-  },
-  {
-    icono: Sparkles,
-    texto: "Un enlace público propio para que tus clientes reserven.",
-  },
-  {
-    icono: ShieldCheck,
-    texto: "Tu operación bajo control. Tu cuenta, protegida.",
-  },
+const PUNTOS_ACCESO = [
+  "Enlace ES/EN",
+  "Calendario y cupos",
+  "Finanzas · Hacienda",
 ];
 
 interface AuthShellProps {
@@ -46,7 +37,7 @@ export default function AuthShell({
           <Link
             href="/"
             aria-label="Ir al inicio de vuki"
-            className="vuki-focus relative w-fit rounded-xl"
+            className="vuki-focus relative w-fit rounded-xl transition-opacity hover:opacity-90"
           >
             <VLogo
               showText
@@ -56,34 +47,30 @@ export default function AuthShell({
             />
           </Link>
           <Aparecer className="relative my-9 max-w-lg">
-            <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-2 text-xs font-medium text-slate-200">
+            <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-medium text-slate-200">
               <span
                 className="h-1.5 w-1.5 rounded-full bg-emerald-400"
                 aria-hidden="true"
               />
               Hecho para el turismo de Costa Rica
             </p>
-            <h2 className="font-display text-4xl font-bold leading-[1.18] tracking-tight text-white xl:text-5xl">
+            <h2 className="font-display text-4xl font-bold leading-[1.15] tracking-tight text-white xl:text-5xl">
               Menos mensajes.
               <br />
               Más <span className="text-emerald-400">experiencias.</span>
             </h2>
-            <p className="mt-5 max-w-sm text-base leading-relaxed text-slate-300">
-              Tu agenda, tus servicios y tus reservas en un solo lugar. Tú
-              encárgate de crear momentos inolvidables.
+            <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-300">
+              Tu enlace público, tu agenda y tus finanzas en un solo lugar.
             </p>
             <EscenaAcceso />
-            <ul className="mt-7 space-y-3.5">
-              {BENEFICIOS.map(({ icono: Icono, texto }) => (
-                <li
-                  key={texto}
-                  className="flex items-start gap-3 text-slate-200"
-                >
-                  <Icono
-                    className="mt-0.5 h-4 w-4 shrink-0 text-sky-300"
+            <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-300">
+              {PUNTOS_ACCESO.map((texto) => (
+                <li key={texto} className="inline-flex items-center gap-1.5">
+                  <Check
+                    className="h-3.5 w-3.5 text-emerald-400"
                     aria-hidden="true"
                   />
-                  <span className="text-sm leading-relaxed">{texto}</span>
+                  <span>{texto}</span>
                 </li>
               ))}
             </ul>
@@ -116,12 +103,15 @@ export default function AuthShell({
             </div>
           </header>
 
-          <div className="relative -mt-10 w-full max-w-[440px] self-center px-4 pb-10 lg:mt-0 lg:px-0 lg:pb-0">
+          <div className="relative -mt-10 w-full max-w-[420px] self-center px-4 pb-10 lg:mt-0 lg:px-0 lg:pb-0">
             <Link
               href="/"
-              className="vuki-focus mb-8 hidden min-h-11 w-fit items-center gap-2 rounded-lg text-sm text-slate-500 transition hover:text-slate-900 lg:inline-flex"
+              className="vuki-focus group mb-8 hidden min-h-11 w-fit items-center gap-2 rounded-lg text-sm text-slate-500 transition hover:text-slate-900 lg:inline-flex"
             >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              <ArrowLeft
+                className="h-4 w-4 transition-transform duration-200 group-hover:-translate-x-0.5 motion-reduce:transform-none"
+                aria-hidden="true"
+              />
               Volver a vuki
             </Link>
             <div className="rounded-3xl border border-slate-200/80 bg-white p-7 shadow-xl shadow-slate-900/5 sm:p-9 lg:border-0 lg:p-0 lg:shadow-none">
@@ -133,25 +123,25 @@ export default function AuthShell({
                 {titulo}
               </h1>
               {descripcion && (
-                <p className="mt-3 text-sm leading-relaxed text-slate-500">
+                <p className="mt-2.5 text-sm leading-relaxed text-slate-500">
                   {descripcion}
                 </p>
               )}
-              <div className="mt-8">{children}</div>
+              <div className="mt-7">{children}</div>
             </div>
             {pie && <div className="mt-6 text-center text-sm">{pie}</div>}
             <p className="mt-7 text-center text-xs leading-relaxed text-slate-500">
               Al continuar aceptas los{" "}
               <Link
                 href="/terminos"
-                className="vuki-focus rounded underline underline-offset-2 hover:text-slate-900"
+                className="vuki-focus rounded underline underline-offset-2 transition hover:text-slate-900"
               >
                 términos
               </Link>{" "}
               y la{" "}
               <Link
                 href="/privacidad"
-                className="vuki-focus rounded underline underline-offset-2 hover:text-slate-900"
+                className="vuki-focus rounded underline underline-offset-2 transition hover:text-slate-900"
               >
                 política de privacidad
               </Link>

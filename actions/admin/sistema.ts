@@ -5,6 +5,7 @@ import { accionAdmin, type ResultadoAccion } from "../../lib/admin/auth";
 import { registrarAuditoria } from "../../lib/admin/auditoria";
 import { actualizar, leerUno } from "../../lib/admin/db";
 import { revalidarAdmin } from "../../lib/admin/util";
+import { esPagoManual } from "../../lib/pagos";
 import { supabaseAdmin } from "../../lib/supabase";
 
 export async function resolverRegistroAction(
@@ -27,7 +28,11 @@ export async function resolverRegistroAction(
 const payloadPago = z.object({
   reserva_id: z.string().uuid(),
   estado: z.enum(["pendiente", "pagada"]),
-  trx_id: z.string().nullable().optional(),
+  trx_id: z
+    .string()
+    .refine((v) => !esPagoManual(v), "Prefijo trx_id reservado")
+    .nullable()
+    .optional(),
 });
 
 /**

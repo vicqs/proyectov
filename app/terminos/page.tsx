@@ -24,8 +24,8 @@ export default async function TerminosPage() {
 
   return (
     <LegalPage tipo="terminos" fechaActualizacion="27 de agosto de 2026">
-      <section className="space-y-8 sm:space-y-10">
-        <div>
+      <section className="space-y-6 sm:space-y-8">
+        <div className="-mx-4 rounded-2xl border border-transparent px-4 py-3 transition-colors hover:border-slate-200/70 hover:bg-slate-50/70">
           <h2 className="text-lg font-semibold text-slate-900">
             1. Aceptación de los términos
           </h2>
@@ -37,7 +37,7 @@ export default async function TerminosPage() {
           </p>
         </div>
 
-        <div>
+        <div className="-mx-4 rounded-2xl border border-transparent px-4 py-3 transition-colors hover:border-slate-200/70 hover:bg-slate-50/70">
           <h2 className="text-lg font-semibold text-slate-900">
             2. Descripción del servicio
           </h2>
@@ -49,7 +49,7 @@ export default async function TerminosPage() {
           </p>
         </div>
 
-        <div>
+        <div className="-mx-4 rounded-2xl border border-transparent px-4 py-3 transition-colors hover:border-slate-200/70 hover:bg-slate-50/70">
           <h2 className="text-lg font-semibold text-slate-900">
             3. Pagos y comisiones
           </h2>
@@ -61,7 +61,7 @@ export default async function TerminosPage() {
           </p>
         </div>
 
-        <div>
+        <div className="-mx-4 rounded-2xl border border-transparent px-4 py-3 transition-colors hover:border-slate-200/70 hover:bg-slate-50/70">
           <h2 className="text-lg font-semibold text-slate-900">
             4. Suscripción del servicio
           </h2>
@@ -72,7 +72,7 @@ export default async function TerminosPage() {
           </p>
         </div>
 
-        <div>
+        <div className="-mx-4 rounded-2xl border border-transparent px-4 py-3 transition-colors hover:border-slate-200/70 hover:bg-slate-50/70">
           <h2 className="text-lg font-semibold text-slate-900">
             5. Cancelaciones y reembolsos
           </h2>
@@ -84,7 +84,7 @@ export default async function TerminosPage() {
           </p>
         </div>
 
-        <div>
+        <div className="-mx-4 rounded-2xl border border-transparent px-4 py-3 transition-colors hover:border-slate-200/70 hover:bg-slate-50/70">
           <h2 className="text-lg font-semibold text-slate-900">
             6. Limitación de responsabilidad
           </h2>
@@ -95,7 +95,7 @@ export default async function TerminosPage() {
           </p>
         </div>
 
-        <div>
+        <div className="-mx-4 rounded-2xl border border-transparent px-4 py-3 transition-colors hover:border-slate-200/70 hover:bg-slate-50/70">
           <h2 className="text-lg font-semibold text-slate-900">7. Contacto</h2>
           <p>
             Para consultas sobre estos términos, contáctanos a través del correo

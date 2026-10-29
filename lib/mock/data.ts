@@ -4,6 +4,7 @@ import type {
   BloqueoExcepcion,
   Comunicado,
   ConfiguracionPlataforma,
+  FinancialTransaction,
   Horario,
   NotaInterna,
   Negocio,
@@ -17,6 +18,13 @@ import type {
   Ticket,
   TicketMensaje,
 } from "../../types/database";
+import {
+  EXCHANGE_RATE_BCCR_DEFAULT,
+  GATEWAY_FEE_RATE_DEFAULT,
+  IVA_RATE_DEFAULT,
+  IVA_RATE_TURISMO,
+  crearTransaccionFinanciera,
+} from "../finanzas";
 import {
   MOCK_ADMIN_EMAIL,
   MOCK_FINANZAS_EMAIL,
@@ -54,6 +62,7 @@ export const mockNegocios: Negocio[] = [
     user_id: MOCK_USER_ID,
     nombre: "Escuela de Surf Pura Vida",
     slug: "surf-tamarindo",
+    whatsapp: "50688887777",
     cuenta_iban: "CR00000000000000000000",
     descripcion:
       "Clases de surf para todos los niveles frente a la playa. ¡Reserva tu cupo!",
@@ -70,6 +79,7 @@ export const mockNegocios: Negocio[] = [
     user_id: MOCK_USER_ID_2,
     nombre: "Kayak Manglar Tours",
     slug: "kayak-manglar",
+    whatsapp: "50688887777",
     cuenta_iban: "CR11111111111111111111",
     descripcion: "Paseos en kayak por el manglar al amanecer.",
     color_tema: "#059669",
@@ -84,6 +94,7 @@ export const mockNegocios: Negocio[] = [
     user_id: MOCK_USER_ID_3,
     nombre: "Tour de Café Monteverde",
     slug: "cafe-monteverde",
+    whatsapp: "50688887777",
     cuenta_iban: "CR22222222222222222222",
     descripcion: "Del grano a la taza: recorrido por una finca cafetalera.",
     color_tema: "#b45309",
@@ -107,6 +118,8 @@ export const mockServicios: Servicio[] = [
     nombre: "Clase de surf 1h",
     precio_usd: 45,
     duracion_min: 60,
+    cabys_code: "9291200000000",
+    iva_rate: IVA_RATE_DEFAULT,
   },
   {
     id: SERVICIO_TABLA,
@@ -114,6 +127,8 @@ export const mockServicios: Servicio[] = [
     nombre: "Alquiler de tabla (día completo)",
     precio_usd: 20,
     duracion_min: 480,
+    cabys_code: "7324001000000",
+    iva_rate: IVA_RATE_DEFAULT,
   },
   {
     id: SERVICIO_KAYAK,
@@ -121,6 +136,8 @@ export const mockServicios: Servicio[] = [
     nombre: "Kayak al amanecer",
     precio_usd: 35,
     duracion_min: 120,
+    cabys_code: "8554000000000",
+    iva_rate: IVA_RATE_TURISMO,
   },
   {
     id: SERVICIO_CAFE,
@@ -128,31 +145,58 @@ export const mockServicios: Servicio[] = [
     nombre: "Tour de café",
     precio_usd: 30,
     duracion_min: 150,
+    cabys_code: "8554000000000",
+    iva_rate: IVA_RATE_TURISMO,
   },
 ];
+
+const FECHA_RESERVA_DEMO_1 = new Date(
+  Date.now() + 1000 * 60 * 60 * 24,
+).toISOString();
+const FECHA_RESERVA_DEMO_2 = enDias(3);
 
 export const mockReservas: Reserva[] = [
   {
     id: "33333333-3333-4333-8333-333333333333",
     servicio_id: SERVICIO_CLASE,
     negocio_id: ID_NEGOCIO_1,
-    fecha_hora: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString(),
+    fecha_hora: FECHA_RESERVA_DEMO_1,
     email_cliente: "turista.demo@example.com",
+    nombre_cliente: null,
+    cupos: 1,
     estado: "pagada",
     trx_id: "trx_mock_demo_1",
     monto_usd: 45,
+    cabys_code: "9291200000000",
+    voucher_type: "TE",
+    client_id_type: null,
+    client_tax_id: null,
+    currency: "USD",
+    exchange_rate_bccr: EXCHANGE_RATE_BCCR_DEFAULT,
+    iva_rate: IVA_RATE_DEFAULT,
+    invoice_status: "pending",
+    invoice_consecutive: null,
   },
   {
     id: "33333333-3333-4333-8333-333333333334",
     servicio_id: SERVICIO_KAYAK,
     negocio_id: ID_NEGOCIO_2,
-    fecha_hora: enDias(3),
+    fecha_hora: FECHA_RESERVA_DEMO_2,
     email_cliente: "viajera@example.com",
     nombre_cliente: "Viajera Demo",
     cupos: 2,
     estado: "pagada",
     trx_id: "trx_mock_demo_2",
     monto_usd: 70,
+    cabys_code: "8554000000000",
+    voucher_type: "FE",
+    client_id_type: "fisica",
+    client_tax_id: "1-1189-0452",
+    currency: "USD",
+    exchange_rate_bccr: EXCHANGE_RATE_BCCR_DEFAULT,
+    iva_rate: IVA_RATE_TURISMO,
+    invoice_status: "issued",
+    invoice_consecutive: "00100001010000000014",
   },
   {
     id: "33333333-3333-4333-8333-333333333335",
@@ -162,6 +206,59 @@ export const mockReservas: Reserva[] = [
     email_cliente: "pendiente@example.com",
     estado: "pendiente",
   },
+];
+
+/**
+ * Tabla simulada `financial_transactions` con desglose tributario completo
+ * (Ministerio de Hacienda - Costa Rica, Declaración D-104).
+ */
+export const mockFinancialTransactions: FinancialTransaction[] = [
+  crearTransaccionFinanciera({
+    id: "88888888-8888-4888-8888-888888888881",
+    negocio_id: ID_NEGOCIO_1,
+    reserva_id: "33333333-3333-4333-8333-333333333333",
+    servicio_id: SERVICIO_CLASE,
+    service_date: FECHA_RESERVA_DEMO_1,
+    cupos: 1,
+    transaction_ref: "trx_mock_demo_1",
+    service_name: "Clase de surf 1h",
+    cabys_code: "9291200000000",
+    voucher_type: "TE",
+    client_email: "turista.demo@example.com",
+    client_name: null,
+    client_id_type: null,
+    client_tax_id: null,
+    currency: "USD",
+    exchange_rate_bccr: EXCHANGE_RATE_BCCR_DEFAULT,
+    iva_rate: IVA_RATE_DEFAULT,
+    gross_amount: 45.0,
+    gateway_fee_rate: GATEWAY_FEE_RATE_DEFAULT,
+    invoice_status: "pending",
+    invoice_consecutive: null,
+  }),
+  crearTransaccionFinanciera({
+    id: "88888888-8888-4888-8888-888888888882",
+    negocio_id: ID_NEGOCIO_2,
+    reserva_id: "33333333-3333-4333-8333-333333333334",
+    servicio_id: SERVICIO_KAYAK,
+    service_date: FECHA_RESERVA_DEMO_2,
+    cupos: 2,
+    transaction_ref: "trx_mock_demo_2",
+    service_name: "Kayak al amanecer",
+    cabys_code: "8554000000000",
+    voucher_type: "FE",
+    client_email: "viajera@example.com",
+    client_name: "Viajera Demo",
+    client_id_type: "fisica",
+    client_tax_id: "1-1189-0452",
+    currency: "USD",
+    exchange_rate_bccr: EXCHANGE_RATE_BCCR_DEFAULT,
+    iva_rate: IVA_RATE_TURISMO,
+    gross_amount: 70.0,
+    gateway_fee_rate: GATEWAY_FEE_RATE_DEFAULT,
+    invoice_status: "issued",
+    invoice_consecutive: "00100001010000000014",
+  }),
 ];
 
 export const mockBloqueos: BloqueoExcepcion[] = [];

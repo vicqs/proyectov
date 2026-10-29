@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { obtenerEmpresaOperativa, revalidarEmpresa } from "../lib/empresa";
 import { construirHorarios } from "../lib/horarios";
+import { generarTrxManual } from "../lib/pagos";
 
 export interface ReservaActionResult {
   error?: string;
@@ -121,7 +122,7 @@ export async function crearReservaManualAction(
     nombre_cliente: nombre,
     cupos,
     estado: pagada ? "pagada" : "pendiente",
-    trx_id: pagada ? `manual_${Date.now()}` : null,
+    trx_id: pagada ? generarTrxManual() : null,
     monto_usd: pagada ? (servicioReserva?.precio_usd ?? 0) * cupos : null,
   });
   if (error) return { error: "No se pudo crear la reserva." };

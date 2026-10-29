@@ -9,7 +9,7 @@ import { loginAction, type LoginActionState } from "../../actions/auth";
 const initialState: LoginActionState = {};
 
 const INPUT =
-  "block min-h-11 w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40";
+  "block min-h-11 w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40 focus-visible:shadow-sm focus-visible:shadow-sky-500/10";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -17,12 +17,15 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-slate-900/15 transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+      className="group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-slate-900/15 transition duration-200 hover:bg-slate-800 hover:shadow-md hover:shadow-slate-900/20 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 motion-reduce:transform-none"
     >
       {pending ? (
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
       ) : (
-        <LogIn className="h-4 w-4" aria-hidden="true" />
+        <LogIn
+          className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transform-none"
+          aria-hidden="true"
+        />
       )}
       {pending ? "Ingresando…" : "Iniciar sesión"}
     </button>
@@ -37,8 +40,8 @@ export default function LoginForm() {
   const [mayusculas, setMayusculas] = useState(false);
   const conError = Boolean(state.error);
   const borde = conError
-    ? "border-red-400"
-    : "border-slate-300 focus-visible:border-sky-500";
+    ? "border-red-400 bg-red-50/20"
+    : "border-slate-300 hover:border-slate-400 focus-visible:border-sky-500";
 
   return (
     <form action={formAction} className="space-y-5" noValidate={false}>
@@ -78,7 +81,7 @@ export default function LoginForm() {
           </label>
           <Link
             href="/recuperar"
-            className="rounded text-sm font-medium text-sky-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            className="rounded text-sm font-medium text-sky-700 transition hover:text-sky-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
           >
             ¿Olvidaste tu contraseña?
           </Link>

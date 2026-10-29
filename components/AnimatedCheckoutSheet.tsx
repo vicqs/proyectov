@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Calendar,
+  ChevronLeft,
   Clock,
   CreditCard,
   Loader2,
@@ -176,7 +177,7 @@ export default function AnimatedCheckoutSheet({
     const emailNormalizado = email.trim().toLowerCase();
 
     if (!REGEX_EMAIL.test(emailNormalizado)) {
-      setErrorEmail("Ingresa un correo válido, por ejemplo: ana@email.com");
+      setErrorEmail(t("correo_invalido"));
       return;
     }
 
@@ -186,7 +187,7 @@ export default function AnimatedCheckoutSheet({
     );
     if (yaReservado) {
       setErrorEmail(
-        "Este correo ya tiene una reserva para esta clase. Usa otro correo o revisa tus reservas existentes.",
+        t("correo_duplicado"),
       );
       return;
     }
@@ -213,7 +214,7 @@ export default function AnimatedCheckoutSheet({
           cupos,
         );
       } catch {
-        resultado = { error: "No se pudo procesar el pago. Intenta de nuevo." };
+        resultado = { error: t("error_pago") };
       }
     }
     await espera;
@@ -278,7 +279,14 @@ export default function AnimatedCheckoutSheet({
                 <p className="mt-1 text-sm text-gray-500">{negocioNombre}</p>
 
                 <p className="mt-8 mb-4 text-sm font-medium text-slate-700">
-                  {t("elige_horario")}
+                  {horariosDisponibles.length > 0 ? (
+                    t("elige_horario")
+                  ) : (
+                    <span className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 font-normal text-slate-600">
+                      <Clock className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                      {t("sin_horarios")}
+                    </span>
+                  )}
                 </p>
                 <div
                   role="group"
@@ -368,6 +376,14 @@ export default function AnimatedCheckoutSheet({
                 exit="sale"
                 transition={{ duration: 0.25, ease: "easeOut" }}
               >
+                <button
+                  type="button"
+                  onClick={() => irA("horario")}
+                  className="vuki-focus -ml-1 mb-5 inline-flex min-h-9 items-center gap-1 rounded-lg px-1 text-sm font-medium text-slate-500 transition hover:text-slate-900"
+                >
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                  {t("volver")}
+                </button>
                 <div className="mb-6 flex items-center gap-2 text-sm text-gray-500">
                   <Calendar className="h-4 w-4" aria-hidden="true" />
                   {horarioSeleccionado?.label}
@@ -506,6 +522,14 @@ export default function AnimatedCheckoutSheet({
                 <h2 id={idTitulo} className="sr-only">
                   {t("pago_seguro")}
                 </h2>
+                <button
+                  type="button"
+                  onClick={() => irA("datos")}
+                  className="vuki-focus -ml-1 mb-4 inline-flex min-h-9 items-center gap-1 rounded-lg px-1 text-sm font-medium text-slate-500 transition hover:text-slate-900"
+                >
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                  {t("volver")}
+                </button>
                 <div className="mb-5 flex items-center gap-2 text-slate-400">
                   <CreditCard className="h-5 w-5" aria-hidden="true" />
                   <span className="text-xs font-semibold uppercase tracking-wide">

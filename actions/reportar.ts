@@ -13,20 +13,38 @@ export interface ReporteEstado {
 
 const MOTIVOS = ["contenido", "fraude", "suplantacion", "otro"] as const;
 
+const MENSAJES = {
+  es: {
+    correo: "Correo no válido.",
+    invalido: "Datos inválidos.",
+    noEncontrado: "Negocio no encontrado.",
+    deshabilitado: "Los reportes están deshabilitados por ahora.",
+    saturado: "Este perfil ya recibió varios reportes recientes. Gracias.",
+    ok: "Gracias, revisaremos el perfil.",
+  },
+  en: {
+    correo: "Invalid email address.",
+    invalido: "Invalid data.",
+    noEncontrado: "Business not found.",
+    deshabilitado: "Reports are currently disabled.",
+    saturado: "This profile has already received several recent reports. Thank you.",
+    ok: "Thank you, we will review the profile.",
+  },
+} as const;
+
 /** Reporte público de un perfil. No requiere sesión; con tope anti-spam. */
 export async function reportarPerfilAction(
   slug: string,
   _previo: ReporteEstado,
   datos: FormData,
 ): Promise<ReporteEstado> {
+  const m = MENSAJES[datos.get("idioma") === "en" ? "en" : "es"];
+
   const parsed = z
     .object({
       motivo: z.enum(MOTIVOS),
       detalle: z.string().trim().max(1000).optional(),
-      email: z.union([
-        z.string().trim().email("Correo no válido."),
-        z.literal(""),
-      ]),
+      email: z.union([z.string().trim().email(m.correo), z.literal("")]),
     })
     .safeParse({
       motivo: String(datos.get("motivo") ?? ""),
@@ -34,17 +52,16 @@ export async function reportarPerfilAction(
       email: String(datos.get("email") ?? "").trim(),
     });
   if (!parsed.success)
-    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+    return { error: parsed.error.issues[0]?.message ?? m.invalido };
 
   const { data: negocio } = await supabaseAdmin
     .from("negocios")
     .select("*")
     .eq("slug", slug.toLowerCase())
     .maybeSingle();
-  if (!negocio || negocio.eliminado_en)
-    return { error: "Negocio no encontrado." };
+  if (!negocio || negocio.eliminado_en) return { error: m.noEncontrado };
   if (!(await funcionActivaNegocio(negocio, "reportes_publicos"))) {
-    return { error: "Los reportes están deshabilitados por ahora." };
+    return { error: m.deshabilitado };
   }
 
   const pendientes = (
@@ -55,9 +72,7 @@ export async function reportarPerfilAction(
       Date.now() - new Date(r.creado_en).getTime() < 3_600_000,
   );
   if (pendientes.length >= 5) {
-    return {
-      error: "Este perfil ya recibió varios reportes recientes. Gracias.",
-    };
+    return { error: m.saturado };
   }
 
   await insertar("reportes_perfil", {
@@ -68,5 +83,5 @@ export async function reportarPerfilAction(
     estado: "pendiente",
   });
   revalidatePath("/admin/moderacion");
-  return { ok: "Gracias, revisaremos el perfil." };
+  return { ok: m.ok };
 }

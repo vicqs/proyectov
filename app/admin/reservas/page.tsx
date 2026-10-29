@@ -7,6 +7,7 @@ import {
   ETIQUETA_ESTADO,
 } from "../../../lib/admin/datos";
 import { fechaHora, paginar, parametro, usd } from "../../../lib/admin/formato";
+import { admiteReembolsoPasarela, esPagoManual } from "../../../lib/pagos";
 import {
   cancelarReservaAction,
   completarReembolsoAction,
@@ -145,8 +146,7 @@ export default async function ReservasAdminPage({
         {pag.filas.map((r) => {
           const monto = montoReserva(r, idx);
           const puedeReembolsar =
-            (r.estado === "pagada" || (r.estado === "cancelada" && r.trx_id)) &&
-            !conReembolso.has(r.id);
+            admiteReembolsoPasarela(r) && !conReembolso.has(r.id);
           return (
             <tr key={r.id}>
               <Celda>{fechaHora(r.fecha_hora)}</Celda>
@@ -164,7 +164,11 @@ export default async function ReservasAdminPage({
               <Celda>
                 {r.email_cliente}
                 {r.trx_id && (
-                  <p className="text-xs text-slate-400">trx {r.trx_id}</p>
+                  <p className="text-xs text-slate-400">
+                    {esPagoManual(r.trx_id)
+                      ? "Pago manual (fuera de pasarela)"
+                      : `trx ${r.trx_id}`}
+                  </p>
                 )}
               </Celda>
               <Celda>

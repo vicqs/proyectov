@@ -12,6 +12,7 @@ import {
 interface ParColoresMarcaProps {
   primarioInicial: string | null;
   secundarioInicial: string | null;
+  onChange?: (colores: { primario: string; secundario: string }) => void;
 }
 
 /**
@@ -21,6 +22,7 @@ interface ParColoresMarcaProps {
 export default function ParColoresMarca({
   primarioInicial,
   secundarioInicial,
+  onChange,
 }: ParColoresMarcaProps) {
   const [primario, setPrimario] = useState(
     esHex(primarioInicial) ? primarioInicial : COLOR_PRIMARIO_DEFECTO,
@@ -28,6 +30,12 @@ export default function ParColoresMarca({
   const [secundario, setSecundario] = useState(
     esHex(secundarioInicial) ? secundarioInicial : primario,
   );
+
+  function actualizarColores(nuevoPrimario: string, nuevoSecundario: string) {
+    setPrimario(nuevoPrimario);
+    setSecundario(nuevoSecundario);
+    onChange?.({ primario: nuevoPrimario, secundario: nuevoSecundario });
+  }
 
   const degradado = `linear-gradient(135deg, ${primario}, ${secundario})`;
 
@@ -37,7 +45,8 @@ export default function ParColoresMarca({
         Colores de marca
       </legend>
       <p className="mb-3 text-xs text-slate-600">
-        Se aplican a tu panel de empresa y a tu enlace público.
+        Se aplican tanto a este panel de empresa como a los botones y acentos de
+        tu enlace público.
       </p>
 
       <div
@@ -53,14 +62,11 @@ export default function ParColoresMarca({
               key={par.nombre}
               type="button"
               aria-pressed={activo}
-              onClick={() => {
-                setPrimario(par.primario);
-                setSecundario(par.secundario);
-              }}
-              className={`flex min-h-10 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium text-slate-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${
+              onClick={() => actualizarColores(par.primario, par.secundario)}
+              className={`vuki-focus flex min-h-10 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium text-slate-700 transition ${
                 activo
-                  ? "border-slate-900 bg-slate-50"
-                  : "border-slate-300 hover:bg-slate-50"
+                  ? "border-slate-900 bg-slate-50 font-semibold"
+                  : "border-slate-300 bg-white hover:bg-slate-50"
               }`}
             >
               <span
@@ -81,15 +87,15 @@ export default function ParColoresMarca({
         {[
           {
             id: "color_tema",
-            etiqueta: "Principal",
+            etiqueta: "Color principal",
             valor: primario,
-            set: setPrimario,
+            onPick: (nuevo: string) => actualizarColores(nuevo, secundario),
           },
           {
             id: "color_secundario",
-            etiqueta: "Secundario",
+            etiqueta: "Color secundario",
             valor: secundario,
-            set: setSecundario,
+            onPick: (nuevo: string) => actualizarColores(primario, nuevo),
           },
         ].map((c) => (
           <div key={c.id}>
@@ -105,8 +111,8 @@ export default function ParColoresMarca({
                 name={c.id}
                 type="color"
                 value={c.valor}
-                onChange={(e) => c.set(e.target.value)}
-                className="h-11 w-14 cursor-pointer rounded-lg border border-slate-300 bg-white p-1"
+                onChange={(e) => c.onPick(e.target.value)}
+                className="vuki-focus h-11 w-14 cursor-pointer rounded-xl border border-slate-300 bg-white p-1"
               />
               <span className="font-mono text-sm uppercase text-slate-700">
                 {c.valor}
@@ -117,7 +123,7 @@ export default function ParColoresMarca({
       </div>
 
       <div
-        aria-label="Vista previa"
+        aria-label="Muestra de colores"
         className="mt-4 overflow-hidden rounded-xl border border-slate-200"
       >
         <div className="h-2" style={{ background: degradado }} />
@@ -129,13 +135,13 @@ export default function ParColoresMarca({
               color: `color-mix(in srgb, ${primario} 70%, black)`,
             }}
           >
-            Panel: enlace activo
+            Panel: sección activa
           </span>
           <span
             className="rounded-full px-4 py-1.5 text-xs font-semibold shadow-sm"
             style={{ background: degradado, color: textoSobre(primario) }}
           >
-            Enlace público · $25.00
+            Botón reservar · $35.00
           </span>
         </div>
       </div>

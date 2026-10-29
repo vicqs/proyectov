@@ -10,10 +10,10 @@ import {
 } from "framer-motion";
 import {
   ArrowDown,
-  ArrowUpRight,
   CalendarCheck,
   CalendarDays,
   Check,
+  Clock,
   Compass,
   Link2,
   MousePointer2,
@@ -76,36 +76,44 @@ function VistaEscena({ indice }: { indice: number }) {
 
       {indice === 0 ? (
         <div className="min-h-[330px] sm:min-h-[370px]">
-          <div className="relative flex h-28 items-end justify-between overflow-hidden bg-gradient-to-br from-sky-100 via-cyan-50 to-emerald-100 p-5 sm:h-32 sm:px-6">
-            <div className="relative z-10">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-sky-800">
-                Ejemplo de negocio
-              </span>
-              <p className="mt-1 font-display text-2xl font-bold tracking-tight text-slate-900">
-                Pura Vida Surf
-              </p>
+          <div className="relative h-24 overflow-hidden bg-gradient-to-br from-sky-400 via-cyan-500 to-emerald-400 sm:h-28">
+            <div className="absolute inset-0 bg-gradient-to-t from-white via-white/15 to-black/15" />
+            <span className="absolute left-5 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-[10px] font-semibold text-slate-700 shadow-xs">
+              Ejemplo de negocio
+            </span>
+            <div className="absolute right-5 top-3 flex overflow-hidden rounded-full border border-white/50 bg-white/85 text-[9px] font-semibold shadow-xs">
+              <span className="bg-slate-900 px-2 py-0.5 text-white">ES</span>
+              <span className="px-2 py-0.5 text-slate-700">EN</span>
             </div>
-            <Waves className="h-14 w-14 text-sky-600/50" strokeWidth={1.2} />
-            <div className="absolute -right-8 -top-14 h-44 w-44 rounded-full border border-sky-300/40" />
           </div>
-          <div className="p-5 sm:p-6">
-            <p className="text-xs text-slate-500">
-              Tamarindo, Costa Rica · Tu marca al frente.
-            </p>
-            <div className="mt-5 flex items-center gap-4 rounded-2xl border border-slate-200 p-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
-                <Waves className="h-6 w-6" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold">Tu primera ola</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Clase de surf · 90 min
-                </p>
-              </div>
-              <span className="text-sm font-bold text-sky-800">$45</span>
+          <div className="relative -mt-9 px-5 pb-5 sm:px-6">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-4 border-white bg-gradient-to-br from-sky-500 to-emerald-500 text-white shadow-md">
+              <Waves className="h-7 w-7" />
             </div>
-            <div className="mt-4 flex items-center justify-between rounded-xl bg-slate-900 px-4 py-3 text-xs font-semibold text-white">
-              Explora las experiencias <ArrowUpRight className="h-4 w-4" />
+            <p className="mt-2.5 font-display text-xl font-bold tracking-tight text-slate-900">
+              Pura Vida Surf
+            </p>
+            <div className="mt-1.5 h-1 w-10 rounded-full bg-gradient-to-r from-sky-600 to-emerald-500" />
+            <p className="mt-1.5 text-xs text-slate-500">
+              Clases de surf y experiencias frente al mar en Tamarindo.
+            </p>
+            <p className="mb-2 mt-4 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+              Servicios disponibles
+            </p>
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-sky-950 to-emerald-950 p-4 text-white shadow-sm">
+              <Waves
+                className="pointer-events-none absolute -right-3 -top-3 h-24 w-24 text-sky-400/15"
+                strokeWidth={1.2}
+              />
+              <p className="relative text-sm font-semibold">Tu primera ola</p>
+              <div className="relative mt-3 flex items-center justify-between">
+                <span className="flex items-center gap-1 text-[11px] font-medium text-white/85">
+                  <Clock className="h-3 w-3" /> 90 min
+                </span>
+                <span className="rounded-full bg-gradient-to-r from-sky-500 to-emerald-500 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                  $45.00
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -147,52 +155,118 @@ function VistaEscena({ indice }: { indice: number }) {
           </p>
         </div>
       ) : (
-        <div className="min-h-[330px] p-5 sm:min-h-[370px] sm:p-6">
-          <div className="flex items-center justify-between">
+        <div className="min-h-[330px] bg-slate-50/60 p-4 sm:min-h-[370px] sm:p-5">
+          <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs text-slate-500">Pura Vida Surf</p>
-              <p className="mt-1 font-display text-2xl font-bold tracking-tight">
-                Tu agenda, clara.
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-700">
+                Pura Vida Surf · Calendario
               </p>
-            </div>
-            <CalendarDays className="h-6 w-6 text-emerald-700" />
-          </div>
-          <p className="mb-4 mt-5 text-xs font-medium text-slate-600">
-            Un día de experiencias · Ejemplo
-          </p>
-          <div className="space-y-3">
-            {[
-              [
-                "09:00",
-                "Clase de surf",
-                "2 personas",
-                "border-sky-500 bg-sky-50",
-              ],
-              [
-                "11:00",
-                "Surf en grupo",
-                "4 personas",
-                "border-emerald-500 bg-emerald-50",
-              ],
-              [
-                "14:00",
-                "Clase privada",
-                "1 persona",
-                "border-slate-400 bg-slate-50",
-              ],
-            ].map(([hora, servicio, personas, color]) => (
-              <div
-                key={hora}
-                className={`flex items-center gap-4 rounded-xl border-l-[3px] px-4 py-3 ${color}`}
-              >
-                <span className="text-xs font-bold text-slate-700">{hora}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold">{servicio}</p>
-                  <p className="mt-1 text-[10px] text-slate-600">{personas}</p>
-                </div>
-                <Check className="h-4 w-4 text-emerald-700" />
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-900">
+                  <span className="h-1.5 w-1.5 rounded-full bg-sky-600" />
+                  Esta semana
+                </span>
+                <span className="text-[11px] font-medium text-slate-600">
+                  7/10 cupos (70%)
+                </span>
               </div>
-            ))}
+            </div>
+            <CalendarDays className="h-5 w-5 text-sky-700" />
+          </div>
+
+          <div className="mt-3 rounded-2xl border border-sky-100 bg-white p-2 shadow-2xs">
+            <div className="grid grid-cols-5 gap-1 text-center">
+              {[
+                { d: "Lun", n: 12, c: 2 },
+                { d: "Mar", n: 13, c: 2 },
+                { d: "Mié", n: 14, c: 2, hoy: true },
+                { d: "Jue", n: 15, c: 2 },
+                { d: "Vie", n: 16, c: 3 },
+              ].map((item) => (
+                <div
+                  key={item.d}
+                  className={`flex flex-col items-center rounded-xl py-1.5 text-[9px] ${
+                    item.hoy
+                      ? "bg-sky-600 text-white shadow-2xs"
+                      : "text-slate-600"
+                  }`}
+                >
+                  <span className="font-semibold uppercase">{item.d}</span>
+                  <span className="mt-0.5 font-display text-xs font-bold">
+                    {item.n}
+                  </span>
+                  {item.hoy ? (
+                    <span className="mt-0.5 rounded-full bg-black/20 px-1.5 py-0.5 text-[8px] font-bold uppercase">
+                      Hoy
+                    </span>
+                  ) : (
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative mt-3 overflow-hidden rounded-2xl border-2 border-sky-600 bg-gradient-to-br from-sky-50/70 via-white to-white p-3 shadow-2xs">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-sky-600 to-emerald-500" />
+            <div className="flex items-center justify-between">
+              <p className="font-display text-xs font-bold text-slate-900">
+                Miércoles 14 · Hoy
+              </p>
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                2 horarios
+              </span>
+            </div>
+            <div className="mt-2.5 space-y-2">
+              {[
+                {
+                  hora: "9:00 a.m.",
+                  servicio: "Tu primera ola",
+                  badge: "Últimos 1 · 5/6",
+                  badgeClase: "bg-amber-100 text-amber-800",
+                  barraClase: "bg-amber-500",
+                  pct: "83%",
+                  cliente: "Sofía Vargas · 3 cupos",
+                },
+                {
+                  hora: "2:00 p.m.",
+                  servicio: "Surf al atardecer",
+                  badge: "2/4 cupos",
+                  badgeClase: "bg-emerald-100 text-emerald-800",
+                  barraClase: "bg-emerald-500",
+                  pct: "50%",
+                  cliente: "Laura Solís · 2 cupos",
+                },
+              ].map((s) => (
+                <div
+                  key={s.hora}
+                  className="rounded-xl border border-slate-200/90 bg-white p-2.5"
+                >
+                  <div className="flex items-center justify-between gap-1 text-[11px]">
+                    <span className="font-semibold text-slate-900">
+                      {s.hora} · {s.servicio}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${s.badgeClase}`}
+                    >
+                      {s.badge}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-200/75">
+                    <div
+                      style={{ width: s.pct }}
+                      className={`h-full rounded-full ${s.barraClase}`}
+                    />
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-600">
+                    <span>{s.cliente}</span>
+                    <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-800">
+                      Pagado
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -311,7 +385,7 @@ export default function HistoriaProducto() {
         window.scrollY -
         80 +
         rango * posiciones[indice],
-      behavior: "auto",
+      behavior: activo ? "smooth" : "auto",
     });
   }
 
@@ -357,8 +431,20 @@ export default function HistoriaProducto() {
           </div>
           {anclado && (
             <p className="flex items-center gap-2 text-xs text-slate-300">
-              <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" /> Sigue
-              bajando. Todo se conecta.
+              <motion.span
+                aria-hidden="true"
+                initial={false}
+                animate={activo ? { y: [0, 3, 0] } : { y: 0 }}
+                transition={
+                  activo
+                    ? { duration: 2.2, repeat: Infinity, ease: "easeInOut" }
+                    : { duration: 0 }
+                }
+                className="inline-flex"
+              >
+                <ArrowDown className="h-3.5 w-3.5 text-emerald-300" />
+              </motion.span>{" "}
+              Sigue bajando. Todo se conecta.
             </p>
           )}
         </div>
@@ -371,20 +457,49 @@ export default function HistoriaProducto() {
                 role="group"
                 aria-label="Escenas de cómo funciona vuki"
               >
-                {ESCENAS.map(({ numero, titulo, acento }, indice) => (
-                  <button
-                    key={numero}
-                    type="button"
-                    onClick={() => irAEscena(indice)}
-                    aria-label={`${numero}: ${titulo} ${acento}`}
-                    aria-pressed={escena === indice}
-                    className={`vuki-focus inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border text-xs font-semibold transition-colors ${escena === indice ? "border-white bg-white text-slate-900" : "border-white/25 text-slate-300 hover:bg-white/10"}`}
-                  >
-                    {numero}
-                  </button>
-                ))}
+                {ESCENAS.map(({ numero, titulo, acento }, indice) => {
+                  const activa = escena === indice;
+                  return (
+                    <button
+                      key={numero}
+                      type="button"
+                      onClick={() => irAEscena(indice)}
+                      aria-label={`${numero}: ${titulo} ${acento}`}
+                      aria-pressed={activa}
+                      className={`vuki-focus relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
+                        activa
+                          ? "border-white text-slate-900"
+                          : "border-white/25 text-slate-300 hover:border-white/45 hover:bg-white/10"
+                      }`}
+                    >
+                      {activa && (
+                        <motion.span
+                          layoutId={activo ? "historia-escena-pill" : undefined}
+                          aria-hidden="true"
+                          className="absolute inset-0 rounded-full bg-white shadow-sm"
+                          transition={{
+                            type: "spring",
+                            stiffness: 360,
+                            damping: 30,
+                          }}
+                        />
+                      )}
+                      <span className="relative z-10">{numero}</span>
+                    </button>
+                  );
+                })}
               </div>
-              <TextoEscena indice={escena} />
+              <motion.div
+                key={escena}
+                initial={activo ? { opacity: 0, y: 12 } : false}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: activo ? 0.35 : 0,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+              >
+                <TextoEscena indice={escena} />
+              </motion.div>
               <div
                 className="mt-8 h-0.5 w-40 overflow-hidden rounded-full bg-white/15"
                 aria-hidden="true"

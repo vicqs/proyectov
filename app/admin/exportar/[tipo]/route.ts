@@ -5,6 +5,7 @@ import { leer, listarUsuariosAuth } from "../../../../lib/admin/db";
 import { indexar, montoReserva } from "../../../../lib/admin/datos";
 import { celdaCsv } from "../../../../lib/admin/formato";
 import { estadoEfectivo } from "../../../../lib/negocio-estado";
+import { esCobroPasarela } from "../../../../lib/pagos";
 import { tienePermiso, type Permiso } from "../../../../lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -69,7 +70,7 @@ export async function GET(
     const nombre = new Map(negocios.map((n) => [n.id, n.nombre]));
     const lista =
       tipo === "finanzas"
-        ? reservas.filter((r) => r.estado === "pagada")
+        ? reservas.filter(esCobroPasarela)
         : reservas;
     contenido = csv(
       [

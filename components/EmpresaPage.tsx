@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
+import { ArrowUpRight } from "lucide-react";
 import EncabezadoPanel from "./EncabezadoPanel";
 
 interface EmpresaPageProps {
@@ -84,24 +86,30 @@ export function ItemLista({
   );
 }
 
-/** Tarjeta KPI estándar (Inicio y Finanzas). */
+/** Tarjeta KPI estándar (Inicio y Finanzas). Si recibe `href`, es navegable. */
 export function KpiCard({
   icono,
   titulo,
   valor,
+  detalle,
   nota,
+  ayuda,
   acento,
+  href,
 }: {
   icono: React.ReactNode;
   titulo: string;
   valor: string;
-  nota?: string;
+  /** Desglose secundario opcional debajo del valor principal. */
+  detalle?: React.ReactNode;
+  nota?: React.ReactNode;
+  /** Elemento informativo discreto (ej. tooltip) alineado con el título. */
+  ayuda?: React.ReactNode;
   acento?: boolean;
+  href?: string;
 }) {
-  return (
-    <ItemLista
-      className={`relative min-w-0 overflow-hidden rounded-3xl border bg-white p-5 shadow-sm shadow-slate-900/[0.03] ${acento ? "border-(--marca-2-borde)" : "border-(--marca-borde)"}`}
-    >
+  const interior = (
+    <>
       <div
         aria-hidden="true"
         className={`absolute inset-x-0 top-0 h-0.5 ${acento ? "bg-(--marca-2)" : "bg-(--marca)"}`}
@@ -113,16 +121,55 @@ export function KpiCard({
         >
           {icono}
         </span>
-        <p className="text-xs font-semibold leading-relaxed text-slate-600">
+        <p className="min-w-0 flex-1 text-xs font-semibold leading-relaxed text-slate-600">
           {titulo}
         </p>
+        {ayuda}
+        {href && (
+          <ArrowUpRight
+            aria-hidden="true"
+            className="h-3.5 w-3.5 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-slate-700"
+          />
+        )}
       </div>
       <p
         className={`mt-4 break-words font-display text-2xl font-bold tracking-tight ${acento ? "text-(--marca-2-texto)" : "text-vuki-ink"}`}
       >
         {valor}
       </p>
-      {nota && <p className="mt-1 text-xs text-slate-600">{nota}</p>}
+      {detalle && (
+        <div className="mt-1.5 space-y-1 text-xs text-slate-500">{detalle}</div>
+      )}
+      {nota && (
+        <div className={`${detalle ? "mt-2" : "mt-1"} text-xs text-slate-600`}>
+          {nota}
+        </div>
+      )}
+    </>
+  );
+
+  const bordeClase = acento
+    ? "border-(--marca-2-borde)"
+    : "border-(--marca-borde)";
+
+  if (href) {
+    return (
+      <ItemLista className="min-w-0">
+        <Link
+          href={href}
+          className={`vuki-focus group relative block h-full min-w-0 overflow-hidden rounded-3xl border bg-white p-5 shadow-sm shadow-slate-900/[0.03] transition hover:border-slate-300 hover:shadow-md ${bordeClase}`}
+        >
+          {interior}
+        </Link>
+      </ItemLista>
+    );
+  }
+
+  return (
+    <ItemLista
+      className={`relative min-w-0 overflow-hidden rounded-3xl border bg-white p-5 shadow-sm shadow-slate-900/[0.03] ${bordeClase}`}
+    >
+      {interior}
     </ItemLista>
   );
 }

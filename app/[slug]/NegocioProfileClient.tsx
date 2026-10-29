@@ -2,13 +2,19 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { MessageCircle, Unlink } from "lucide-react";
 import AnimatedCheckoutSheet from "../../components/AnimatedCheckoutSheet";
 import ServicioCard from "../../components/ServicioCard";
 import MarcaReserva from "../../components/MarcaReserva";
-import type { HorarioPublico, ServicioPublico } from "../../lib/tipos-publicos";
+import SelectorIdioma from "../../components/SelectorIdioma";
+import {
+  esImagenOptimizable,
+  type HorarioPublico,
+  type ServicioPublico,
+} from "../../lib/tipos-publicos";
 import { LocaleProvider, useTranslations } from "../../lib/i18n";
 import { reservarYPagarAction } from "../../actions/pago-simulado";
 
@@ -28,6 +34,8 @@ interface NegocioProfileClientProps {
   horarios: HorarioPublico[];
   suscripcionActiva: boolean;
   pago?: string;
+  /** Ruta del formulario de reportes (solo si la función está activa). */
+  hrefReportar?: string;
 }
 
 const contenedorLista = {
@@ -59,9 +67,10 @@ function NegocioProfileContenido({
   horarios,
   suscripcionActiva,
   pago,
+  hrefReportar,
 }: NegocioProfileClientProps) {
   const router = useRouter();
-  const { t, locale, setLocale } = useTranslations();
+  const { t, locale } = useTranslations();
   const [servicioSeleccionado, setServicioSeleccionado] =
     useState<ServicioPublico | null>(null);
   const [huboReserva, setHuboReserva] = useState(false);
@@ -69,6 +78,13 @@ function NegocioProfileContenido({
   const horariosDelServicio = servicioSeleccionado
     ? horarios.filter((h) => h.servicioId === servicioSeleccionado.id)
     : [];
+
+  const whatsappDigitos = negocio.whatsapp
+    ? negocio.whatsapp.replace(/\D/g, "")
+    : "";
+  const whatsappUrl = whatsappDigitos.length >= 7
+    ? `https://wa.me/${whatsappDigitos}?text=${encodeURIComponent(t("whatsapp_mensaje"))}`
+    : null;
 
   async function handleReservaConfirmada(
     horarioId: string,
@@ -78,7 +94,7 @@ function NegocioProfileContenido({
   ) {
     const horario = horarios.find((h) => h.id === horarioId);
     if (!servicioSeleccionado || !horario) {
-      return { error: "El horario ya no está disponible." };
+      return { error: t("horario_no_disponible") };
     }
     const resultado = await reservarYPagarAction({
       servicioId: servicioSeleccionado.id,
@@ -130,6 +146,7 @@ function NegocioProfileContenido({
       <div className="relative h-[30vh] min-h-[220px] w-full">
         <Image
           src={negocio.portadaUrl}
+          unoptimized={!esImagenOptimizable(negocio.portadaUrl)}
           alt={`Portada de ${negocio.nombre}`}
           fill
           priority
@@ -138,27 +155,7 @@ function NegocioProfileContenido({
         />
         <div className="absolute inset-0 bg-gradient-to-t from-white via-white/10 to-black/20" />
 
-        <div
-          role="group"
-          aria-label="Language / Idioma"
-          className="absolute right-4 top-4 flex overflow-hidden rounded-full border border-white/40 bg-white/80 text-xs font-semibold shadow-sm backdrop-blur-sm"
-        >
-          {(["es", "en"] as const).map((idioma) => (
-            <button
-              key={idioma}
-              type="button"
-              aria-pressed={locale === idioma}
-              onClick={() => setLocale(idioma)}
-              className={`px-3 py-2 outline-none transition focus-visible:ring-2 focus-visible:ring-slate-900 ${
-                locale === idioma
-                  ? "bg-slate-900 text-white"
-                  : "text-slate-700 hover:bg-white"
-              }`}
-            >
-              {idioma.toUpperCase()}
-            </button>
-          ))}
-        </div>
+        <SelectorIdioma className="absolute right-4 top-4" />
       </div>
 
       <div className="relative mx-auto -mt-16 max-w-md px-6 sm:max-w-xl sm:px-8">
@@ -167,7 +164,7 @@ function NegocioProfileContenido({
             role="status"
             className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm text-emerald-700"
           >
-            ¡Pago confirmado! Revisa tu correo para ver el recibo.
+            {t("pago_confirmado")}
           </div>
         )}
         {pago === "cancelado" && (
@@ -175,7 +172,7 @@ function NegocioProfileContenido({
             role="status"
             className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700"
           >
-            El pago fue cancelado. Tu reserva quedó pendiente.
+            {t("pago_cancelado")}
           </div>
         )}
 
@@ -183,10 +180,11 @@ function NegocioProfileContenido({
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="relative h-28 w-28 shrink-0 overflow-hidden rounded-3xl border-4 border-white shadow-xl sm:h-32 sm:w-32"
+          className="relative h-28 w-28 shrink-0 overflow-hidden rounded-3xl border-4 border-white bg-slate-100 shadow-xl sm:h-32 sm:w-32"
         >
           <Image
             src={negocio.logoUrl}
+            unoptimized={!esImagenOptimizable(negocio.logoUrl)}
             alt={`Logo de ${negocio.nombre}`}
             fill
             className="object-cover"
@@ -213,27 +211,27 @@ function NegocioProfileContenido({
           <p className="mt-3 max-w-md whitespace-pre-line break-words text-base leading-relaxed text-slate-600">
             {negocio.descripcion}
           </p>
-          {negocio.whatsapp && (
+          {whatsappUrl && (
             <a
-              href={`https://wa.me/${negocio.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Hola ${negocio.nombre}, quisiera consultar sobre una reserva.`)}`}
+              href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-emerald-700"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 shadow-xs transition hover:bg-emerald-100 hover:border-emerald-400 focus-visible:outline-2 focus-visible:outline-emerald-700"
             >
-              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              <MessageCircle className="h-4 w-4 text-emerald-600" aria-hidden="true" />
               WhatsApp
             </a>
           )}
         </motion.header>
 
         <section className="mt-14">
-          <h2 className="mb-6 text-sm font-semibold uppercase tracking-widest text-slate-600">
+          <h2 className="mb-6 text-sm font-semibold uppercase tracking-widest text-slate-500">
             {t("servicios_disponibles")}
           </h2>
 
           {servicios.length === 0 ? (
-            <p className="text-sm text-slate-600">
-              Este negocio aún no tiene servicios disponibles.
+            <p className="rounded-2xl border border-slate-100 bg-slate-50/70 px-5 py-8 text-center text-sm text-slate-500">
+              {t("sin_servicios")}
             </p>
           ) : (
             <motion.div
@@ -256,8 +254,16 @@ function NegocioProfileContenido({
             </motion.div>
           )}
         </section>
-        <div className="mt-10 flex justify-center border-t border-slate-100 pt-5">
+        <div className="mt-12 flex flex-col items-center gap-1 border-t border-slate-100 pt-6">
           <MarcaReserva idioma={locale} />
+          {hrefReportar && (
+            <Link
+              href={hrefReportar}
+              className="inline-block rounded-lg px-2 py-2 text-xs text-slate-500 hover:text-slate-700 hover:underline focus-visible:underline"
+            >
+              {t("reportar_perfil")}
+            </Link>
+          )}
         </div>
       </div>
 
@@ -273,6 +279,19 @@ function NegocioProfileContenido({
           />
         )}
       </AnimatePresence>
+
+      {whatsappUrl && (
+        <a
+          href={whatsappUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Contactar por WhatsApp"
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-950/20 transition hover:bg-[#20ba5a] hover:scale-105 active:scale-95 focus-visible:outline-2 focus-visible:outline-emerald-600"
+        >
+          <MessageCircle className="h-5 w-5 fill-current" aria-hidden="true" />
+          <span className="font-medium">WhatsApp</span>
+        </a>
+      )}
     </main>
   );
 }
