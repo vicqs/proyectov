@@ -419,12 +419,34 @@ export default function ServiciosView({
                         </span>
                       </div>
 
-                      {/* Metadatos: duración y estado de horarios/contenido */}
+                      {/* Metadatos: duración, reservas y estado de horarios/contenido */}
                       <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
                         <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
                           <Clock className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
                           {formatearDuracion(servicio.duracionMin)}
                         </span>
+
+                        {hrefReservas && tieneReservas ? (
+                          <Link
+                            href={hrefReservas}
+                            title="Ver reservas de este servicio"
+                            className="vuki-focus inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700 transition hover:bg-slate-200 hover:text-slate-900"
+                          >
+                            <CalendarCheck className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                            {servicio.reservasTotales ?? 0}{" "}
+                            {(servicio.reservasTotales ?? 0) === 1
+                              ? "reserva"
+                              : "reservas"}
+                          </Link>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
+                            <CalendarCheck className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+                            {servicio.reservasTotales ?? 0}{" "}
+                            {(servicio.reservasTotales ?? 0) === 1
+                              ? "reserva"
+                              : "reservas"}
+                          </span>
+                        )}
 
                         {servicio.horariosActivos !== undefined && (
                           <span
@@ -491,38 +513,25 @@ export default function ServiciosView({
                       )}
                     </div>
 
-                    {tieneReservas ? (
-                      hrefReservas ? (
-                        <Link
-                          href={hrefReservas}
-                          title="Este servicio tiene reservas registradas y no puede eliminarse para conservar tu historial"
-                          className="vuki-focus inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
-                        >
-                          <CalendarCheck
-                            className="h-3.5 w-3.5 text-emerald-600"
-                            aria-hidden="true"
-                          />
-                          {servicio.reservasTotales}{" "}
-                          {servicio.reservasTotales === 1
-                            ? "reserva"
-                            : "reservas"}
-                        </Link>
-                      ) : (
-                        <span className="text-xs font-medium text-slate-500">
-                          {servicio.reservasTotales} reserva(s)
-                        </span>
-                      )
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setPorEliminar(servicio)}
-                        aria-label={`Quitar ${servicio.nombre}`}
-                        className="vuki-focus inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                        Quitar
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      disabled={tieneReservas}
+                      onClick={() => !tieneReservas && setPorEliminar(servicio)}
+                      title={
+                        tieneReservas
+                          ? "No se puede eliminar un servicio con reservas registradas"
+                          : undefined
+                      }
+                      aria-label={`Quitar ${servicio.nombre}`}
+                      className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
+                        tieneReservas
+                          ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-60"
+                          : "vuki-focus border-red-200 bg-white text-red-600 hover:bg-red-50"
+                      }`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      Quitar
+                    </button>
                   </div>
                 </div>
               </ItemLista>

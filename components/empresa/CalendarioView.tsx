@@ -91,6 +91,15 @@ const ESTADO_RESERVA_TEXTO: Record<"pendiente" | "pagada", string> = {
   pendiente: "Pendiente",
 };
 
+function formatoDuracionLegible(minutos: number): string {
+  if (!minutos || minutos <= 0) return "";
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+  if (horas > 0 && resto === 0) return `(${horas}h)`;
+  if (horas > 0 && resto > 0) return `(${horas}h ${resto}m)`;
+  return `(${resto}m)`;
+}
+
 /**
  * Vista semanal interactiva del calendario operativo de la empresa:
  * destaca el día de hoy, resume ocupación/reservas/bloqueos de la semana,
@@ -869,7 +878,7 @@ export default function CalendarioView({
                               </span>
                               {s.duracionMin && (
                                 <span className="text-xs text-slate-500">
-                                  ({s.duracionMin} min)
+                                  {formatoDuracionLegible(s.duracionMin)}
                                 </span>
                               )}
                             </div>

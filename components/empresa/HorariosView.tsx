@@ -28,6 +28,13 @@ export interface VistaHorario {
   fechaHora?: string;
   cuposTotales: number;
   cuposDisponibles: number;
+  yaPaso?: boolean;
+}
+
+export function esHorarioPasado(h: VistaHorario): boolean {
+  if (h.yaPaso !== undefined) return h.yaPaso;
+  if (!h.fechaHora) return false;
+  return new Date(h.fechaHora).getTime() <= Date.now();
 }
 
 export interface SugerenciaHorarioInicial {
@@ -177,9 +184,48 @@ function generarFechas(
   return fechas;
 }
 
+function calcularRangoHoras(
+  hora24: string,
+  duracionMin?: number,
+): {
+  inicioTexto: string;
+  finTexto: string;
+  duracionTexto: string;
+} {
+  const [hh, mm] = hora24.split(":").map(Number);
+  const m = Number.isNaN(mm) ? 0 : mm;
+  const h = Number.isNaN(hh) ? 9 : hh;
+
+  const mPad = String(m).padStart(2, "0");
+  const inicioTexto = `${h % 12 === 0 ? 12 : h % 12}:${mPad} ${h < 12 ? "a.m." : "p.m."}`;
+
+  if (!duracionMin || duracionMin <= 0) {
+    return { inicioTexto, finTexto: "", duracionTexto: "" };
+  }
+
+  const minutosTotales = h * 60 + m + duracionMin;
+  const finH = Math.floor(minutosTotales / 60) % 24;
+  const finM = minutosTotales % 60;
+  const finMPad = String(finM).padStart(2, "0");
+  const finTexto = `${finH % 12 === 0 ? 12 : finH % 12}:${finMPad} ${finH < 12 ? "a.m." : "p.m."}`;
+
+  const horas = Math.floor(duracionMin / 60);
+  const resto = duracionMin % 60;
+  let duracionTexto = "";
+  if (resto === 0) {
+    duracionTexto = `${horas}h`;
+  } else if (horas === 0) {
+    duracionTexto = `${resto}m`;
+  } else {
+    duracionTexto = `${horas}h ${resto}m`;
+  }
+
+  return { inicioTexto, finTexto, duracionTexto };
+}
+
 interface HorariosViewProps {
   horarios: VistaHorario[];
-  servicios: { id: string; nombre: string }[];
+  servicios: { id: string; nombre: string; duracionMin?: number }[];
   /** `fechaHora` viene en formato `datetime-local` (sin zona horaria). */
   onCrear: (datos: {
     servicioId: string;
@@ -246,6 +292,9 @@ export default function HorariosView({
   const [guardando, setGuardando] = useState(false);
 
   const [servicioFiltro, setServicioFiltro] = useState("");
+  const [pestanaTemporal, setPestanaTemporal] = useState<
+    "todos" | "proximos" | "pasados"
+  >("todos");
   const [porEliminar, setPorEliminar] = useState<VistaHorario | null>(null);
   const [eliminando, setEliminando] = useState(false);
 
@@ -426,13 +475,27 @@ export default function HorariosView({
     return servicios.find((s) => s.id === id)?.nombre ?? "Servicio eliminado";
   }
 
-  const horariosFiltrados = useMemo(
-    () =>
-      servicioFiltro
-        ? horarios.filter((h) => h.servicioId === servicioFiltro)
-        : horarios,
-    [horarios, servicioFiltro],
+  const totalProximos = useMemo(
+    () => horarios.filter((h) => !esHorarioPasado(h)).length,
+    [horarios],
   );
+  const totalPasados = useMemo(
+    () => horarios.filter((h) => esHorarioPasado(h)).length,
+    [horarios],
+  );
+
+  const horariosFiltrados = useMemo(() => {
+    let filtrados = horarios;
+    if (servicioFiltro) {
+      filtrados = filtrados.filter((h) => h.servicioId === servicioFiltro);
+    }
+    if (pestanaTemporal === "proximos") {
+      filtrados = filtrados.filter((h) => !esHorarioPasado(h));
+    } else if (pestanaTemporal === "pasados") {
+      filtrados = filtrados.filter((h) => esHorarioPasado(h));
+    }
+    return filtrados;
+  }, [horarios, servicioFiltro, pestanaTemporal]);
 
   const resumen = useMemo(() => {
     let cuposTotales = 0;
@@ -510,16 +573,53 @@ export default function HorariosView({
         </div>
       }
     >
-      {/* Resumen superior + filtro por servicio */}
+      {/* Resumen superior + pestañas de clasificación + filtro por servicio */}
       {horarios.length > 0 && (
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-(--marca-borde) bg-white px-4 py-3 shadow-sm">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
+          {/* Clasificación: Todos / Próximos / De hoy y pasados */}
+          <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-slate-100/90 p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setPestanaTemporal("todos")}
+              className={`vuki-focus rounded-lg px-3 py-1.5 font-semibold transition ${
+                pestanaTemporal === "todos"
+                  ? "bg-white text-vuki-ink shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Todos ({horarios.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPestanaTemporal("proximos")}
+              className={`vuki-focus rounded-lg px-3 py-1.5 font-semibold transition ${
+                pestanaTemporal === "proximos"
+                  ? "bg-white text-vuki-ink shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Horarios próximos ({totalProximos})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPestanaTemporal("pasados")}
+              className={`vuki-focus rounded-lg px-3 py-1.5 font-semibold transition ${
+                pestanaTemporal === "pasados"
+                  ? "bg-white text-vuki-ink shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              De hoy / pasados ({totalPasados})
+            </button>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-(--marca-fondo) px-3 py-1 font-semibold text-(--marca-texto)">
               <Clock className="h-3.5 w-3.5" aria-hidden="true" />
               {resumen.totalHorarios}{" "}
               {resumen.totalHorarios === 1
-                ? "horario futuro"
-                : "horarios futuros"}
+                ? "horario"
+                : "horarios"}
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-800">
               {resumen.cuposLibres}{" "}
@@ -530,10 +630,7 @@ export default function HorariosView({
                 {resumen.cuposOcupados} reservados
               </span>
             )}
-          </div>
-
-          {servicios.length > 1 && (
-            <div className="flex items-center gap-2">
+            {servicios.length > 1 && (
               <select
                 aria-label="Filtrar horarios por servicio"
                 value={servicioFiltro}
@@ -547,8 +644,8 @@ export default function HorariosView({
                   </option>
                 ))}
               </select>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 
@@ -620,24 +717,81 @@ export default function HorariosView({
           </div>
         ) : horariosFiltrados.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-600">
-            <p>Este servicio no tiene horarios futuros publicados.</p>
-            <div className="mt-3 flex flex-wrap justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => abrirNuevo()}
-                className="vuki-focus inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-vuki-ink px-4 text-xs font-semibold text-white hover:bg-slate-800"
-              >
-                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                Agregar horario a este servicio
-              </button>
-              <button
-                type="button"
-                onClick={() => setServicioFiltro("")}
-                className="vuki-focus inline-flex min-h-10 items-center rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Ver todos
-              </button>
-            </div>
+            {pestanaTemporal === "proximos" ? (
+              <>
+                <p className="font-semibold text-vuki-ink">
+                  No tienes horarios próximos pendientes
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {totalPasados > 0
+                    ? `Tienes ${totalPasados} ${totalPasados === 1 ? "horario de hoy ya concluido" : "horarios de hoy ya concluidos"} en la pestaña "De hoy / pasados".`
+                    : "Agrega nuevas franjas horarias para recibir reservas en los próximos días."}
+                </p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => abrirNuevo()}
+                    className="vuki-focus inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-vuki-ink px-4 text-xs font-semibold text-white hover:bg-slate-800"
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                    Agregar nuevo horario
+                  </button>
+                  {totalPasados > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPestanaTemporal("todos")}
+                      className="vuki-focus inline-flex min-h-10 items-center rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Ver todos los horarios
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : pestanaTemporal === "pasados" ? (
+              <>
+                <p className="font-semibold text-vuki-ink">
+                  No hay horarios pasados ni concluidos hoy
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Todos los horarios publicados corresponden a salidas futuras.
+                </p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPestanaTemporal("todos")}
+                    className="vuki-focus inline-flex min-h-10 items-center rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Ver todos los horarios
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-vuki-ink">
+                  Este servicio no tiene horarios publicados con este filtro
+                </p>
+                <div className="mt-3 flex flex-wrap justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => abrirNuevo()}
+                    className="vuki-focus inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-vuki-ink px-4 text-xs font-semibold text-white hover:bg-slate-800"
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                    Agregar horario a este servicio
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setServicioFiltro("");
+                      setPestanaTemporal("todos");
+                    }}
+                    className="vuki-focus inline-flex min-h-10 items-center rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Ver todos
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-6">
@@ -668,6 +822,11 @@ export default function HorariosView({
                             className="h-1.5 w-1.5 rounded-full bg-(--marca)"
                           />
                           Hoy
+                        </span>
+                      )}
+                      {grupo.esHoy && grupo.items.every(esHorarioPasado) && (
+                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">
+                          Turnos concluidos
                         </span>
                       )}
                       {grupo.esManana && (
@@ -708,11 +867,14 @@ export default function HorariosView({
                     );
                     const lleno = horario.cuposDisponibles === 0;
                     const pocosCupos = !lleno && horario.cuposDisponibles <= 2;
-                    const colorBarra = lleno
-                      ? "bg-red-500"
-                      : pocosCupos || porcentaje >= 50
-                        ? "bg-amber-500"
-                        : "bg-emerald-500";
+                    const yaPaso = esHorarioPasado(horario);
+                    const colorBarra = yaPaso
+                      ? "bg-slate-400"
+                      : lleno
+                        ? "bg-red-500"
+                        : pocosCupos || porcentaje >= 50
+                          ? "bg-amber-500"
+                          : "bg-emerald-500";
                     const horaPrincipal = horario.fechaHora
                       ? formatoHoraIso(horario.fechaHora)
                       : horario.label;
@@ -721,38 +883,58 @@ export default function HorariosView({
                       <ItemLista
                         as="li"
                         key={horario.id}
-                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                        className={`rounded-2xl border p-4 shadow-sm transition ${
+                          yaPaso
+                            ? "border-slate-200/80 bg-slate-50/70"
+                            : "border-slate-200 bg-white"
+                        }`}
                       >
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div className="flex min-w-0 items-center gap-3">
-                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                            <span
+                              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                                yaPaso
+                                  ? "bg-slate-200/60 text-slate-400"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
                               <Clock className="h-4 w-4" aria-hidden="true" />
                             </span>
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p
                                   suppressHydrationWarning
-                                  className="font-display text-sm font-bold text-vuki-ink sm:text-base"
+                                  className={`font-display text-sm font-bold sm:text-base ${
+                                    yaPaso ? "text-slate-600" : "text-vuki-ink"
+                                  }`}
                                 >
                                   {horaPrincipal}
                                 </p>
-                                <span
-                                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                                    lleno
-                                      ? "bg-red-100 text-red-700"
+                                {yaPaso ? (
+                                  <span className="rounded-full bg-slate-200/70 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                                    {grupo.esHoy
+                                      ? "Horario de hoy (pasado)"
+                                      : "Finalizado"}
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                                      lleno
+                                        ? "bg-red-100 text-red-700"
+                                        : pocosCupos
+                                          ? "bg-amber-100 text-amber-800"
+                                          : ocupados > 0
+                                            ? "bg-emerald-100 text-emerald-800"
+                                            : "bg-slate-100 text-slate-600"
+                                    }`}
+                                  >
+                                    {lleno
+                                      ? "Completo"
                                       : pocosCupos
-                                        ? "bg-amber-100 text-amber-800"
-                                        : ocupados > 0
-                                          ? "bg-emerald-100 text-emerald-800"
-                                          : "bg-slate-100 text-slate-600"
-                                  }`}
-                                >
-                                  {lleno
-                                    ? "Completo"
-                                    : pocosCupos
-                                      ? `Últimos ${horario.cuposDisponibles}`
-                                      : `${horario.cuposDisponibles} disponibles`}
-                                </span>
+                                        ? `Últimos ${horario.cuposDisponibles}`
+                                        : `${horario.cuposDisponibles} disponibles`}
+                                  </span>
+                                )}
                               </div>
                               <p className="mt-0.5 truncate text-xs font-medium text-slate-600">
                                 {nombreServicio(horario.servicioId)}
@@ -1097,16 +1279,26 @@ export default function HorariosView({
           {/* Vista previa clara de lo que se va a publicar */}
           <div className="rounded-2xl border border-(--marca-borde) bg-(--marca-fondo) px-4 py-3 text-xs leading-relaxed text-slate-700">
             {modo === "uno" ? (
-              fecha && hora ? (
-                <p>
-                  <strong className="font-semibold text-vuki-ink">
-                    Listo para publicar:
-                  </strong>{" "}
-                  {formatoFechaLargaClave(fecha)} a las{" "}
-                  {formatoHora24a12(hora.slice(0, 5))} ({cupos || 0}{" "}
-                  {Number(cupos) === 1 ? "cupo" : "cupos"}).
-                </p>
-              ) : (
+              fecha && hora ? (() => {
+                const srv = servicios.find((s) => s.id === servicioId);
+                const rango = calcularRangoHoras(
+                  hora.slice(0, 5),
+                  srv?.duracionMin,
+                );
+                return (
+                  <p>
+                    <strong className="font-semibold text-vuki-ink">
+                      Listo para publicar:
+                    </strong>{" "}
+                    {formatoFechaLargaClave(fecha)}{" "}
+                    {rango.finTexto
+                      ? `de ${rango.inicioTexto} a ${rango.finTexto} (${rango.duracionTexto})`
+                      : `a las ${rango.inicioTexto}`}{" "}
+                    · {cupos || 0}{" "}
+                    {Number(cupos) === 1 ? "cupo" : "cupos"}.
+                  </p>
+                );
+              })() : (
                 <p>Selecciona la fecha y hora del horario.</p>
               )
             ) : fechasLote.length === 0 ? (
@@ -1114,18 +1306,29 @@ export default function HorariosView({
                 Elige una fecha futura y al menos un día de la semana para
                 calcular los horarios.
               </p>
-            ) : (
-              <p>
-                <strong className="font-semibold text-vuki-ink">
-                  Se crearán {fechasLote.length}{" "}
-                  {fechasLote.length === 1 ? "horario" : "horarios"}
-                </strong>
-                {fechasLote.length > MAX_LOTE ? ` (máximo ${MAX_LOTE})` : ""}:{" "}
-                del {formatoFechaCortaLocal(fechasLote[0])} al{" "}
-                {formatoFechaCortaLocal(fechasLote[fechasLote.length - 1])} a
-                las {formatoHora24a12(hora.slice(0, 5))}.
-              </p>
-            )}
+            ) : (() => {
+              const srv = servicios.find((s) => s.id === servicioId);
+              const rango = calcularRangoHoras(
+                hora.slice(0, 5),
+                srv?.duracionMin,
+              );
+              return (
+                <p>
+                  <strong className="font-semibold text-vuki-ink">
+                    Se crearán {fechasLote.length}{" "}
+                    {fechasLote.length === 1 ? "horario" : "horarios"}
+                  </strong>
+                  {fechasLote.length > MAX_LOTE ? ` (máximo ${MAX_LOTE})` : ""}:{" "}
+                  del {formatoFechaCortaLocal(fechasLote[0])} al{" "}
+                  {formatoFechaCortaLocal(fechasLote[fechasLote.length - 1])}{" "}
+                  {rango.finTexto
+                    ? `de ${rango.inicioTexto} a ${rango.finTexto} (${rango.duracionTexto})`
+                    : `a las ${rango.inicioTexto}`}{" "}
+                  · {cupos || 0} {Number(cupos) === 1 ? "cupo" : "cupos"} por
+                  fecha.
+                </p>
+              );
+            })()}
           </div>
 
           <motion.button

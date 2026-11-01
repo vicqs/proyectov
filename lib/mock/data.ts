@@ -150,9 +150,7 @@ export const mockServicios: Servicio[] = [
   },
 ];
 
-const FECHA_RESERVA_DEMO_1 = new Date(
-  Date.now() + 1000 * 60 * 60 * 24,
-).toISOString();
+const FECHA_RESERVA_DEMO_1 = enDias(-2);
 const FECHA_RESERVA_DEMO_2 = enDias(3);
 
 export const mockReservas: Reserva[] = [
@@ -284,13 +282,15 @@ function horarioSemilla(
 }
 
 export const mockHorarios: Horario[] = [
-  horarioSemilla(1, SERVICIO_CLASE, 1, 8),
-  horarioSemilla(2, SERVICIO_CLASE, 1, 11),
-  horarioSemilla(3, SERVICIO_CLASE, 1, 15),
-  horarioSemilla(4, SERVICIO_CLASE, 2, 9),
-  horarioSemilla(5, SERVICIO_TABLA, 1, 9),
-  horarioSemilla(6, SERVICIO_TABLA, 2, 9),
-  horarioSemilla(7, SERVICIO_KAYAK, 3, 6, 0, ID_NEGOCIO_2),
+  horarioSemilla(1, SERVICIO_CLASE, 0, 9),
+  horarioSemilla(2, SERVICIO_CLASE, 0, 14),
+  horarioSemilla(3, SERVICIO_CLASE, 1, 8),
+  horarioSemilla(4, SERVICIO_CLASE, 1, 11),
+  horarioSemilla(5, SERVICIO_CLASE, 1, 15),
+  horarioSemilla(6, SERVICIO_CLASE, 2, 9),
+  horarioSemilla(7, SERVICIO_TABLA, 1, 9),
+  horarioSemilla(8, SERVICIO_TABLA, 2, 9),
+  horarioSemilla(9, SERVICIO_KAYAK, 3, 6, 0, ID_NEGOCIO_2),
 ];
 
 // ---------------------------------------------------------------------------

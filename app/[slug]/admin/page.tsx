@@ -25,8 +25,11 @@ export default async function EmpresaInicioPage({ params }: EmpresaPageProps) {
   const { supabase, negocio } = await requerirEmpresa(slug);
 
   const ahoraMs = Date.now();
-  const ahoraIso = new Date(ahoraMs).toISOString();
   const hoyClave = hoyClaveCR(ahoraMs);
+  const inicioHoyMs = new Date(`${hoyClave}T00:00:00-06:00`).getTime();
+  const inicioHoyIso = new Date(inicioHoyMs).toISOString();
+  const finHoyMs = inicioHoyMs + 86_400_000;
+  const haceSemana = ahoraMs - 7 * 86_400_000;
 
   let proximas: Reserva[] = [];
   let pagos: PagoConPrecio[] = [];
@@ -48,7 +51,7 @@ export default async function EmpresaInicioPage({ params }: EmpresaPageProps) {
         .from("horarios")
         .select("*")
         .eq("negocio_id", negocio.id)
-        .gte("fecha_hora", ahoraIso),
+        .gte("fecha_hora", inicioHoyIso),
     ]);
 
     servicios = (serviciosRes.data ?? []) as Servicio[];
@@ -83,10 +86,6 @@ export default async function EmpresaInicioPage({ params }: EmpresaPageProps) {
     (acc, pago) => acc + montoDe(pago),
     0,
   );
-
-  const inicioHoyMs = new Date(`${hoyClave}T00:00:00-06:00`).getTime();
-  const finHoyMs = inicioHoyMs + 86_400_000;
-  const haceSemana = ahoraMs - 7 * 86_400_000;
 
   const reservasDeHoy = todas.filter((r) => {
     const t = new Date(r.fecha_hora).getTime();

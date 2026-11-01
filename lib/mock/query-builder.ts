@@ -61,13 +61,10 @@ for (const [nombre, semilla] of Object.entries(TABLAS_INICIALES)) {
       const existente = TABLAS[nombre].find((f) => f.id === filaSemilla.id);
       if (existente) {
         for (const [campo, valor] of Object.entries(filaSemilla)) {
-          if (
-            existente[campo] === undefined ||
-            (valor !== undefined && valor !== null && valor !== "" && !existente[campo])
-          ) {
-            existente[campo] = valor;
-          }
+          existente[campo] = valor;
         }
+      } else {
+        TABLAS[nombre].push({ ...filaSemilla });
       }
     }
   }

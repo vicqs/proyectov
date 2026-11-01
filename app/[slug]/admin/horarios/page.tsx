@@ -30,7 +30,12 @@ export default async function HorariosPage({
   ]);
   const { supabase, negocio } = await requerirEmpresa(slug);
 
-  let servicios: Pick<Servicio, "id" | "nombre">[] = [];
+  const ahora = new Date();
+  const hoyClave = claveLocal(ahora);
+  const inicioHoy = new Date(ahora);
+  inicioHoy.setHours(0, 0, 0, 0);
+
+  let servicios: Pick<Servicio, "id" | "nombre" | "duracion_min">[] = [];
   let horarios: Horario[] = [];
   let reservas: Reserva[] = [];
 
@@ -45,7 +50,7 @@ export default async function HorariosPage({
         .from("horarios")
         .select("*")
         .eq("negocio_id", negocio.id)
-        .gte("fecha_hora", new Date().toISOString())
+        .gte("fecha_hora", inicioHoy.toISOString())
         .order("fecha_hora", { ascending: true }),
       supabase.from("reservas").select("*").eq("negocio_id", negocio.id),
     ]);
@@ -53,9 +58,6 @@ export default async function HorariosPage({
     horarios = (horariosRes.data ?? []) as Horario[];
     reservas = (reservasRes.data ?? []) as Reserva[];
   }
-
-  const ahora = new Date();
-  const hoyClave = claveLocal(ahora);
 
   const proximo = new Date(ahora);
   proximo.setMinutes(0, 0, 0);
@@ -104,7 +106,11 @@ export default async function HorariosPage({
         hora: horaSugerida,
         servicioId: servicioSugerido,
       }}
-      servicios={servicios.map((s) => ({ id: s.id, nombre: s.nombre }))}
+      servicios={servicios.map((s) => ({
+        id: s.id,
+        nombre: s.nombre,
+        duracionMin: s.duracion_min,
+      }))}
       horarios={construirHorarios(horarios, reservas, []).map((h) => ({
         id: h.id,
         servicioId: h.servicioId,
@@ -112,6 +118,7 @@ export default async function HorariosPage({
         fechaHora: h.fechaHora,
         cuposTotales: h.cuposTotales,
         cuposDisponibles: h.cuposDisponibles,
+        yaPaso: new Date(h.fechaHora).getTime() <= ahora.getTime(),
       }))}
     />
   );

@@ -62,6 +62,24 @@ function formatoHora(iso: string): string {
   return `${h % 12 === 0 ? 12 : h % 12}:${m} ${h < 12 ? "a.m." : "p.m."}`;
 }
 
+function formatoRangoHora(iso: string, duracionMin?: number): string {
+  const inicio = new Date(iso);
+  const hIni = inicio.getHours();
+  const mIni = String(inicio.getMinutes()).padStart(2, "0");
+  const textoIni = `${hIni % 12 === 0 ? 12 : hIni % 12}:${mIni} ${hIni < 12 ? "a.m." : "p.m."}`;
+
+  if (!duracionMin || duracionMin <= 0) {
+    return textoIni;
+  }
+
+  const fin = new Date(inicio.getTime() + duracionMin * 60_000);
+  const hFin = fin.getHours();
+  const mFin = String(fin.getMinutes()).padStart(2, "0");
+  const textoFin = `${hFin % 12 === 0 ? 12 : hFin % 12}:${mFin} ${hFin < 12 ? "a.m." : "p.m."}`;
+
+  return `${textoIni} – ${textoFin}`;
+}
+
 function claveFechaLocal(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -243,7 +261,7 @@ export default async function CalendarioPage({
             servicioId: s.servicioId,
             servicioNombre: srv?.nombre ?? "Servicio",
             duracionMin: srv?.duracion_min,
-            hora: formatoHora(s.fechaHora),
+            hora: formatoRangoHora(s.fechaHora, srv?.duracion_min),
             cuposTotales: s.cuposTotales,
             cuposDisponibles: s.cuposDisponibles,
             bloqueado: estaBloqueado(s.fechaHora, bloqueos),

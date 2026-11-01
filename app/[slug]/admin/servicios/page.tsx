@@ -20,6 +20,10 @@ export default async function ServiciosPage({
   let horarios: Horario[] = [];
   let reservas: Reserva[] = [];
 
+  const ahora = new Date();
+  const inicioHoy = new Date(ahora);
+  inicioHoy.setHours(0, 0, 0, 0);
+
   if (negocio) {
     const [serviciosRes, horariosRes, reservasRes] = await Promise.all([
       supabase
@@ -31,7 +35,7 @@ export default async function ServiciosPage({
         .from("horarios")
         .select("*")
         .eq("negocio_id", negocio.id)
-        .gte("fecha_hora", new Date().toISOString()),
+        .gte("fecha_hora", inicioHoy.toISOString()),
       supabase.from("reservas").select("*").eq("negocio_id", negocio.id),
     ]);
 
