@@ -23,6 +23,7 @@ import Drawer from "../Drawer";
 import ConfirmDialog from "../ConfirmDialog";
 import { toast } from "../Toast";
 import { esImagenOptimizable } from "../../lib/tipos-publicos";
+import { formatearPrecioUsd } from "@/lib/formato";
 
 export interface VistaServicio {
   id: string;
@@ -413,9 +414,8 @@ export default function ServiciosView({
                         <h2 className="min-w-0 break-words font-display text-base font-bold tracking-tight text-vuki-ink sm:text-lg">
                           {servicio.nombre}
                         </h2>
-                        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-(--marca-2-fondo) px-3 py-1 font-display text-sm font-bold text-(--marca-2-texto) ring-1 ring-(--marca-2-borde)">
-                          <DollarSign className="h-3.5 w-3.5" aria-hidden="true" />
-                          {servicio.precioUsd.toFixed(2)}
+                        <span className="inline-flex shrink-0 items-center rounded-full bg-(--marca-2-fondo) px-3 py-1 font-display text-sm font-bold text-(--marca-2-texto) ring-1 ring-(--marca-2-borde)">
+                          {formatearPrecioUsd(servicio.precioUsd)}
                         </span>
                       </div>
 
@@ -653,7 +653,7 @@ export default function ServiciosView({
                       : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
                   }`}
                 >
-                  ${p}
+                  ${p} USD
                 </button>
               ))}
             </div>

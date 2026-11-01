@@ -20,6 +20,7 @@ import {
   crearCheckoutSuscripcionAction,
 } from "@/actions/billing";
 import EmpresaPage from "@/components/EmpresaPage";
+import { formatearPrecioUsd } from "@/lib/formato";
 import SuscribirseButton, {
   CancelarSuscripcionMockButton,
   CopiarEnlacePublicoButton,
@@ -45,7 +46,7 @@ const ESTADO_STYLES: Record<EstadoSuscripcion, string> = {
 };
 
 function formatearMontoPlan(monto: number): string {
-  return Number.isInteger(monto) ? `$${monto}` : `$${monto.toFixed(2)}`;
+  return formatearPrecioUsd(monto);
 }
 
 /**
@@ -219,7 +220,7 @@ export default async function SuscripcionPage({
               <span className="font-display text-xl font-bold text-vuki-ink">
                 {formatearMontoPlan(detallePrecio.precio)}{" "}
                 <span className="text-xs font-medium text-slate-500">
-                  USD / mes
+                  / mes
                 </span>
               </span>
               {detallePrecio.descuentoPct > 0 && (
@@ -232,7 +233,7 @@ export default async function SuscripcionPage({
               <p className="mt-0.5 text-[11px] text-slate-400">
                 Precio regular:{" "}
                 <span className="line-through">
-                  {formatearMontoPlan(detallePrecio.precioLista)} USD
+                  {formatearMontoPlan(detallePrecio.precioLista)}
                 </span>
               </p>
             )}
@@ -343,7 +344,7 @@ export default async function SuscripcionPage({
               <p className="mt-2 text-xs leading-relaxed text-slate-600">
                 Tu tarifa mensual es fija (
                 <strong className="text-slate-800">
-                  {formatearMontoPlan(detallePrecio.precio)} USD/mes
+                  {formatearMontoPlan(detallePrecio.precio)} / mes
                 </strong>
                 ) sin permanencia obligatoria. Si en algún momento pausas tu
                 suscripción, tus servicios, horarios y reportes financieros

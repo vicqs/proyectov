@@ -25,6 +25,7 @@ import ConfirmDialog from "../ConfirmDialog";
 import { toast } from "../Toast";
 import { descargarCsv } from "../../lib/csv";
 import { esPagoManual, esTrxPasarela } from "../../lib/pagos";
+import { formatearPrecioUsd } from "@/lib/formato";
 
 export interface VistaReserva {
   id: string;
@@ -535,7 +536,7 @@ export default function ReservasView({
           esTrxPasarela(porCancelar.trxId)
         ) {
           const m = porCancelar.monto ?? porCancelar.montoEstimado;
-          return `${base} Como tiene un pago por pasarela${m !== undefined ? ` ($${m.toFixed(2)})` : ""}, quedará señalada con reembolso pendiente en Finanzas.`;
+          return `${base} Como tiene un pago por pasarela${m !== undefined ? ` (${formatearPrecioUsd(m)})` : ""}, quedará señalada con reembolso pendiente en Finanzas.`;
         }
         if (porCancelar.estado === "pagada") {
           return `${base} Si ya recibiste el pago directo, recuerda coordinar la devolución con el cliente.`;
@@ -684,7 +685,7 @@ export default function ReservasView({
                 {resumen.pagadasCount}
               </p>
               <p className="mt-0.5 text-xs text-slate-500">
-                ${resumen.pagadasMonto.toFixed(2)} USD acumulados
+                {formatearPrecioUsd(resumen.pagadasMonto)} acumulados
               </p>
             </button>
 
@@ -1021,7 +1022,7 @@ export default function ReservasView({
                                         : "text-slate-500"
                                     }`}
                                   >
-                                    ${montoVisible.toFixed(2)}
+                                    {formatearPrecioUsd(montoVisible)}
                                   </p>
                                   {reserva.estado === "pendiente" && (
                                     <p className="text-[11px] text-amber-700">
@@ -1188,7 +1189,7 @@ export default function ReservasView({
                                   : "text-slate-500"
                               }`}
                             >
-                              ${montoVisible.toFixed(2)}{" "}
+                              {formatearPrecioUsd(montoVisible)}{" "}
                               {reserva.estado === "pendiente" && (
                                 <span className="font-sans text-xs font-normal text-amber-700">
                                   (por cobrar)
@@ -1409,7 +1410,7 @@ export default function ReservasView({
                     </span>
                     {montoManualEstimado !== undefined && (
                       <span className="font-display text-sm font-bold text-vuki-ink">
-                        ${montoManualEstimado.toFixed(2)} USD
+                        {formatearPrecioUsd(montoManualEstimado)}
                       </span>
                     )}
                   </div>

@@ -2,7 +2,7 @@
 export default function EmpresaLoading() {
   return (
     <main
-      className="mx-auto max-w-6xl animate-pulse px-6 py-12 sm:px-10 2xl:max-w-7xl"
+      className="mx-auto max-w-7xl animate-pulse px-4 py-12 sm:px-8 lg:px-10"
       aria-busy="true"
       aria-label="Cargando"
     >

@@ -21,7 +21,7 @@ export default function EmpresaPage({
   children,
 }: EmpresaPageProps) {
   return (
-    <main className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8 2xl:max-w-7xl">
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-8 sm:py-8 lg:px-10">
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <EncabezadoPanel
           contexto="empresa"

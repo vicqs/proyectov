@@ -24,6 +24,7 @@ import {
 import EmpresaPage, { ItemLista, KpiCard, Lista } from "../EmpresaPage";
 import { toast } from "../Toast";
 import { descargarCsv } from "../../lib/csv";
+import { formatearPrecioUsd } from "@/lib/formato";
 import {
   EXCHANGE_RATE_BCCR_DEFAULT,
   etiquetaTarifaIva,
@@ -69,12 +70,9 @@ const TIPOS_ID_OPCIONES: { valor: Exclude<ClientIdType, null>; etiqueta: string 
   { valor: "extranjero", etiqueta: "Extranjero No Domiciliado" },
 ];
 
-const formatoUsd = new Intl.NumberFormat("es-CR", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+const formatoUsd = {
+  format: (monto: number | null | undefined): string => formatearPrecioUsd(monto),
+};
 
 const formatoNumeroCr = new Intl.NumberFormat("es-CR", {
   minimumFractionDigits: 2,

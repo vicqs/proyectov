@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import EmpresaPage, { ItemLista, KpiCard, Lista } from "../EmpresaPage";
 import { toast } from "../Toast";
+import { formatearPrecioUsd } from "@/lib/formato";
 
 export interface InicioPrueba {
   /** Días restantes (0 si vence hoy); negativo si ya terminó. */
@@ -222,7 +223,7 @@ export default function InicioView({
 
   const notaCobrado =
     cobrosManualesUsd > 0
-      ? `Pasarela · +$${cobrosManualesUsd.toFixed(2)} cobro directo`
+      ? `Pasarela · +${formatearPrecioUsd(cobrosManualesUsd)} cobro directo`
       : "Procesado por pasarela";
 
   return (
@@ -414,7 +415,7 @@ export default function InicioView({
           <KpiCard
             icono={<TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />}
             titulo="Cobrado (7 días)"
-            valor={`$${ingresosSemana.toFixed(2)}`}
+            valor={formatearPrecioUsd(ingresosSemana)}
             nota="Últimos 7 días y próximos"
             acento
             href={rutas?.finanzas}
@@ -423,7 +424,7 @@ export default function InicioView({
         <KpiCard
           icono={<DollarSign className="h-3.5 w-3.5" aria-hidden="true" />}
           titulo="Total cobrado"
-          valor={`$${totalCobrado.toFixed(2)}`}
+          valor={formatearPrecioUsd(totalCobrado)}
           nota={notaCobrado}
           acento
           href={rutas?.finanzas}
@@ -621,7 +622,7 @@ export default function InicioView({
                   <div className="flex items-center gap-2.5">
                     {reserva.monto !== undefined && (
                       <span className="font-display text-sm font-bold text-vuki-ink">
-                        ${reserva.monto.toFixed(2)}
+                        {formatearPrecioUsd(reserva.monto)}
                       </span>
                     )}
                     <span
@@ -711,9 +712,8 @@ export default function InicioView({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-0.5 rounded-full bg-(--marca-2-fondo) px-3 py-1 font-display text-base font-bold text-(--marca-2-texto)">
-                      <DollarSign className="h-3.5 w-3.5" aria-hidden="true" />
-                      {servicio.precioUsd.toFixed(2)}
+                    <span className="inline-flex items-center rounded-full bg-(--marca-2-fondo) px-3 py-1 font-display text-sm font-bold text-(--marca-2-texto)">
+                      {formatearPrecioUsd(servicio.precioUsd)}
                     </span>
                     {rutas && (
                       <Link

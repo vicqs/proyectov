@@ -131,7 +131,7 @@ export default function EmpresaShell({
   const mostrarBloqueo = bloqueado && !esPaginaSuscripcion && montado;
 
   const pieMenu = (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1 pb-8">
       <Link
         href={hrefPublico}
         className="vuki-focus flex min-h-11 items-center rounded-xl px-3 py-2 text-left text-sm font-medium text-sky-800 transition hover:bg-sky-50"
