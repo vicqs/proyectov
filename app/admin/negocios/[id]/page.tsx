@@ -49,6 +49,7 @@ import { InsigniaNegocio } from "../../../../components/admin/InsigniaNegocio";
 import {
   CLASE_BOTON_NEUTRO,
   CLASE_INPUT,
+  CLASE_SELECT,
   Campo,
   Celda,
   Estadistica,
@@ -56,6 +57,7 @@ import {
   PaginaAdmin,
   Tabla,
   Tarjeta,
+  TextareaConContador,
 } from "../../../../components/admin/ui";
 
 type Props = {
@@ -108,17 +110,18 @@ export default async function NegocioDetallePage({
         </span>
       }
       accion={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link href="/admin/negocios" className={CLASE_BOTON_NEUTRO}>
-            Volver
+            ← Volver
           </Link>
           {!negocio.eliminado_en && !negocio.suspendido && (
             <Link
               href={`/${negocio.slug}`}
               target="_blank"
               className={CLASE_BOTON_NEUTRO}
+              title="Ver perfil público"
             >
-              Perfil público
+              Perfil público ↗
             </Link>
           )}
         </div>
@@ -192,11 +195,13 @@ async function Resumen({
           titulo="Reservas"
           valor={String(reservas.length)}
           nota={`${pagadas.length} pagadas`}
+          href={`/admin/reservas?negocio=${negocio.id}`}
         />
         <Estadistica
           titulo="Volumen cobrado"
           valor={usd(ingresos)}
           tono="bueno"
+          href="/admin/finanzas"
         />
         <Estadistica
           titulo="Cuota mensual"
@@ -363,12 +368,11 @@ async function Cuenta({ negocioId }: { negocioId: string }) {
             />
           </Campo>
           <Campo etiqueta="Descripción">
-            <textarea
+            <TextareaConContador
               name="descripcion"
               defaultValue={negocio.descripcion ?? ""}
               maxLength={600}
               rows={3}
-              className={CLASE_INPUT}
             />
           </Campo>
         </AccionForm>
@@ -408,7 +412,7 @@ async function Cuenta({ negocioId }: { negocioId: string }) {
         >
           <select
             name="que"
-            className={`${CLASE_INPUT} sm:w-56`}
+            className={CLASE_SELECT}
             aria-label="Contenido"
           >
             <option value="descripcion">Descripción</option>
@@ -446,28 +450,39 @@ async function Cuenta({ negocioId }: { negocioId: string }) {
         )}
       </Tarjeta>
 
-      <Tarjeta titulo="Eliminación">
+      <Tarjeta
+        titulo="Eliminación"
+        descripcion="El negocio dejará de existir para la empresa y el público (se puede restaurar)."
+      >
         {negocio.eliminado_en ? (
           <AccionForm
             accion={restaurarNegocioAction.bind(null, negocioId)}
             boton="Restaurar negocio"
           />
         ) : (
-          <AccionForm
-            accion={eliminarNegocioAction.bind(null, negocioId)}
-            boton="Eliminar negocio"
-            variante="peligro"
-            confirmar="El negocio dejará de existir para empresa y público (se puede restaurar). ¿Continuar?"
-            enLinea
-          >
-            <input
-              name="confirmar"
-              required
-              placeholder={`Escribe «${negocio.slug}» para confirmar`}
-              className={`${CLASE_INPUT} sm:w-72`}
-              aria-label="Confirmación"
-            />
-          </AccionForm>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <span>Para confirmar, escribe exactamente:</span>
+              <code className="rounded bg-slate-100 px-2 py-0.5 font-mono font-bold text-slate-800 select-all border border-slate-200">
+                {negocio.slug}
+              </code>
+            </div>
+            <AccionForm
+              accion={eliminarNegocioAction.bind(null, negocioId)}
+              boton="Eliminar negocio"
+              variante="peligro"
+              confirmar="El negocio dejará de existir para empresa y público (se puede restaurar). ¿Continuar?"
+              enLinea
+            >
+              <input
+                name="confirmar"
+                required
+                placeholder={`Escribe «${negocio.slug}»`}
+                className={`${CLASE_INPUT} sm:w-72`}
+                aria-label="Confirmación"
+              />
+            </AccionForm>
+          </div>
         )}
       </Tarjeta>
     </>
@@ -509,7 +524,7 @@ async function Facturacion({ negocioId }: { negocioId: string }) {
           <select
             name="estado"
             defaultValue={negocio.estado_suscripcion}
-            className={`${CLASE_INPUT} sm:w-44`}
+            className={CLASE_SELECT}
             aria-label="Estado"
           >
             <option value="activa">Activa</option>
@@ -528,7 +543,7 @@ async function Facturacion({ negocioId }: { negocioId: string }) {
           <select
             name="plan_id"
             defaultValue={negocio.plan_id ?? ""}
-            className={`${CLASE_INPUT} sm:w-64`}
+            className={`${CLASE_SELECT} sm:w-72`}
             aria-label="Plan"
           >
             <option value="">Plan por defecto</option>
@@ -550,8 +565,8 @@ async function Facturacion({ negocioId }: { negocioId: string }) {
           accion={actualizarFuncionesNegocioAction.bind(null, negocioId)}
           boton="Guardar funciones"
           variante="neutro"
-          enLinea
         >
+          <div className="grid gap-3 sm:grid-cols-2">
           {FLAGS_POR_NEGOCIO.map((f) => {
             const actual = negocio.flags_override?.[f.clave];
             return (
@@ -561,7 +576,7 @@ async function Facturacion({ negocioId }: { negocioId: string }) {
                   defaultValue={
                     actual === undefined ? "" : actual ? "on" : "off"
                   }
-                  className={`${CLASE_INPUT} sm:w-56`}
+                  className={`${CLASE_SELECT} w-full`}
                 >
                   <option value="">
                     Heredar del plan (
@@ -581,6 +596,7 @@ async function Facturacion({ negocioId }: { negocioId: string }) {
               </Campo>
             );
           })}
+          </div>
         </AccionForm>
       </Tarjeta>
       <Tarjeta titulo="Descuento">
@@ -694,14 +710,14 @@ async function Notas({ negocioId }: { negocioId: string }) {
           boton="Agregar nota"
           limpiarAlOk
         >
-          <textarea
+          <TextareaConContador
             name="texto"
             required
             minLength={2}
             maxLength={1000}
             rows={3}
-            className={CLASE_INPUT}
             aria-label="Nota"
+            placeholder="Escribe una nota interna sobre este negocio..."
           />
         </AccionForm>
         <ul className="mt-4 space-y-2 text-sm">

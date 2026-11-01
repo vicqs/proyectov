@@ -11,10 +11,12 @@ import {
 } from "../../../actions/admin/configuracion";
 import { AccionForm } from "../../../components/admin/AccionForm";
 import {
+  CLASE_CHECKBOX,
   CLASE_INPUT,
   Campo,
   PaginaAdmin,
   Tarjeta,
+  TextareaConContador,
 } from "../../../components/admin/ui";
 
 export default async function ConfiguracionPage() {
@@ -63,7 +65,28 @@ export default async function ConfiguracionPage() {
       titulo="Configuración global"
       descripcion="Los cambios afectan a todos los negocios de inmediato."
     >
-      <Tarjeta titulo="General, límites y funciones">
+      <nav aria-label="Secciones de configuración" className="flex flex-wrap gap-2 border-b border-sky-100 pb-3">
+        <a
+          href="#general"
+          className="rounded-xl border border-sky-200 bg-sky-50/80 px-3.5 py-1.5 text-xs font-semibold text-sky-800 transition hover:bg-sky-100"
+        >
+          General, límites y funciones
+        </a>
+        <a
+          href="#plantillas"
+          className="rounded-xl border border-sky-200 bg-sky-50/80 px-3.5 py-1.5 text-xs font-semibold text-sky-800 transition hover:bg-sky-100"
+        >
+          Plantillas de correo
+        </a>
+        <a
+          href="#legales"
+          className="rounded-xl border border-sky-200 bg-sky-50/80 px-3.5 py-1.5 text-xs font-semibold text-sky-800 transition hover:bg-sky-100"
+        >
+          Textos legales
+        </a>
+      </nav>
+
+      <Tarjeta id="general" className="scroll-mt-6" titulo="General, límites y funciones">
         <AccionForm accion={guardarGeneralAction} boton="Guardar configuración">
           <div className="grid gap-4 sm:grid-cols-3">
             <Campo etiqueta="Días de prueba (nuevos negocios)">
@@ -102,61 +125,68 @@ export default async function ConfiguracionPage() {
             etiqueta="Slugs reservados adicionales"
             ayuda="Separados por coma o espacio. Se suman a los de la plataforma."
           >
-            <textarea
+            <TextareaConContador
               name="slugs_reservados"
               rows={2}
+              maxLength={500}
               defaultValue={c.slugs_reservados.join(", ")}
-              className={CLASE_INPUT}
             />
           </Campo>
-          <fieldset className="space-y-2 rounded-xl border border-slate-200 p-3">
-            <legend className="px-1 text-sm font-medium text-slate-700">
-              Funciones
-            </legend>
-            {FLAGS_CONOCIDOS.map((f) => (
-              <label key={f.clave} className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  name={`flag_${f.clave}`}
-                  defaultChecked={c.flags[f.clave] ?? true}
-                  className="mt-1"
-                />
-                <span>
-                  <span className="font-medium text-slate-800">
-                    {f.etiqueta}
-                  </span>
-                  <span className="block text-xs text-slate-400">
-                    {f.ayuda}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          <fieldset className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
-            <legend className="px-1 text-sm font-medium text-amber-800">
-              Modo mantenimiento
-            </legend>
-            <label className="flex items-center gap-2 text-sm">
+          <div className="space-y-2">
+            <span className="block text-sm font-semibold text-slate-700">
+              Funciones globales de la plataforma
+            </span>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              {FLAGS_CONOCIDOS.map((f) => (
+                <label
+                  key={f.clave}
+                  className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs transition hover:border-slate-300 hover:bg-slate-50/50 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    name={`flag_${f.clave}`}
+                    defaultChecked={c.flags[f.clave] ?? true}
+                    className={`${CLASE_CHECKBOX} mt-0.5`}
+                  />
+                  <div className="min-w-0">
+                    <span className="block text-sm font-semibold text-slate-800">
+                      {f.etiqueta}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-slate-500 leading-relaxed">
+                      {f.ayuda}
+                    </span>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 space-y-3">
+            <label className="flex items-center gap-3 text-sm cursor-pointer">
               <input
                 type="checkbox"
                 name="modo_mantenimiento"
                 defaultChecked={c.modo_mantenimiento}
+                className={CLASE_CHECKBOX}
               />
-              Bloquear reservas y paneles de empresa (el área admin sigue
-              disponible)
+              <span className="font-semibold text-amber-950">
+                Modo mantenimiento: Bloquear reservas y paneles de empresa (el área admin sigue disponible)
+              </span>
             </label>
             <input
               name="mensaje_mantenimiento"
               maxLength={300}
               defaultValue={c.mensaje_mantenimiento ?? ""}
-              aria-label="Mensaje para los usuarios" placeholder="Mensaje para los usuarios"
+              aria-label="Mensaje para los usuarios"
+              placeholder="Mensaje explicativo para los usuarios..."
               className={CLASE_INPUT}
             />
-          </fieldset>
+          </div>
         </AccionForm>
       </Tarjeta>
 
       <Tarjeta
+        id="plantillas"
+        className="scroll-mt-6"
         titulo="Plantillas de correo"
         descripcion="Variables disponibles: {{negocio}} y {{servicio}}. Vacío = texto por defecto."
       >
@@ -181,21 +211,19 @@ export default async function ConfiguracionPage() {
                   />
                 </Campo>
                 <Campo etiqueta="Texto adicional al inicio">
-                  <textarea
+                  <TextareaConContador
                     name={`${clave}_encabezado`}
                     rows={2}
                     maxLength={500}
                     defaultValue={p.encabezado ?? ""}
-                    className={CLASE_INPUT}
                   />
                 </Campo>
                 <Campo etiqueta="Texto adicional al final">
-                  <textarea
+                  <TextareaConContador
                     name={`${clave}_pie`}
                     rows={2}
                     maxLength={500}
                     defaultValue={p.pie ?? ""}
-                    className={CLASE_INPUT}
                   />
                 </Campo>
                 <p className="text-xs text-slate-400">
@@ -214,26 +242,26 @@ export default async function ConfiguracionPage() {
       </Tarjeta>
 
       <Tarjeta
+        id="legales"
+        className="scroll-mt-6"
         titulo="Textos legales"
         descripcion="Si dejas un campo vacío se muestra el texto por defecto. Se renderiza como texto plano; revísalo con un abogado."
       >
         <AccionForm accion={guardarLegalAction} boton="Guardar textos">
           <Campo etiqueta="Términos y condiciones">
-            <textarea
+            <TextareaConContador
               name="terminos_texto"
               rows={8}
               maxLength={30000}
               defaultValue={c.terminos_texto ?? ""}
-              className={CLASE_INPUT}
             />
           </Campo>
           <Campo etiqueta="Política de privacidad">
-            <textarea
+            <TextareaConContador
               name="privacidad_texto"
               rows={8}
               maxLength={30000}
               defaultValue={c.privacidad_texto ?? ""}
-              className={CLASE_INPUT}
             />
           </Campo>
         </AccionForm>

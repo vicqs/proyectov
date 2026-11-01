@@ -10,7 +10,8 @@ import {
 } from "../../../actions/admin/sistema";
 import { AccionForm } from "../../../components/admin/AccionForm";
 import {
-  CLASE_INPUT,
+  CLASE_SELECT,
+  CampoBusqueda,
   Celda,
   FiltrosGet,
   Insignia,
@@ -34,6 +35,7 @@ export default async function SistemaPage({
 }) {
   const admin = await requerirAdmin("sistema");
   const sp = await searchParams;
+  const q = (parametro(sp.q) ?? "").trim().toLowerCase();
   const tipo = parametro(sp.tipo) ?? "";
   const soloPendientes = parametro(sp.todos) !== "1";
 
@@ -47,6 +49,14 @@ export default async function SistemaPage({
   const lista = registros
     .filter((r) => !tipo || r.tipo === tipo)
     .filter((r) => !soloPendientes || (r.estado === "error" && !r.resuelto))
+    .filter((r) => {
+      if (!q) return true;
+      return (
+        (r.origen ?? "").toLowerCase().includes(q) ||
+        (r.detalle ?? "").toLowerCase().includes(q) ||
+        (r.tipo ?? "").toLowerCase().includes(q)
+      );
+    })
     .sort((a, b) => b.creado_en.localeCompare(a.creado_en))
     .slice(0, 100);
   const errores = registros.filter(
@@ -107,10 +117,17 @@ export default async function SistemaPage({
       </Tarjeta>
 
       <FiltrosGet>
+        <CampoBusqueda
+          defaultValue={q}
+          placeholder="Buscar en origen o detalle..."
+          ariaLabel="Buscar registros"
+          className="sm:w-72"
+        />
         <select
           name="tipo"
           defaultValue={tipo}
-          className={`${CLASE_INPUT} sm:w-40`}
+          aria-label="Filtrar por tipo"
+          className={CLASE_SELECT}
         >
           <option value="">Todos los tipos</option>
           <option value="webhook">Webhooks</option>
@@ -120,7 +137,8 @@ export default async function SistemaPage({
         <select
           name="todos"
           defaultValue={soloPendientes ? "0" : "1"}
-          className={`${CLASE_INPUT} sm:w-48`}
+          aria-label="Filtrar por resolución"
+          className={CLASE_SELECT}
         >
           <option value="0">Solo sin resolver</option>
           <option value="1">Todo el registro</option>
@@ -132,43 +150,68 @@ export default async function SistemaPage({
         vacia={lista.length === 0}
         vacio="Sin registros."
       >
-        {lista.map((r) => (
-          <tr key={r.id}>
-            <Celda>{fechaHora(r.creado_en)}</Celda>
-            <Celda>
-              <Insignia
-                tono={
-                  r.estado === "ok" ? "verde" : r.resuelto ? "gris" : "rojo"
-                }
-              >
-                {r.tipo}
-              </Insignia>
-            </Celda>
-            <Celda>{r.origen}</Celda>
-            <Celda className="max-w-md break-words">{r.detalle ?? "—"}</Celda>
-            <Celda>
-              {r.estado === "error" && !r.resuelto && (
-                <div className="flex flex-wrap gap-2">
-                  {puedeReprocesar &&
-                    r.tipo === "webhook" &&
-                    r.origen === "pago" &&
-                    r.payload && (
-                      <AccionForm
-                        accion={reprocesarWebhookAction.bind(null, r.id)}
-                        boton="Reprocesar"
-                        variante="neutro"
-                      />
-                    )}
-                  <AccionForm
-                    accion={resolverRegistroAction.bind(null, r.id)}
-                    boton="Resuelto"
-                    variante="neutro"
-                  />
-                </div>
-              )}
-            </Celda>
-          </tr>
-        ))}
+        {lista.map((r) => {
+          const detalleStr =
+            typeof r.detalle === "string"
+              ? r.detalle
+              : r.detalle
+                ? JSON.stringify(r.detalle)
+                : "";
+          return (
+            <tr key={r.id}>
+              <Celda>{fechaHora(r.creado_en)}</Celda>
+              <Celda>
+                <Insignia
+                  tono={
+                    r.estado === "ok" ? "verde" : r.resuelto ? "gris" : "rojo"
+                  }
+                >
+                  {r.tipo}
+                </Insignia>
+              </Celda>
+              <Celda>{r.origen}</Celda>
+              <Celda className="max-w-md break-words">
+                {detalleStr ? (
+                  detalleStr.length > 70 ? (
+                    <details className="cursor-pointer text-xs">
+                      <summary className="text-slate-700 hover:text-sky-700 font-medium">
+                        {detalleStr.slice(0, 70)}...
+                      </summary>
+                      <pre className="mt-1.5 max-h-44 overflow-auto rounded-lg border border-slate-800 bg-slate-950 p-2 font-mono text-[11px] text-slate-200 whitespace-pre-wrap select-all">
+                        {detalleStr}
+                      </pre>
+                    </details>
+                  ) : (
+                    <span className="text-xs text-slate-700">{detalleStr}</span>
+                  )
+                ) : (
+                  <span className="text-slate-400 text-xs">—</span>
+                )}
+              </Celda>
+              <Celda>
+                {r.estado === "error" && !r.resuelto && (
+                  <div className="flex flex-wrap gap-2">
+                    {puedeReprocesar &&
+                      r.tipo === "webhook" &&
+                      r.origen === "pago" &&
+                      r.payload && (
+                        <AccionForm
+                          accion={reprocesarWebhookAction.bind(null, r.id)}
+                          boton="Reprocesar"
+                          variante="neutro"
+                        />
+                      )}
+                    <AccionForm
+                      accion={resolverRegistroAction.bind(null, r.id)}
+                      boton="Resuelto"
+                      variante="neutro"
+                    />
+                  </div>
+                )}
+              </Celda>
+            </tr>
+          );
+        })}
       </Tabla>
     </PaginaAdmin>
   );

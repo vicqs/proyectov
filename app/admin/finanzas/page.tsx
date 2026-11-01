@@ -128,11 +128,13 @@ export default async function FinanzasAdminPage() {
           titulo="Volumen cobrado"
           valor={usd(volumenTotal)}
           nota={`${pagadas.length} reservas pagadas`}
+          href="/admin/reservas?estado=pagada"
         />
         <Estadistica
           titulo="Discrepancias"
           valor={String(discrepancias.length)}
           tono={discrepancias.length > 0 ? "malo" : "bueno"}
+          href="#conciliacion"
         />
       </div>
 
@@ -167,6 +169,7 @@ export default async function FinanzasAdminPage() {
       </div>
 
       <Tarjeta
+        id="conciliacion"
         titulo="Conciliación"
         descripcion="Reservas cuyo estado no coincide con su pago o reembolso."
       >
@@ -178,7 +181,15 @@ export default async function FinanzasAdminPage() {
           {discrepancias.slice(0, 100).map((d, i) => (
             <tr key={`${d.reserva}-${i}`}>
               <Celda>{d.negocio}</Celda>
-              <Celda className="font-mono text-xs">{d.reserva}</Celda>
+              <Celda className="font-mono text-xs">
+                <Link
+                  href={`/admin/reservas?q=${encodeURIComponent(d.reserva)}`}
+                  className="font-semibold text-sky-700 hover:underline"
+                  title="Buscar e inspeccionar esta reserva"
+                >
+                  {d.reserva}
+                </Link>
+              </Celda>
               <Celda>{fechaHora(d.fecha)}</Celda>
               <Celda>{d.problema}</Celda>
             </tr>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Flag } from "lucide-react";
 import { AccionForm } from "@/components/admin/AccionForm";
+import { TextareaConContador } from "@/components/TextareaConContador";
 import PaginaPublica from "@/components/PaginaPublica";
 import SelectorIdioma from "@/components/SelectorIdioma";
 import { reportarPerfilAction } from "@/actions/reportar";
@@ -61,7 +62,7 @@ function Contenido({ slug, nombre }: Props) {
             id="reporte-motivo"
             name="motivo"
             required
-            className={INPUT}
+            className="vuki-select w-full"
             defaultValue="contenido"
           >
             <option value="contenido">{t("rep_m_contenido")}</option>
@@ -75,13 +76,12 @@ function Contenido({ slug, nombre }: Props) {
           >
             {t("rep_detalles")}
           </label>
-          <textarea
+          <TextareaConContador
             id="reporte-detalle"
             name="detalle"
             rows={4}
             maxLength={1000}
             placeholder={t("rep_detalles")}
-            className={INPUT}
           />
           <label
             htmlFor="reporte-email"

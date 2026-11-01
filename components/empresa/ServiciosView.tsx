@@ -92,8 +92,7 @@ const DURACIONES_RAPIDAS: { valor: string; etiqueta: string }[] = [
 
 const PRECIOS_RAPIDOS = ["25", "35", "45", "65", "95"];
 
-const INPUT =
-  "vuki-focus min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-500";
+const INPUT = "vuki-input min-h-11";
 
 function formatearDuracion(minutos: number): string {
   if (!Number.isFinite(minutos) || minutos <= 0) return "";
@@ -331,7 +330,7 @@ export default function ServiciosView({
                 placeholder="Buscar servicio..."
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                className="vuki-focus min-h-9 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-8 pr-3 text-xs text-slate-800 focus:border-sky-500 focus:bg-white"
+                className="vuki-input-search-sm pr-3"
               />
             </div>
           )}

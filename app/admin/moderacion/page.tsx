@@ -1,15 +1,18 @@
 import Link from "next/link";
+import { Check, RotateCcw, X } from "lucide-react";
 import { requerirAdmin } from "../../../lib/admin/auth";
 import { leer } from "../../../lib/admin/db";
-import { fechaHora, parametro } from "../../../lib/admin/formato";
+import { fechaHora, paginar, parametro } from "../../../lib/admin/formato";
 import { resolverReporteAction } from "../../../actions/admin/moderacion";
 import { AccionForm } from "../../../components/admin/AccionForm";
 import {
-  CLASE_INPUT,
+  CLASE_SELECT,
+  CampoBusqueda,
   Celda,
   FiltrosGet,
   Insignia,
   PaginaAdmin,
+  Paginacion,
   Tabla,
   type TonoInsignia,
 } from "../../../components/admin/ui";
@@ -27,6 +30,7 @@ export default async function ModeracionPage({
 }) {
   await requerirAdmin("moderacion");
   const sp = await searchParams;
+  const q = (parametro(sp.q) ?? "").trim().toLowerCase();
   const estado = parametro(sp.estado) ?? "pendiente";
   const [reportes, negocios] = await Promise.all([
     leer("reportes_perfil"),
@@ -35,31 +39,49 @@ export default async function ModeracionPage({
   const negocio = new Map(negocios.map((n) => [n.id, n]));
   const lista = reportes
     .filter((r) => !estado || estado === "todos" || r.estado === estado)
-    .sort((a, b) => b.creado_en.localeCompare(a.creado_en))
-    .slice(0, 100);
+    .filter((r) => {
+      if (!q) return true;
+      const nom = negocio.get(r.negocio_id)?.nombre?.toLowerCase() ?? "";
+      return (
+        nom.includes(q) ||
+        r.motivo.toLowerCase().includes(q) ||
+        (r.detalle ?? "").toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => b.creado_en.localeCompare(a.creado_en));
+
+  const pag = paginar(lista, parametro(sp.pagina), 25);
+  const pendientes = reportes.filter((r) => r.estado === "pendiente").length;
 
   return (
     <PaginaAdmin
       titulo="Moderación"
-      descripcion="Reportes de perfiles públicos. Para suspender un negocio, ábrelo desde su ficha."
+      descripcion={`${pendientes} reporte(s) pendiente(s). Para suspender un negocio, ábrelo desde su ficha.`}
     >
       <FiltrosGet>
+        <CampoBusqueda
+          defaultValue={q}
+          placeholder="Buscar negocio o motivo..."
+          ariaLabel="Buscar reportes"
+          className="sm:w-72"
+        />
         <select
           name="estado"
           defaultValue={estado}
-          className={`${CLASE_INPUT} sm:w-44`}
+          className={CLASE_SELECT}
+          aria-label="Filtrar por estado"
         >
           <option value="pendiente">Pendientes</option>
           <option value="atendido">Atendidos</option>
           <option value="descartado">Descartados</option>
-          <option value="todos">Todos</option>
+          <option value="todos">Todos los reportes</option>
         </select>
       </FiltrosGet>
       <Tabla
         columnas={["Fecha", "Negocio", "Motivo", "Estado", "Acciones"]}
-        vacia={lista.length === 0}
+        vacia={pag.filas.length === 0}
       >
-        {lista.map((r) => {
+        {pag.filas.map((r) => {
           const n = negocio.get(r.negocio_id);
           return (
             <tr key={r.id}>
@@ -80,15 +102,15 @@ export default async function ModeracionPage({
                     <Link
                       href={`/${n.slug}`}
                       target="_blank"
-                      className="text-slate-400 hover:underline"
+                      className="text-slate-400 hover:text-sky-700 hover:underline"
                     >
-                      Ver perfil público
+                      Ver perfil público ↗
                     </Link>
                   </p>
                 )}
               </Celda>
               <Celda>
-                <p className="font-medium">{r.motivo}</p>
+                <p className="font-medium text-slate-900">{r.motivo}</p>
                 {r.detalle && (
                   <p className="max-w-md whitespace-pre-wrap text-xs text-slate-500">
                     {r.detalle}
@@ -106,17 +128,22 @@ export default async function ModeracionPage({
               </Celda>
               <Celda>
                 {r.estado === "pendiente" ? (
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <AccionForm
                       accion={resolverReporteAction.bind(null, r.id)}
                       boton="Atendido"
+                      variante="acento_sm"
+                      tamano="sm"
+                      icono={<Check className="h-3.5 w-3.5" aria-hidden="true" />}
                     >
                       <input type="hidden" name="estado" value="atendido" />
                     </AccionForm>
                     <AccionForm
                       accion={resolverReporteAction.bind(null, r.id)}
                       boton="Descartar"
-                      variante="neutro"
+                      variante="neutro_sm"
+                      tamano="sm"
+                      icono={<X className="h-3.5 w-3.5" aria-hidden="true" />}
                     >
                       <input type="hidden" name="estado" value="descartado" />
                     </AccionForm>
@@ -125,7 +152,9 @@ export default async function ModeracionPage({
                   <AccionForm
                     accion={resolverReporteAction.bind(null, r.id)}
                     boton="Reabrir"
-                    variante="neutro"
+                    variante="neutro_sm"
+                    tamano="sm"
+                    icono={<RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />}
                   >
                     <input type="hidden" name="estado" value="pendiente" />
                   </AccionForm>
@@ -135,6 +164,13 @@ export default async function ModeracionPage({
           );
         })}
       </Tabla>
+      <Paginacion
+        pagina={pag.pagina}
+        paginas={pag.paginas}
+        total={pag.total}
+        base="/admin/moderacion"
+        params={{ estado, q }}
+      />
     </PaginaAdmin>
   );
 }

@@ -1,6 +1,7 @@
 import { requerirAdmin } from "../../../lib/admin/auth";
 import { leer } from "../../../lib/admin/db";
 import { fechaHora } from "../../../lib/admin/formato";
+import { estadoEfectivo } from "../../../lib/negocio-estado";
 import {
   alternarAnuncioAction,
   crearAnuncioAction,
@@ -10,12 +11,14 @@ import {
 import { AccionForm } from "../../../components/admin/AccionForm";
 import {
   CLASE_INPUT,
+  CLASE_SELECT,
   Campo,
   Celda,
   Insignia,
   PaginaAdmin,
   Tabla,
   Tarjeta,
+  TextareaConContador,
   type TonoInsignia,
 } from "../../../components/admin/ui";
 
@@ -25,27 +28,45 @@ const TONO: Record<string, TonoInsignia> = {
   critico: "rojo",
 };
 
-const SEGMENTOS = (
-  <>
-    <option value="todas">Todas las empresas</option>
-    <option value="prueba">En prueba</option>
-    <option value="activa">Activas</option>
-    <option value="inactiva">Inactivas</option>
-  </>
-);
-
 export default async function ComunicacionPage() {
   await requerirAdmin("comunicacion");
-  const [anuncios, comunicados] = await Promise.all([
+  const [anuncios, comunicados, negocios] = await Promise.all([
     leer("anuncios").catch(() => []),
     leer("comunicados").catch(() => []),
+    leer("negocios").catch(() => []),
   ]);
+
+  const vivos = negocios.filter((n) => !n.eliminado_en);
+  const conteoPorSegmento = {
+    todas: vivos.length,
+    activa: vivos.filter((n) => estadoEfectivo(n) === "activa").length,
+    prueba: vivos.filter((n) => estadoEfectivo(n) === "prueba").length,
+    inactiva: vivos.filter((n) => estadoEfectivo(n) === "inactiva").length,
+  };
+
   const ordenados = [...anuncios].sort((a, b) =>
     b.creado_en.localeCompare(a.creado_en),
   );
   const historial = [...comunicados]
     .sort((a, b) => b.creado_en.localeCompare(a.creado_en))
     .slice(0, 20);
+
+  const SEGMENTOS = (
+    <>
+      <option value="todas">
+        Todas las empresas ({conteoPorSegmento.todas})
+      </option>
+      <option value="activa">
+        Activas ({conteoPorSegmento.activa})
+      </option>
+      <option value="prueba">
+        En prueba ({conteoPorSegmento.prueba})
+      </option>
+      <option value="inactiva">
+        Inactivas ({conteoPorSegmento.inactiva})
+      </option>
+    </>
+  );
 
   return (
     <PaginaAdmin
@@ -67,13 +88,14 @@ export default async function ComunicacionPage() {
                 name="titulo"
                 required
                 maxLength={100}
+                placeholder="Ej. Mantenimiento programado"
                 className={CLASE_INPUT}
               />
             </Campo>
             <Campo etiqueta="Severidad">
               <select
                 name="severidad"
-                className={CLASE_INPUT}
+                className={`${CLASE_SELECT} w-full`}
                 defaultValue="info"
               >
                 <option value="info">Informativo</option>
@@ -84,7 +106,7 @@ export default async function ComunicacionPage() {
             <Campo etiqueta="Segmento">
               <select
                 name="segmento"
-                className={CLASE_INPUT}
+                className={`${CLASE_SELECT} w-full`}
                 defaultValue="todas"
               >
                 {SEGMENTOS}
@@ -102,12 +124,12 @@ export default async function ComunicacionPage() {
             </Campo>
           </div>
           <Campo etiqueta="Mensaje">
-            <textarea
+            <TextareaConContador
               name="mensaje"
               required
               rows={3}
               maxLength={600}
-              className={CLASE_INPUT}
+              placeholder="Detalle del anuncio visible para los negocios..."
             />
           </Campo>
         </AccionForm>
@@ -121,21 +143,23 @@ export default async function ComunicacionPage() {
         {ordenados.map((a) => (
           <tr key={a.id}>
             <Celda>
-              <Insignia tono={TONO[a.severidad] ?? "gris"}>
-                {a.severidad}
-              </Insignia>
-              <p className="mt-1 font-medium text-slate-900">{a.titulo}</p>
-              <p className="max-w-md text-xs text-slate-500">{a.mensaje}</p>
+              <div className="flex items-center gap-2">
+                <Insignia tono={TONO[a.severidad] ?? "gris"}>
+                  {a.severidad}
+                </Insignia>
+                <p className="font-semibold text-slate-900">{a.titulo}</p>
+              </div>
+              <p className="mt-1 max-w-xl whitespace-pre-wrap text-xs text-slate-600">
+                {a.mensaje}
+              </p>
             </Celda>
-            <Celda>{a.segmento}</Celda>
+            <Celda className="capitalize">{a.segmento}</Celda>
             <Celda>
-              {a.activo ? (
-                <Insignia tono="verde">Activo</Insignia>
-              ) : (
-                <Insignia>Inactivo</Insignia>
-              )}
+              <Insignia tono={a.activo ? "verde" : "gris"}>
+                {a.activo ? "Activo" : "Inactivo"}
+              </Insignia>
             </Celda>
-            <Celda>{a.expira_en ? fechaHora(a.expira_en) : "—"}</Celda>
+            <Celda>{a.expira_en ? fechaHora(a.expira_en) : "Nunca"}</Celda>
             <Celda>
               <div className="flex flex-wrap gap-2">
                 <AccionForm
@@ -147,7 +171,7 @@ export default async function ComunicacionPage() {
                   accion={eliminarAnuncioAction.bind(null, a.id)}
                   boton="Eliminar"
                   variante="peligro"
-                  confirmar="¿Eliminar este anuncio?"
+                  confirmar="¿Eliminar este anuncio definitivamente?"
                 />
               </div>
             </Celda>
@@ -162,12 +186,12 @@ export default async function ComunicacionPage() {
         <AccionForm
           accion={enviarComunicadoAction}
           boton="Enviar comunicado"
-          confirmar="¿Enviar este correo a todo el segmento? No se puede deshacer."
+          confirmar="¿Enviar este correo a todo el segmento seleccionado? No se puede deshacer."
         >
-          <Campo etiqueta="Segmento">
+          <Campo etiqueta="Segmento destinatario">
             <select
               name="segmento"
-              className={`${CLASE_INPUT} sm:w-64`}
+              className={CLASE_SELECT}
               defaultValue="todas"
             >
               {SEGMENTOS}
@@ -178,16 +202,17 @@ export default async function ComunicacionPage() {
               name="asunto"
               required
               maxLength={150}
+              placeholder="Asunto del comunicado"
               className={CLASE_INPUT}
             />
           </Campo>
           <Campo etiqueta="Mensaje">
-            <textarea
+            <TextareaConContador
               name="mensaje"
               required
               rows={6}
               maxLength={5000}
-              className={CLASE_INPUT}
+              placeholder="Escribe el mensaje que recibirán los dueños de las empresas..."
             />
           </Campo>
         </AccionForm>
@@ -209,12 +234,16 @@ export default async function ComunicacionPage() {
           {historial.map((c) => (
             <tr key={c.id}>
               <Celda>{fechaHora(c.creado_en)}</Celda>
-              <Celda>{c.asunto}</Celda>
-              <Celda>{c.segmento}</Celda>
+              <Celda className="font-medium text-slate-900">{c.asunto}</Celda>
+              <Celda className="capitalize">{c.segmento}</Celda>
               <Celda>
                 {c.enviados}/{c.destinatarios}
               </Celda>
-              <Celda>{c.fallidos}</Celda>
+              <Celda>
+                <span className={c.fallidos > 0 ? "text-red-600 font-semibold" : ""}>
+                  {c.fallidos}
+                </span>
+              </Celda>
               <Celda>{c.creado_por}</Celda>
             </tr>
           ))}

@@ -1426,7 +1426,7 @@ export default function FinanzasView({
                                 >,
                               })
                             }
-                            className="vuki-focus mt-1 min-h-9 w-full rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900"
+                            className="vuki-select-sm mt-1 w-full"
                           >
                             {TIPOS_ID_OPCIONES.map((op) => (
                               <option key={op.valor} value={op.valor}>

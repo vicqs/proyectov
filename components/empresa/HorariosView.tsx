@@ -205,8 +205,8 @@ interface HorariosViewProps {
   onCerrarInicial?: () => void;
 }
 
-const INPUT =
-  "vuki-focus min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-500";
+const INPUT = "vuki-input min-h-11";
+const SELECT = "vuki-select min-h-11 w-full";
 
 /** Gestión de horarios y cupos compartida por `/[slug]/admin/horarios`. */
 export default function HorariosView({
@@ -538,7 +538,7 @@ export default function HorariosView({
                 aria-label="Filtrar horarios por servicio"
                 value={servicioFiltro}
                 onChange={(e) => setServicioFiltro(e.target.value)}
-                className="vuki-focus min-h-9 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700"
+                className="vuki-select-sm"
               >
                 <option value="">Todos los servicios</option>
                 {servicios.map((s) => (
@@ -867,7 +867,7 @@ export default function HorariosView({
               required
               value={servicioId}
               onChange={(e) => setServicioId(e.target.value)}
-              className={INPUT}
+              className={SELECT}
             >
               {servicios.map((servicio) => (
                 <option key={servicio.id} value={servicio.id}>

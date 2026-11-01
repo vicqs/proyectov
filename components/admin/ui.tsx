@@ -1,16 +1,49 @@
 import Link from "next/link";
-import { BarChart3 } from "lucide-react";
+import { ArrowUpRight, BarChart3, Search } from "lucide-react";
 import EncabezadoPanel from "../EncabezadoPanel";
+import { IsotipoVuki } from "../VLogo";
 import { FiltrosAuto } from "./FiltrosAuto";
 
-export const CLASE_INPUT =
-  "min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus-visible:border-vuki-ocean focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vuki-ocean/20 disabled:cursor-not-allowed disabled:bg-slate-100";
+export { PestanasFiltro } from "./PestanasFiltro";
+export { TextareaConContador } from "../TextareaConContador";
 
-export const CLASE_BOTON =
-  "vuki-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800";
+export const CLASE_INPUT = "vuki-input";
+export const CLASE_TEXTAREA = "vuki-textarea";
+export const CLASE_SELECT = "vuki-select w-full";
+export const CLASE_CHECKBOX = "vuki-checkbox";
+export const CLASE_BOTON = "vuki-btn-primary";
+export const CLASE_BOTON_NEUTRO = "vuki-btn-secondary";
 
-export const CLASE_BOTON_NEUTRO =
-  "vuki-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-sky-50";
+export function CampoBusqueda({
+  name = "q",
+  defaultValue,
+  placeholder = "Buscar...",
+  className = "sm:w-64",
+  ariaLabel = "Buscar",
+}: {
+  name?: string;
+  defaultValue?: string;
+  placeholder?: string;
+  className?: string;
+  ariaLabel?: string;
+}) {
+  return (
+    <div className={`relative min-w-0 ${className}`}>
+      <Search
+        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+        aria-hidden="true"
+      />
+      <input
+        type="search"
+        name={name}
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+        className="vuki-input-search"
+      />
+    </div>
+  );
+}
 
 export function PaginaAdmin({
   titulo,
@@ -31,7 +64,7 @@ export function PaginaAdmin({
         descripcion={descripcion}
         accion={accion}
       />
-      <div className="mt-6 space-y-6">{children}</div>
+      <div className="mt-8 space-y-6">{children}</div>
     </main>
   );
 }
@@ -41,29 +74,43 @@ export function Tarjeta({
   descripcion,
   children,
   className = "",
+  id,
+  accion,
 }: {
   titulo?: string;
   descripcion?: string;
   children: React.ReactNode;
   className?: string;
+  id?: string;
+  accion?: React.ReactNode;
 }) {
   return (
     <section
+      id={id}
       className={`min-w-0 rounded-3xl border border-sky-100 bg-white p-5 shadow-sm shadow-slate-900/[0.03] sm:p-6 ${className}`}
     >
-      {titulo && (
-        <h2 className="flex items-center gap-2.5 font-display text-base font-semibold tracking-tight text-vuki-ink">
-          <span
-            aria-hidden="true"
-            className="h-4 w-1 shrink-0 rounded-full bg-vuki-ocean"
-          />
-          {titulo}
-        </h2>
+      {(titulo || accion) && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            {titulo && (
+              <h2 className="flex items-center gap-2.5 font-display text-base font-semibold tracking-tight text-vuki-ink">
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-1 shrink-0 rounded-full bg-vuki-ocean"
+                />
+                {titulo}
+              </h2>
+            )}
+            {descripcion && (
+              <p className="mt-0.5 text-sm text-slate-600">{descripcion}</p>
+            )}
+          </div>
+          {accion && (
+            <div className="flex shrink-0 items-center gap-2">{accion}</div>
+          )}
+        </div>
       )}
-      {descripcion && (
-        <p className="mt-0.5 text-sm text-slate-600">{descripcion}</p>
-      )}
-      <div className={titulo ? "mt-4" : ""}>{children}</div>
+      <div className={titulo || accion ? "mt-4" : ""}>{children}</div>
     </section>
   );
 }
@@ -74,12 +121,14 @@ export function Estadistica({
   nota,
   tono = "normal",
   icono,
+  href,
 }: {
   titulo: string;
   valor: string;
   nota?: string;
   tono?: "normal" | "bueno" | "malo";
   icono?: React.ReactNode;
+  href?: string;
 }) {
   const color =
     tono === "bueno"
@@ -93,8 +142,9 @@ export function Estadistica({
       : tono === "malo"
         ? "bg-red-50 text-red-700"
         : "bg-sky-50 text-sky-700";
-  return (
-    <div className="relative min-w-0 overflow-hidden rounded-3xl border border-sky-100 bg-white p-5 shadow-sm shadow-slate-900/[0.03]">
+
+  const contenido = (
+    <>
       <div
         aria-hidden="true"
         className={`absolute inset-x-0 top-0 h-0.5 ${tono === "bueno" ? "bg-vuki-emerald/70" : tono === "malo" ? "bg-red-400/70" : "bg-vuki-ocean/60"}`}
@@ -106,9 +156,15 @@ export function Estadistica({
         >
           {icono ?? <BarChart3 className="h-4 w-4" />}
         </span>
-        <p className="text-xs font-semibold leading-relaxed text-slate-600">
+        <p className="min-w-0 flex-1 text-xs font-semibold leading-relaxed text-slate-600">
           {titulo}
         </p>
+        {href && (
+          <ArrowUpRight
+            aria-hidden="true"
+            className="h-3.5 w-3.5 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-slate-700"
+          />
+        )}
       </div>
       <p
         className={`mt-4 break-words font-display text-2xl font-bold tracking-tight ${color}`}
@@ -118,16 +174,33 @@ export function Estadistica({
       {nota && (
         <p className="mt-1 text-xs leading-relaxed text-slate-600">{nota}</p>
       )}
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="vuki-focus group relative block h-full min-w-0 overflow-hidden rounded-3xl border border-sky-100 bg-white p-5 shadow-sm shadow-slate-900/[0.03] transition hover:border-slate-300 hover:shadow-md"
+      >
+        {contenido}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="relative min-w-0 overflow-hidden rounded-3xl border border-sky-100 bg-white p-5 shadow-sm shadow-slate-900/[0.03]">
+      {contenido}
     </div>
   );
 }
 
 const TONOS = {
   gris: "bg-slate-100 text-slate-700",
-  verde: "bg-emerald-100 text-emerald-700",
-  ambar: "bg-amber-100 text-amber-800",
-  rojo: "bg-red-100 text-red-700",
-  azul: "bg-sky-100 text-sky-700",
+  verde: "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200/60",
+  ambar: "bg-amber-50 text-amber-800 ring-1 ring-amber-200/60",
+  rojo: "bg-red-50 text-red-700 ring-1 ring-red-200/60",
+  azul: "bg-sky-50 text-sky-800 ring-1 ring-sky-200/60",
 } as const;
 
 export type TonoInsignia = keyof typeof TONOS;
@@ -141,7 +214,7 @@ export function Insignia({
 }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${TONOS[tono]}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${TONOS[tono]}`}
     >
       {children}
     </span>
@@ -160,7 +233,7 @@ export function Tabla({
   vacia?: boolean;
 }) {
   return (
-    <div className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-sky-100 bg-white shadow-sm">
+    <div className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-sky-100 bg-white shadow-sm shadow-slate-900/[0.02]">
       <table className="w-full min-w-[44rem] text-left text-sm">
         <thead className="border-b border-sky-100 bg-sky-50/70 text-xs uppercase tracking-wider text-slate-600">
           <tr>
@@ -176,7 +249,15 @@ export function Tabla({
         </tbody>
       </table>
       {vacia && (
-        <p className="px-4 py-8 text-center text-sm text-slate-500">{vacio}</p>
+        <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-sky-600">
+            <IsotipoVuki className="h-6 w-6 opacity-60" />
+          </div>
+          <p className="text-sm font-medium text-slate-700">{vacio}</p>
+          <p className="mt-1 text-xs text-slate-400">
+            No hay registros disponibles para mostrar.
+          </p>
+        </div>
       )}
     </div>
   );

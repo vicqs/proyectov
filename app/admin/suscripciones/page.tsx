@@ -13,6 +13,7 @@ import {
 import { AccionForm } from "../../../components/admin/AccionForm";
 import { InsigniaNegocio } from "../../../components/admin/InsigniaNegocio";
 import {
+  CLASE_CHECKBOX,
   CLASE_INPUT,
   Campo,
   Celda,
@@ -98,11 +99,7 @@ export default async function SuscripcionesPage() {
                   />
                 </Campo>
                 <label className="flex items-center gap-1 pb-2 text-sm text-slate-600">
-                  <input
-                    type="checkbox"
-                    name="activo"
-                    defaultChecked={p.activo}
-                  />{" "}
+                  <input type="checkbox" name="activo" defaultChecked={p.activo} className={CLASE_CHECKBOX} />{" "}
                   Activo
                 </label>
                 {FLAGS_POR_NEGOCIO.map((f) => (
@@ -110,11 +107,7 @@ export default async function SuscripcionesPage() {
                     key={f.clave}
                     className="flex items-center gap-1 pb-2 text-sm text-slate-600"
                   >
-                    <input
-                      type="checkbox"
-                      name={`flag_${f.clave}`}
-                      defaultChecked={p.flags?.[f.clave] ?? true}
-                    />{" "}
+                    <input type="checkbox" name={`flag_${f.clave}`} defaultChecked={p.flags?.[f.clave] ?? true} className={CLASE_CHECKBOX} />{" "}
                     {f.etiqueta}
                   </label>
                 ))}
@@ -176,11 +169,7 @@ export default async function SuscripcionesPage() {
                 key={f.clave}
                 className="flex items-center gap-1 pb-2 text-sm text-slate-600"
               >
-                <input
-                  type="checkbox"
-                  name={`flag_${f.clave}`}
-                  defaultChecked
-                />{" "}
+                <input type="checkbox" name={`flag_${f.clave}`} defaultChecked className={CLASE_CHECKBOX} />{" "}
                 {f.etiqueta}
               </label>
             ))}
@@ -198,7 +187,12 @@ export default async function SuscripcionesPage() {
             return (
               <tr key={n.id}>
                 <Celda>
-                  <p className="font-medium text-slate-900">{n.nombre}</p>
+                  <Link
+                    href={`/admin/negocios/${n.id}`}
+                    className="font-medium text-slate-900 hover:text-sky-700 hover:underline"
+                  >
+                    {n.nombre}
+                  </Link>
                   <p className="text-xs text-slate-400">/{n.slug}</p>
                 </Celda>
                 <Celda>

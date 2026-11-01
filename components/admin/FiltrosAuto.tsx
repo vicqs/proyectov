@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-const CLASE_BOTON_NEUTRO =
-  "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2";
+import { Loader2 } from "lucide-react";
+
+const CLASE_BOTON_LIMPIAR =
+  "vuki-focus inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-xs transition hover:border-slate-400 hover:bg-slate-50 active:scale-[0.98]";
 
 /**
  * Formulario de filtros que se aplica solo: los campos de texto con una
@@ -78,10 +80,16 @@ export function FiltrosAuto({ children }: { children: React.ReactNode }) {
         aplicar();
       }}
       aria-busy={pendiente}
-      className="flex flex-wrap items-end gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="vuki-filtros flex flex-wrap items-center gap-2.5 rounded-2xl border border-sky-100 bg-white p-3.5 shadow-sm shadow-slate-900/[0.02]"
     >
       {children}
-      <button type="button" onClick={limpiar} className={CLASE_BOTON_NEUTRO}>
+      <button type="button" onClick={limpiar} className={CLASE_BOTON_LIMPIAR}>
+        {pendiente && (
+          <Loader2
+            className="h-3.5 w-3.5 animate-spin text-vuki-ocean"
+            aria-hidden="true"
+          />
+        )}
         Limpiar
       </button>
     </form>

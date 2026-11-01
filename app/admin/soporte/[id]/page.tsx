@@ -9,10 +9,13 @@ import {
 } from "../../../../actions/admin/soporte";
 import { AccionForm } from "../../../../components/admin/AccionForm";
 import {
+  CLASE_BOTON_NEUTRO,
   CLASE_INPUT,
+  CLASE_SELECT,
   Campo,
   PaginaAdmin,
   Tarjeta,
+  TextareaConContador,
 } from "../../../../components/admin/ui";
 
 export default async function TicketPage({
@@ -34,35 +37,42 @@ export default async function TicketPage({
 
   return (
     <PaginaAdmin
-      titulo={ticket.asunto}
+      titulo={`Ticket #${ticket.id.slice(0, 8)}: ${ticket.asunto}`}
       descripcion={
-        <>
+        <span>
+          De {ticket.creado_por} ·{" "}
           {negocio ? (
             <Link
               href={`/admin/negocios/${negocio.id}`}
-              className="text-sky-700 hover:underline"
+              className="text-sky-700 hover:underline font-semibold"
             >
               {negocio.nombre}
             </Link>
           ) : (
-            "Negocio eliminado"
-          )}{" "}
-          · abierto por {ticket.creado_por} · {fechaHora(ticket.creado_en)}
-        </>
+            "—"
+          )}
+        </span>
       }
       accion={
-        <Link
-          href="/admin/soporte"
-          className="text-sm text-sky-700 hover:underline"
-        >
-          Volver
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/admin/soporte" className={CLASE_BOTON_NEUTRO}>
+            ← Volver a soporte
+          </Link>
+          {negocio && (
+            <Link
+              href={`/admin/negocios/${negocio.id}`}
+              className={CLASE_BOTON_NEUTRO}
+            >
+              Ficha negocio ↗
+            </Link>
+          )}
+        </div>
       }
     >
-      <Tarjeta titulo="Estado">
+      <Tarjeta titulo="Estado del ticket">
         <AccionForm
           accion={actualizarTicketAction.bind(null, id)}
-          boton="Guardar"
+          boton="Guardar estado"
           variante="neutro"
           enLinea
         >
@@ -70,7 +80,7 @@ export default async function TicketPage({
             <select
               name="estado"
               defaultValue={ticket.estado}
-              className={`${CLASE_INPUT} sm:w-40`}
+              className={CLASE_SELECT}
             >
               <option value="abierto">Abierto</option>
               <option value="en_curso">En curso</option>
@@ -82,7 +92,7 @@ export default async function TicketPage({
             <select
               name="prioridad"
               defaultValue={ticket.prioridad}
-              className={`${CLASE_INPUT} sm:w-36`}
+              className={CLASE_SELECT}
             >
               <option value="baja">Baja</option>
               <option value="normal">Normal</option>
@@ -97,31 +107,38 @@ export default async function TicketPage({
           {mensajes.map((m) => (
             <li
               key={m.id}
-              className={`rounded-xl p-3 text-sm ${m.autor_tipo === "admin" ? "ml-8 bg-sky-50" : "mr-8 bg-slate-50"}`}
+              className={`rounded-2xl p-4 text-sm ${
+                m.autor_tipo === "admin"
+                  ? "ml-6 sm:ml-12 border border-sky-100 bg-sky-50/70"
+                  : "mr-6 sm:mr-12 border border-slate-200 bg-slate-50/70"
+              }`}
             >
-              <p className="text-xs text-slate-400">
-                {m.autor_tipo === "admin" ? "Soporte" : "Empresa"} ·{" "}
+              <p className="text-xs font-semibold text-slate-500">
+                {m.autor_tipo === "admin" ? "🛡️ Soporte vuki" : "🏢 Empresa"} ·{" "}
                 {m.autor_email} · {fechaHora(m.creado_en)}
               </p>
-              <p className="mt-1 whitespace-pre-wrap text-slate-800">
+              <p className="mt-2 whitespace-pre-wrap text-slate-800 leading-relaxed">
                 {m.mensaje}
               </p>
             </li>
           ))}
         </ul>
-        <div className="mt-4">
+        <div className="mt-6 border-t border-slate-100 pt-4">
+          <h3 className="mb-2 text-sm font-semibold text-slate-800">
+            Responder al cliente
+          </h3>
           <AccionForm
             accion={responderTicketAdminAction.bind(null, id)}
-            boton="Responder"
+            boton="Enviar respuesta"
             limpiarAlOk
           >
-            <textarea
+            <TextareaConContador
               name="mensaje"
               required
               rows={4}
               maxLength={4000}
-              className={CLASE_INPUT}
-              aria-label="Escribe tu respuesta" placeholder="Escribe tu respuesta"
+              aria-label="Escribe tu respuesta"
+              placeholder="Escribe tu respuesta a la empresa..."
             />
           </AccionForm>
         </div>

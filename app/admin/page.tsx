@@ -84,23 +84,27 @@ export default async function AdminResumenPage() {
           icono={<Building2 className="h-4 w-4" />}
           valor={String(vivos.length)}
           nota={`${nuevos30} nuevos en 30 días`}
+          href="/admin/negocios"
         />
         <Estadistica
           titulo="Activos"
           icono={<CheckCircle2 className="h-4 w-4" />}
           valor={String(porEstado.activa)}
           tono="bueno"
+          href="/admin/negocios?estado=activa"
         />
         <Estadistica
           titulo="En prueba"
           valor={String(porEstado.prueba)}
           icono={<Clock className="h-4 w-4" />}
+          href="/admin/negocios?estado=prueba"
         />
         <Estadistica
           titulo="Inactivos / suspendidos"
           icono={<ShieldAlert className="h-4 w-4" />}
           valor={`${porEstado.inactiva} / ${suspendidos}`}
           tono={porEstado.inactiva + suspendidos > 0 ? "malo" : "normal"}
+          href="/admin/negocios?estado=suspendido"
         />
         {tienePermiso(admin.rol, "finanzas") && (
           <>
@@ -110,12 +114,14 @@ export default async function AdminResumenPage() {
               valor={usd(calcularMrr(vivos, planes))}
               tono="bueno"
               nota="Suscripciones activas"
+              href="/admin/finanzas"
             />
             <Estadistica
               titulo="Volumen 30 días"
               icono={<TrendingUp className="h-4 w-4" />}
               valor={usd(ingresos30)}
               nota="Reservas pagadas"
+              href="/admin/finanzas"
             />
           </>
         )}
@@ -124,6 +130,7 @@ export default async function AdminResumenPage() {
           icono={<CalendarCheck className="h-4 w-4" />}
           valor={String(reservas.length)}
           nota={`${pagadas.length} pagadas`}
+          href="/admin/reservas"
         />
         <Estadistica
           titulo="Atención pendiente"
@@ -131,12 +138,16 @@ export default async function AdminResumenPage() {
           valor={String(atencion)}
           nota={`${ticketsAbiertos} tickets · ${reportesPendientes} reportes · ${erroresSinResolver} errores`}
           tono={atencion > 0 ? "malo" : "normal"}
+          href="/admin/soporte?estado=abierto"
         />
       </div>
 
-      <Tarjeta titulo="Negocios recientes">
+      <Tarjeta
+        titulo="Negocios recientes"
+        descripcion="Últimas altas registradas en la plataforma."
+      >
         <Tabla
-          columnas={["Negocio", "Estado", "Alta"]}
+          columnas={["Negocio", "Estado", "Alta", ""]}
           vacia={recientes.length === 0}
         >
           {recientes.map((n) => (
@@ -154,9 +165,25 @@ export default async function AdminResumenPage() {
                 <InsigniaNegocio negocio={n} />
               </Celda>
               <Celda>{fechaCorta(n.creado_en)}</Celda>
+              <Celda className="text-right">
+                <Link
+                  href={`/admin/negocios/${n.id}`}
+                  className="text-xs font-semibold text-sky-700 hover:underline"
+                >
+                  Gestionar →
+                </Link>
+              </Celda>
             </tr>
           ))}
         </Tabla>
+        <div className="mt-4 flex justify-end">
+          <Link
+            href="/admin/negocios"
+            className="text-sm font-semibold text-sky-700 hover:underline"
+          >
+            Ver todos los negocios ({vivos.length}) →
+          </Link>
+        </div>
       </Tarjeta>
     </PaginaAdmin>
   );

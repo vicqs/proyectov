@@ -117,8 +117,8 @@ const ESTADO_LABEL: Record<VistaReserva["estado"], string> = {
   cancelada: "Cancelada",
 };
 
-const INPUT =
-  "vuki-focus min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-500";
+const INPUT = "vuki-input min-h-11";
+const SELECT = "vuki-select min-h-11 w-full";
 
 function partesCR(iso: string) {
   const cr = new Date(new Date(iso).getTime() + CR_OFFSET_MS);
@@ -737,19 +737,15 @@ export default function ReservasView({
                       type="button"
                       aria-pressed={activa}
                       onClick={() => setVista(tab.id)}
-                      className={`vuki-focus inline-flex min-h-9 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                        activa
-                          ? "bg-vuki-ink text-white shadow-sm"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900"
-                      }`}
+                      className={`vuki-tab-pill ${activa ? "vuki-tab-pill-active" : ""}`}
                     >
                       {tab.etiqueta}
                       <span
-                        className={`rounded-full px-1.5 py-0.5 text-[11px] ${
+                        className={
                           activa
-                            ? "bg-white/20 text-white"
-                            : "bg-white text-slate-600"
-                        }`}
+                            ? "vuki-tab-pill-badge-active"
+                            : "vuki-tab-pill-badge"
+                        }
                       >
                         {tab.conteo}
                       </span>
@@ -762,7 +758,7 @@ export default function ReservasView({
                 aria-label="Ordenar reservas"
                 value={orden}
                 onChange={(e) => setOrden(e.target.value as OrdenReservas)}
-                className="vuki-focus min-h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700"
+                className="vuki-select-sm"
               >
                 <option value="proximas">Orden: Próximas primero</option>
                 <option value="recientes">Orden: Más recientes</option>
@@ -785,7 +781,7 @@ export default function ReservasView({
                   placeholder="Buscar cliente, correo, servicio o transacción..."
                   value={texto}
                   onChange={(e) => setTexto(e.target.value)}
-                  className="vuki-focus min-h-10 w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-900 focus:border-sky-500"
+                  className="vuki-input-search pr-3"
                 />
               </div>
 
@@ -794,7 +790,7 @@ export default function ReservasView({
                   aria-label="Filtrar por servicio"
                   value={servicio}
                   onChange={(e) => setServicio(e.target.value)}
-                  className="vuki-focus min-h-10 min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-sky-500"
+                  className="vuki-select"
                 >
                   <option value="">Todos los servicios</option>
                   {servicios.map((s) => (
@@ -1262,7 +1258,7 @@ export default function ReservasView({
                   required
                   value={horarioId}
                   onChange={(e) => cambiarHorarioManual(e.target.value)}
-                  className={INPUT}
+                  className={SELECT}
                 >
                   {manual.horarios.map((h) => (
                     <option

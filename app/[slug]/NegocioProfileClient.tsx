@@ -212,15 +212,27 @@ function NegocioProfileContenido({
             {negocio.descripcion}
           </p>
           {whatsappUrl && (
-            <a
+            <motion.a
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 shadow-xs transition hover:bg-emerald-100 hover:border-emerald-400 focus-visible:outline-2 focus-visible:outline-emerald-700"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.03, y: -1 }}
+              whileTap={{ scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 400, damping: 20 }}
+              className="group mt-4 inline-flex min-h-11 items-center gap-2.5 rounded-full border border-emerald-300/80 bg-emerald-50/90 px-4 py-2 text-sm font-semibold text-emerald-800 shadow-xs transition-colors hover:border-emerald-400 hover:bg-emerald-100/90 hover:shadow-sm hover:shadow-emerald-600/10 focus-visible:outline-2 focus-visible:outline-emerald-700"
             >
-              <MessageCircle className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-              WhatsApp
-            </a>
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 duration-1000" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              <MessageCircle
+                className="h-4 w-4 text-emerald-600 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110"
+                aria-hidden="true"
+              />
+              <span>WhatsApp</span>
+            </motion.a>
           )}
         </motion.header>
 
@@ -279,19 +291,6 @@ function NegocioProfileContenido({
           />
         )}
       </AnimatePresence>
-
-      {whatsappUrl && (
-        <a
-          href={whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Contactar por WhatsApp"
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-950/20 transition hover:bg-[#20ba5a] hover:scale-105 active:scale-95 focus-visible:outline-2 focus-visible:outline-emerald-600"
-        >
-          <MessageCircle className="h-5 w-5 fill-current" aria-hidden="true" />
-          <span className="font-medium">WhatsApp</span>
-        </a>
-      )}
     </main>
   );
 }

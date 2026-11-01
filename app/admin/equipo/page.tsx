@@ -1,5 +1,7 @@
+import { Trash2 } from "lucide-react";
 import { requerirAdmin, rolEfectivo } from "../../../lib/admin/auth";
 import { leer, listarUsuariosAuth } from "../../../lib/admin/db";
+import { fechaHora } from "../../../lib/admin/formato";
 import {
   ETIQUETA_ROL,
   ROLES_ADMIN,
@@ -12,6 +14,7 @@ import {
 import { AccionForm } from "../../../components/admin/AccionForm";
 import {
   CLASE_INPUT,
+  CLASE_SELECT,
   Campo,
   Celda,
   Insignia,
@@ -55,6 +58,7 @@ export default async function EquipoPage() {
               name="email"
               type="email"
               required
+              placeholder="colaborador@vuki.com"
               className={`${CLASE_INPUT} sm:w-72`}
             />
           </Campo>
@@ -62,7 +66,7 @@ export default async function EquipoPage() {
             <select
               name="rol"
               defaultValue="soporte"
-              className={`${CLASE_INPUT} sm:w-48`}
+              className={CLASE_SELECT}
             >
               {ROLES_ADMIN.map((r) => (
                 <option key={r} value={r}>
@@ -75,7 +79,7 @@ export default async function EquipoPage() {
       </Tarjeta>
 
       <Tabla
-        columnas={["Correo", "Rol", "Origen", ""]}
+        columnas={["Correo", "Rol", "Origen", "Último acceso", ""]}
         vacia={equipo.length === 0}
       >
         {equipo.map(({ u, rol }) => {
@@ -87,6 +91,9 @@ export default async function EquipoPage() {
                 <Insignia tono="azul">{ETIQUETA_ROL[rol!]}</Insignia>
               </Celda>
               <Celda>{enBd ? "Base de datos" : "ADMIN_GLOBAL_EMAILS"}</Celda>
+              <Celda className="whitespace-nowrap text-xs text-slate-500">
+                {fechaHora(u.last_sign_in_at)}
+              </Celda>
               <Celda>
                 {u.id === admin.user.id ? (
                   <span className="text-xs text-slate-400">Tú</span>
@@ -94,7 +101,9 @@ export default async function EquipoPage() {
                   <AccionForm
                     accion={quitarRolAction.bind(null, u.id)}
                     boton="Quitar rol"
-                    variante="peligro"
+                    variante="peligro_sutil"
+                    tamano="sm"
+                    icono={<Trash2 className="h-3.5 w-3.5" aria-hidden="true" />}
                     confirmar="¿Quitar el acceso al área de administración?"
                   />
                 ) : null}

@@ -3,7 +3,7 @@ import { leer } from "../../../lib/admin/db";
 import { fechaHora, paginar, parametro } from "../../../lib/admin/formato";
 import {
   CLASE_BOTON_NEUTRO,
-  CLASE_INPUT,
+  CampoBusqueda,
   Celda,
   FiltrosGet,
   PaginaAdmin,
@@ -46,11 +46,11 @@ export default async function AuditoriaPage({
       }
     >
       <FiltrosGet>
-        <input
-          name="q"
+        <CampoBusqueda
           defaultValue={q}
-          aria-label="Acción, actor o negocio" placeholder="Acción, actor o negocio"
-          className={`${CLASE_INPUT} sm:w-72`}
+          placeholder="Acción, actor o negocio..."
+          ariaLabel="Acción, actor o negocio"
+          className="sm:w-80"
         />
       </FiltrosGet>
       <Tabla
@@ -69,8 +69,23 @@ export default async function AuditoriaPage({
             <Celda>
               {a.negocio_id ? (nombre.get(a.negocio_id) ?? "—") : "—"}
             </Celda>
-            <Celda className="max-w-xs break-words text-xs text-slate-500">
-              {a.detalle ? JSON.stringify(a.detalle) : ""}
+            <Celda className="max-w-xs text-xs text-slate-600">
+              {a.detalle && typeof a.detalle === "object" ? (
+                <details className="cursor-pointer">
+                  <summary className="font-mono text-xs text-sky-700 hover:underline">
+                    Ver datos ({Object.keys(a.detalle).length})
+                  </summary>
+                  <pre className="mt-1.5 max-h-40 overflow-auto rounded-lg border border-slate-800 bg-slate-950 p-2 font-mono text-[11px] text-sky-200 whitespace-pre-wrap select-all">
+                    {JSON.stringify(a.detalle, null, 2)}
+                  </pre>
+                </details>
+              ) : a.detalle ? (
+                <span className="font-mono text-[11px] text-slate-500">
+                  {String(a.detalle)}
+                </span>
+              ) : (
+                <span className="text-slate-400">—</span>
+              )}
             </Celda>
           </tr>
         ))}
