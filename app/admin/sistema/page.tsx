@@ -18,7 +18,29 @@ import {
   PaginaAdmin,
   Tabla,
   Tarjeta,
+  type TonoInsignia,
 } from "../../../components/admin/ui";
+
+function resolverBadgeComprobacion(
+  estado: string,
+  ok: boolean,
+): { texto: string; tono: TonoInsignia } {
+  if (!ok) {
+    return { texto: "Revisar", tono: "rojo" };
+  }
+  const estadoMin = estado.toLowerCase();
+  if (
+    estadoMin.includes("no configurado") ||
+    estadoMin.includes("sin resend") ||
+    estadoMin.includes("falta")
+  ) {
+    return { texto: "Aviso", tono: "ambar" };
+  }
+  if (estadoMin.includes("simula")) {
+    return { texto: "Simulado", tono: "azul" };
+  }
+  return { texto: "OK", tono: "verde" };
+}
 
 async function contar(tabla: Parameters<typeof leer>[0]): Promise<string> {
   try {
@@ -101,19 +123,29 @@ export default async function SistemaPage({
       descripcion={`${errores} incidencia(s) sin resolver · ${negocios} negocios · ${reservas} reservas.`}
     >
       <Tarjeta titulo="Comprobaciones">
-        <ul className="divide-y divide-slate-100 text-sm">
-          {comprobaciones.map(([nombre, estado, ok]) => (
-            <li key={nombre} className="flex items-center justify-between py-2">
-              <span className="text-slate-700">{nombre}</span>
-              <span className="flex items-center gap-2 text-slate-500">
-                {estado}
-                <Insignia tono={ok ? "verde" : "rojo"}>
-                  {ok ? "OK" : "Revisar"}
-                </Insignia>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {comprobaciones.map(([nombre, estado, ok]) => {
+            const badge = resolverBadgeComprobacion(estado, ok);
+            return (
+              <div
+                key={nombre}
+                className="flex items-center justify-between gap-3 rounded-xl border border-sky-100/80 bg-slate-50/50 px-4 py-3 text-sm transition hover:border-sky-200 hover:bg-slate-50"
+              >
+                <div className="min-w-0">
+                  <span className="block font-medium text-slate-800">
+                    {nombre}
+                  </span>
+                  <span className="block text-xs text-slate-500 truncate">
+                    {estado}
+                  </span>
+                </div>
+                <div className="shrink-0">
+                  <Insignia tono={badge.tono}>{badge.texto}</Insignia>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </Tarjeta>
 
       <FiltrosGet>

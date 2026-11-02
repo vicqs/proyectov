@@ -13,7 +13,7 @@ function hayFiltrosActivos(formEl: HTMLFormElement | null): boolean {
   for (const el of elements) {
     if (
       (el instanceof HTMLInputElement &&
-        ["search", "text", ""].includes(el.type)) ||
+        ["search", "text", "email", "number", ""].includes(el.type)) ||
       el instanceof HTMLTextAreaElement
     ) {
       if (el.value.trim() !== "") {
@@ -24,7 +24,10 @@ function hayFiltrosActivos(formEl: HTMLFormElement | null): boolean {
       const texto =
         el.selectedOptions[0]?.textContent?.trim().toLowerCase() ?? "";
       const esDefecto =
-        val === "" || val === "todos" || texto.startsWith("todo");
+        el.selectedIndex === 0 ||
+        val === "" ||
+        val === "todos" ||
+        texto.startsWith("todo");
       if (!esDefecto) {
         return true;
       }
