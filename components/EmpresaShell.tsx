@@ -316,7 +316,7 @@ export default function EmpresaShell({
         )}
       </AnimatePresence>
 
-      <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
         {mostrarBloqueo ? (
           <main className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
@@ -345,6 +345,7 @@ export default function EmpresaShell({
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
+            className="flex flex-1 flex-col"
           >
             {children}
           </motion.div>

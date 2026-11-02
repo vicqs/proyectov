@@ -512,7 +512,7 @@ async function Facturacion({ negocioId }: { negocioId: string }) {
       </Tarjeta>
       <Tarjeta
         titulo="Estado manual"
-        descripcion="Activa: perfil público y panel funcionan, próximo cobro en 30 días. En prueba: igual que activa hasta su fecha de fin (14 días si estaba vencida). Inactiva: el panel funciona pero el enlace público no recibe reservas. Para suspender o eliminar usa las pestañas de cuenta."
+        descripcion="Activo: perfil público y panel funcionan, próximo cobro en 30 días. En prueba: igual que activo hasta su fecha de fin (14 días si estaba vencida). Inactivo: el panel funciona pero el enlace público no recibe reservas. Para suspender o eliminar usa las pestañas de cuenta."
       >
         <AccionForm
           accion={cambiarEstadoManualAction.bind(null, negocioId)}
@@ -527,9 +527,9 @@ async function Facturacion({ negocioId }: { negocioId: string }) {
             className={CLASE_SELECT}
             aria-label="Estado"
           >
-            <option value="activa">Activa</option>
+            <option value="activa">Activo</option>
             <option value="prueba">En prueba</option>
-            <option value="inactiva">Inactiva</option>
+            <option value="inactiva">Inactivo</option>
           </select>
         </AccionForm>
       </Tarjeta>
@@ -653,11 +653,8 @@ async function Facturacion({ negocioId }: { negocioId: string }) {
                   Factura <b>{f.numero}</b> · emitida el {fechaCorta(f.creada)}
                 </span>
                 <span className="text-slate-600">
-                  <b>
-                    {f.monto.toFixed(2)} {f.moneda}
-                  </b>{" "}
-                  · {f.intentos} {f.intentos === 1 ? "intento" : "intentos"} de
-                  cobro
+                  <b>{usd(f.monto)}</b> · {f.intentos}{" "}
+                  {f.intentos === 1 ? "intento" : "intentos"} de cobro
                 </span>
               </li>
             ))}

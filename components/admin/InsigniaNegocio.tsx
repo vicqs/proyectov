@@ -7,7 +7,7 @@ export function InsigniaNegocio({ negocio }: { negocio: Negocio }) {
   if (negocio.eliminado_en) return <Insignia tono="gris">Eliminado</Insignia>;
   if (negocio.suspendido) return <Insignia tono="rojo">Suspendido</Insignia>;
   const estado = estadoEfectivo(negocio);
-  if (estado === "activa") return <Insignia tono="verde">Activa</Insignia>;
+  if (estado === "activa") return <Insignia tono="verde">Activo</Insignia>;
   if (estado === "prueba") return <Insignia tono="azul">En prueba</Insignia>;
-  return <Insignia tono="ambar">Inactiva</Insignia>;
+  return <Insignia tono="ambar">Inactivo</Insignia>;
 }

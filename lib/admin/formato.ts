@@ -1,10 +1,7 @@
-const fmtUsd = new Intl.NumberFormat("es-CR", {
-  style: "currency",
-  currency: "USD",
-});
+import { formatearPrecioUsd } from "../formato";
 
 export function usd(n: number | null | undefined): string {
-  return fmtUsd.format(n ?? 0);
+  return formatearPrecioUsd(n);
 }
 
 export function fechaCorta(iso: string | null | undefined): string {

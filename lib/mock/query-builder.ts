@@ -53,12 +53,41 @@ const TABLAS_INICIALES: Record<string, Fila[]> = {
  */
 const TABLAS: Record<string, Fila[]> = (globalMock.__neMockTablas ??= {});
 
+function coincideFilaSemilla(
+  nombre: string,
+  f: Fila,
+  filaSemilla: Fila,
+): boolean {
+  if (nombre === "perfiles") {
+    return (
+      filaSemilla.user_id !== undefined &&
+      f.user_id !== undefined &&
+      f.user_id === filaSemilla.user_id
+    );
+  }
+  if (filaSemilla.id !== undefined && f.id !== undefined) {
+    return f.id === filaSemilla.id;
+  }
+  return false;
+}
+
 for (const [nombre, semilla] of Object.entries(TABLAS_INICIALES)) {
   if (!TABLAS[nombre]) {
     TABLAS[nombre] = semilla;
   } else {
+    if (nombre === "perfiles") {
+      const vistos = new Set<unknown>();
+      TABLAS[nombre] = TABLAS[nombre].filter((f) => {
+        if (!f.user_id || vistos.has(f.user_id)) return false;
+        vistos.add(f.user_id);
+        return true;
+      });
+    }
+
     for (const filaSemilla of semilla) {
-      const existente = TABLAS[nombre].find((f) => f.id === filaSemilla.id);
+      const existente = TABLAS[nombre].find((f) =>
+        coincideFilaSemilla(nombre, f, filaSemilla),
+      );
       if (existente) {
         for (const [campo, valor] of Object.entries(filaSemilla)) {
           existente[campo] = valor;
@@ -254,7 +283,8 @@ class MockQueryBuilder<T extends Record<string, unknown>>
   upsert(payload: Partial<T> | Partial<T>[], opts?: { onConflict?: string }) {
     this.pendiente = "upsert";
     this.payload = payload;
-    this.conflicto = (opts?.onConflict ?? "id")
+    const porDefecto = this.tabla === "perfiles" ? "user_id" : "id";
+    this.conflicto = (opts?.onConflict ?? porDefecto)
       .split(",")
       .map((c) => c.trim())
       .filter(Boolean);

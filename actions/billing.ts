@@ -97,7 +97,12 @@ export async function confirmarSuscripcionSimuladaAction(
     .from("negocios")
     .update({
       estado_suscripcion: "activa",
-      proximo_cobro: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+      proximo_cobro:
+        negocio.estado_suscripcion === "prueba" &&
+        negocio.prueba_hasta &&
+        new Date(negocio.prueba_hasta).getTime() > Date.now()
+          ? negocio.prueba_hasta
+          : new Date(Date.now() + 30 * 86_400_000).toISOString(),
       stripe_customer_id: `mock_cus_${negocio.id}`,
     })
     .eq("id", negocio.id)

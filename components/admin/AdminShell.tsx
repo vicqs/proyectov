@@ -133,12 +133,12 @@ export default function AdminShell({
     <div className="flex min-h-screen flex-col bg-vuki-surface lg:flex-row">
       <ToastViewport />
 
-      <aside className="relative hidden w-64 shrink-0 flex-col border-r border-sky-100 bg-white p-5 lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sky-100 bg-white p-5 lg:flex">
         <div
           aria-hidden="true"
           className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-vuki-ocean to-vuki-emerald"
         />
-        <div className="relative mb-4 mt-2 overflow-hidden rounded-3xl bg-vuki-ink p-5 shadow-lg shadow-slate-900/10">
+        <div className="relative mb-4 mt-2 shrink-0 overflow-hidden rounded-3xl bg-vuki-ink p-5 shadow-lg shadow-slate-900/10">
           <div
             aria-hidden="true"
             className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-vuki-ocean/25 blur-2xl"
@@ -156,26 +156,26 @@ export default function AdminShell({
           <p className="relative mt-1 break-all text-sm font-semibold leading-relaxed text-white">
             {email}
           </p>
-          <div className="relative mt-4 flex items-center justify-between">
-            <span className="inline-flex rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-xs font-medium text-emerald-200">
+          <div className="relative mt-4 flex items-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-xs font-medium text-emerald-200">
+              <span
+                aria-hidden="true"
+                className="h-2 w-2 rounded-full bg-emerald-400"
+              />
               {rol}
             </span>
-            <div
-              aria-hidden="true"
-              className="h-0.5 w-10 rounded-full bg-vuki-emerald"
-            />
           </div>
         </div>
-        <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+        <p className="mb-2 shrink-0 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
           Gestiona la plataforma
         </p>
         <nav
           aria-label="Navegación de administración"
-          className="flex flex-1 flex-col gap-1 overflow-y-auto pr-1"
+          className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1"
         >
           {nav(true)}
         </nav>
-        <div className="mt-4 border-t border-slate-100 pt-3">{pie}</div>
+        <div className="mt-4 shrink-0 border-t border-slate-100 pt-3 pb-10">{pie}</div>
       </aside>
 
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/10 bg-vuki-ink px-4 py-3 shadow-sm shadow-slate-950/10 lg:hidden">
@@ -226,7 +226,7 @@ export default function AdminShell({
               aria-label="Menú de navegación"
               className="fixed inset-y-0 left-0 z-50 flex w-[85vw] max-w-sm flex-col overflow-y-auto border-r border-sky-100 bg-white p-6 shadow-xl lg:hidden"
             >
-              <div className="mb-6 flex items-start justify-between gap-2 rounded-2xl border border-white/10 bg-vuki-ink p-4 shadow-lg shadow-slate-900/10">
+              <div className="mb-6 flex shrink-0 items-start justify-between gap-2 rounded-2xl border border-white/10 bg-vuki-ink p-4 shadow-lg shadow-slate-900/10">
                 <div className="min-w-0">
                   <VLogo
                     showText
@@ -252,11 +252,11 @@ export default function AdminShell({
               </div>
               <nav
                 aria-label="Navegación de administración"
-                className="flex flex-1 flex-col gap-1 overflow-y-auto"
+                className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto"
               >
                 {nav(true)}
               </nav>
-              <div className="mt-4 border-t border-slate-100 pt-3">{pie}</div>
+              <div className="mt-4 shrink-0 border-t border-slate-100 pt-3 pb-10">{pie}</div>
             </motion.aside>
           </>
         )}

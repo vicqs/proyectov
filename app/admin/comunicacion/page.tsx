@@ -28,6 +28,12 @@ const TONO: Record<string, TonoInsignia> = {
   critico: "rojo",
 };
 
+const ETIQUETAS_SEVERIDAD: Record<string, string> = {
+  info: "Informativo",
+  aviso: "Aviso",
+  critico: "Crítico",
+};
+
 export default async function ComunicacionPage() {
   await requerirAdmin("comunicacion");
   const [anuncios, comunicados, negocios] = await Promise.all([
@@ -145,7 +151,7 @@ export default async function ComunicacionPage() {
             <Celda>
               <div className="flex items-center gap-2">
                 <Insignia tono={TONO[a.severidad] ?? "gris"}>
-                  {a.severidad}
+                  {ETIQUETAS_SEVERIDAD[a.severidad] ?? a.severidad}
                 </Insignia>
                 <p className="font-semibold text-slate-900">{a.titulo}</p>
               </div>

@@ -16,6 +16,7 @@ import {
   type TonoInsignia,
 } from "./ui";
 import { AccionForm } from "./AccionForm";
+import { usd } from "../../lib/admin/formato";
 import {
   ReembolsoDrawer,
   type ReservaParaReembolso,
@@ -186,7 +187,7 @@ export function ReservasAdminClient({
               <tr key={r.id}>
                 <Celda>{r.negocioNombre}</Celda>
                 <Celda className="font-mono text-xs">{r.reservaId}</Celda>
-                <Celda>${r.montoUsd.toFixed(2)} USD</Celda>
+                <Celda>{usd(r.montoUsd)}</Celda>
                 <Celda>{r.motivo}</Celda>
                 <Celda>
                   <AccionForm
@@ -313,7 +314,7 @@ export function ReservasAdminClient({
               )}
             </Celda>
             <Celda className="font-semibold text-slate-900">
-              ${r.montoUsd.toFixed(2)} USD
+              {usd(r.montoUsd)}
             </Celda>
             <Celda>
               <div className="flex flex-wrap items-center gap-1.5">

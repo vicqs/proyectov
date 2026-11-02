@@ -21,6 +21,27 @@ const TONO_TICKET: Record<string, TonoInsignia> = {
   cerrado: "gris",
 };
 
+const ETIQUETAS_ESTADO: Record<string, string> = {
+  abierto: "Abierto",
+  en_curso: "En curso",
+  resuelto: "Resuelto",
+  cerrado: "Cerrado",
+};
+
+const TONO_PRIORIDAD: Record<string, TonoInsignia> = {
+  baja: "gris",
+  normal: "azul",
+  alta: "ambar",
+  urgente: "rojo",
+};
+
+const ETIQUETAS_PRIORIDAD: Record<string, string> = {
+  baja: "Baja",
+  normal: "Normal",
+  alta: "Alta",
+  urgente: "Urgente",
+};
+
 export default async function SoportePage({
   searchParams,
 }: {
@@ -93,10 +114,14 @@ export default async function SoportePage({
             <Celda>{nombre.get(t.negocio_id) ?? "—"}</Celda>
             <Celda>
               <Insignia tono={TONO_TICKET[t.estado] ?? "gris"}>
-                {t.estado.replace("_", " ")}
+                {ETIQUETAS_ESTADO[t.estado] ?? t.estado}
               </Insignia>
             </Celda>
-            <Celda>{t.prioridad}</Celda>
+            <Celda>
+              <Insignia tono={TONO_PRIORIDAD[t.prioridad] ?? "gris"}>
+                {ETIQUETAS_PRIORIDAD[t.prioridad] ?? t.prioridad}
+              </Insignia>
+            </Celda>
             <Celda>{fechaHora(t.actualizado_en)}</Celda>
           </tr>
         ))}

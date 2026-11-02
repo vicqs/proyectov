@@ -5,6 +5,7 @@ import { DollarSign, Loader2 } from "lucide-react";
 import Drawer from "../Drawer";
 import { toast } from "../Toast";
 import { CLASE_INPUT, TextareaConContador } from "./ui";
+import { usd } from "../../lib/admin/formato";
 import type { ResultadoAccion } from "../../lib/admin/auth";
 
 export interface ReservaParaReembolso {
@@ -104,7 +105,7 @@ export function ReembolsoDrawer({
                 <div className="flex items-center justify-between border-t border-sky-200/60 pt-2 text-sm">
                   <span className="font-semibold text-slate-700">Total cobrado:</span>
                   <span className="font-bold text-emerald-800 font-display">
-                    ${reserva.montoUsd.toFixed(2)} USD
+                    {usd(reserva.montoUsd)}
                   </span>
                 </div>
               </div>
@@ -136,7 +137,7 @@ export function ReembolsoDrawer({
                   />
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  Puedes reembolsar el total o una parte (hasta ${reserva.montoUsd.toFixed(2)}).
+                  Puedes reembolsar el total o una parte (hasta {usd(reserva.montoUsd)}).
                 </p>
               </div>
 

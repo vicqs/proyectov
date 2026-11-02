@@ -23,6 +23,12 @@ const TONO: Record<string, TonoInsignia> = {
   descartado: "gris",
 };
 
+const ETIQUETAS: Record<string, string> = {
+  pendiente: "Pendiente",
+  atendido: "Atendido",
+  descartado: "Descartado",
+};
+
 export default async function ModeracionPage({
   searchParams,
 }: {
@@ -31,7 +37,7 @@ export default async function ModeracionPage({
   await requerirAdmin("moderacion");
   const sp = await searchParams;
   const q = (parametro(sp.q) ?? "").trim().toLowerCase();
-  const estado = parametro(sp.estado) ?? "pendiente";
+  const estado = parametro(sp.estado) ?? "";
   const [reportes, negocios] = await Promise.all([
     leer("reportes_perfil"),
     leer("negocios"),
@@ -71,10 +77,10 @@ export default async function ModeracionPage({
           className={CLASE_SELECT}
           aria-label="Filtrar por estado"
         >
+          <option value="">Todos los reportes</option>
           <option value="pendiente">Pendientes</option>
           <option value="atendido">Atendidos</option>
           <option value="descartado">Descartados</option>
-          <option value="todos">Todos los reportes</option>
         </select>
       </FiltrosGet>
       <Tabla
@@ -121,7 +127,9 @@ export default async function ModeracionPage({
                 )}
               </Celda>
               <Celda>
-                <Insignia tono={TONO[r.estado] ?? "gris"}>{r.estado}</Insignia>
+                <Insignia tono={TONO[r.estado] ?? "gris"}>
+                  {ETIQUETAS[r.estado] ?? r.estado}
+                </Insignia>
                 {r.resuelto_por && (
                   <p className="text-xs text-slate-400">{r.resuelto_por}</p>
                 )}
