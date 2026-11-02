@@ -1,5 +1,10 @@
 import { requerirEmpresa, type EmpresaPageProps } from "@/lib/empresa";
-import type { Horario, ReservaConServicio, Servicio } from "@/types/database";
+import type {
+  BloqueoExcepcion,
+  Horario,
+  ReservaConServicio,
+  Servicio,
+} from "@/types/database";
 import { construirHorarios, etiquetaHorario } from "@/lib/horarios";
 import ReservasEmpresaClient from "./ReservasEmpresaClient";
 
@@ -33,28 +38,41 @@ export default async function ReservasPage({
   let reservas: ReservaConServicio[] = [];
   let horarios: Horario[] = [];
   let servicios: Servicio[] = [];
+  let bloqueos: Pick<BloqueoExcepcion, "fecha_inicio" | "fecha_fin">[] = [];
 
   if (negocio) {
-    const [reservasRes, horariosRes, serviciosRes] = await Promise.all([
-      supabase
-        .from("reservas")
-        .select("*, servicio:servicios(nombre, precio_usd)")
-        .eq("negocio_id", negocio.id)
-        .order("fecha_hora", { ascending: false }),
-      supabase
-        .from("horarios")
-        .select("*")
-        .eq("negocio_id", negocio.id)
-        .gte("fecha_hora", ahoraIso)
-        .order("fecha_hora", { ascending: true }),
-      supabase.from("servicios").select("*").eq("negocio_id", negocio.id),
-    ]);
+    const [reservasRes, horariosRes, serviciosRes, bloqueosRes] =
+      await Promise.all([
+        supabase
+          .from("reservas")
+          .select("*, servicio:servicios(nombre, precio_usd)")
+          .eq("negocio_id", negocio.id)
+          .order("fecha_hora", { ascending: false }),
+        supabase
+          .from("horarios")
+          .select("*")
+          .eq("negocio_id", negocio.id)
+          .gte("fecha_hora", ahoraIso)
+          .order("fecha_hora", { ascending: true }),
+        supabase.from("servicios").select("*").eq("negocio_id", negocio.id),
+        supabase
+          .from("bloqueos_excepcion")
+          .select("fecha_inicio, fecha_fin")
+          .eq("negocio_id", negocio.id)
+          .gte("fecha_fin", ahoraIso),
+      ]);
 
     if (!reservasRes.error) {
       reservas = (reservasRes.data ?? []) as unknown as ReservaConServicio[];
     }
     horarios = (horariosRes.data ?? []) as Horario[];
     servicios = (serviciosRes.data ?? []) as Servicio[];
+    if (!bloqueosRes.error) {
+      bloqueos = (bloqueosRes.data ?? []) as Pick<
+        BloqueoExcepcion,
+        "fecha_inicio" | "fecha_fin"
+      >[];
+    }
   }
 
   const servicioPorId = new Map(servicios.map((s) => [s.id, s]));
@@ -90,14 +108,17 @@ export default async function ReservasPage({
           trxId: r.trx_id,
         };
       })}
-      horarios={construirHorarios(horarios, reservas, []).map((h) => {
+      horarios={construirHorarios(horarios, reservas, bloqueos, true).map((h) => {
         const srv = servicioPorId.get(h.servicioId);
         return {
           id: h.id,
           servicio: srv?.nombre ?? "Servicio",
           label: h.label,
           cuposDisponibles: h.cuposDisponibles,
+          cuposTotales: h.cuposTotales,
           precioUsd: srv?.precio_usd,
+          fechaHora: h.fechaHora,
+          duracionMin: srv?.duracion_min ?? 60,
         };
       })}
     />

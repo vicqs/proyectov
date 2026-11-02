@@ -28,6 +28,13 @@ export interface VistaBloqueo {
   motivo: string;
 }
 
+export interface HorarioAfectadoItem {
+  id?: string;
+  fechaHora: string;
+  duracionMin?: number;
+  servicioId?: string;
+}
+
 export interface SugerenciaBloqueoInicial {
   abrir?: boolean;
   fecha?: string; // YYYY-MM-DD
@@ -44,6 +51,8 @@ interface AgendaViewProps {
     motivo: string;
   }) => Resultado;
   onEliminar: (id: string) => Resultado;
+  /** Horarios futuros detallados o timestamps ISO (para informar cuántos se pausan). */
+  horarios?: (string | HorarioAfectadoItem)[];
   /** Timestamps ISO de horarios futuros (para informar cuántos se pausan). */
   horariosIso?: string[];
   /** Timestamps ISO de reservas activas (para detectar conflictos antes de guardar). */
@@ -120,8 +129,18 @@ const FRANJAS_RAPIDAS: {
 const INPUT =
   "vuki-focus min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-500";
 
+const LOCAL_SIN_ZONA = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
+
+function normalizarIsoCR(valor: string): string {
+  if (!valor) return "";
+  const texto = valor.trim();
+  if (LOCAL_SIN_ZONA.test(texto)) return localCRaIso(texto);
+  return texto;
+}
+
 function partesCR(iso: string) {
-  const cr = new Date(new Date(iso).getTime() + CR_OFFSET_MS);
+  const normalizado = normalizarIsoCR(iso);
+  const cr = new Date(new Date(normalizado).getTime() + CR_OFFSET_MS);
   return {
     anio: cr.getUTCFullYear(),
     mes: cr.getUTCMonth(),
@@ -130,6 +149,12 @@ function partesCR(iso: string) {
     hora: cr.getUTCHours(),
     minuto: cr.getUTCMinutes(),
   };
+}
+
+function parsearMinutos(horaStr: string): number {
+  if (!horaStr) return 0;
+  const [h, m] = horaStr.split(":").map(Number);
+  return (Number.isNaN(h) ? 0 : h) * 60 + (Number.isNaN(m) ? 0 : m);
 }
 
 function formatoHora12(hora: number, minuto: number): string {
@@ -210,6 +235,7 @@ export default function AgendaView({
   bloqueos,
   onCrear,
   onEliminar,
+  horarios,
   horariosIso = [],
   reservasActivasIso = [],
   hoyClave,
@@ -240,30 +266,56 @@ export default function AgendaView({
   const mananaClave = hoyClave ? sumarDiasClave(hoyClave, 1) : "";
   const sabadoClave = hoyClave ? proximoSabadoClave(hoyClave) : "";
 
+  const listaHorariosNormalizados = useMemo(() => {
+    const origen: (string | HorarioAfectadoItem)[] =
+      horarios && horarios.length > 0 ? horarios : horariosIso;
+    return origen
+      .map((item) => {
+        const fechaHora = typeof item === "string" ? item : item.fechaHora;
+        const duracionMin =
+          typeof item === "object" && typeof item.duracionMin === "number"
+            ? item.duracionMin
+            : 60;
+        if (!fechaHora) return null;
+        const p = partesCR(fechaHora);
+        if (Number.isNaN(p.anio)) return null;
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const claveFecha = `${p.anio}-${pad(p.mes + 1)}-${pad(p.dia)}`;
+        const inicioMinutos = p.hora * 60 + p.minuto;
+        const dur = duracionMin > 0 ? duracionMin : 60;
+        return {
+          fechaHora,
+          claveFecha,
+          inicioMinutos,
+          duracionMin: dur,
+          finMinutos: inicioMinutos + dur,
+        };
+      })
+      .filter((h): h is NonNullable<typeof h> => h !== null);
+  }, [horarios, horariosIso]);
+
   const rangoActual = useMemo(() => {
-    const inicioLocal =
-      modo === "dias"
-        ? fechaDesde
-          ? `${fechaDesde}T00:00`
-          : ""
-        : fechaDesde && horaDesde
-          ? `${fechaDesde}T${horaDesde.slice(0, 5)}`
-          : "";
-    const finLocal =
-      modo === "dias"
-        ? fechaHasta
-          ? `${fechaHasta}T23:59`
-          : ""
-        : fechaDesde && horaHasta
-          ? `${fechaDesde}T${horaHasta.slice(0, 5)}`
-          : "";
+    let valido = false;
+    let inicioLocal = "";
+    let finLocal = "";
+
+    if (modo === "dias") {
+      valido = Boolean(fechaDesde && fechaHasta && fechaHasta >= fechaDesde);
+      inicioLocal = fechaDesde ? `${fechaDesde}T00:00` : "";
+      finLocal = fechaHasta ? `${fechaHasta}T23:59` : "";
+    } else {
+      const horaIniValida = Boolean(fechaDesde && horaDesde && horaHasta);
+      const minIni = parsearMinutos(horaDesde);
+      const minFin = parsearMinutos(horaHasta);
+      valido = horaIniValida && minFin >= minIni;
+      inicioLocal =
+        fechaDesde && horaDesde ? `${fechaDesde}T${horaDesde.slice(0, 5)}` : "";
+      finLocal =
+        fechaDesde && horaHasta ? `${fechaDesde}T${horaHasta.slice(0, 5)}` : "";
+    }
 
     const inicioIso = inicioLocal ? localCRaIso(inicioLocal) : "";
     const finIso = finLocal ? localCRaIso(finLocal) : "";
-    const iniMs = inicioIso ? new Date(inicioIso).getTime() : NaN;
-    const finMs = finIso ? new Date(finIso).getTime() : NaN;
-    const valido =
-      !Number.isNaN(iniMs) && !Number.isNaN(finMs) && finMs >= iniMs;
 
     if (!valido) {
       return {
@@ -277,14 +329,35 @@ export default function AgendaView({
       };
     }
 
-    const reservasConflicto = reservasActivasIso.filter((iso) => {
-      const t = new Date(iso).getTime();
-      return t >= iniMs && t <= finMs;
+    // Filtro exacto de horarios afectados según fecha y franja de horas
+    const horariosPausados = listaHorariosNormalizados.filter((h) => {
+      if (modo === "dias") {
+        return h.claveFecha >= fechaDesde && h.claveFecha <= fechaHasta;
+      }
+      if (h.claveFecha !== fechaDesde) return false;
+      const bIni = parsearMinutos(horaDesde);
+      const bFin = parsearMinutos(horaHasta);
+      if (bFin === bIni) {
+        return h.inicioMinutos <= bIni && h.finMinutos > bIni;
+      }
+      return h.inicioMinutos < bFin && h.finMinutos > bIni;
     }).length;
 
-    const horariosPausados = horariosIso.filter((iso) => {
-      const t = new Date(iso).getTime();
-      return t >= iniMs && t <= finMs;
+    // Conflicto con reservas activas dentro del período
+    const reservasConflicto = reservasActivasIso.filter((iso) => {
+      const p = partesCR(iso);
+      if (Number.isNaN(p.anio)) return false;
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const clave = `${p.anio}-${pad(p.mes + 1)}-${pad(p.dia)}`;
+      if (modo === "dias") {
+        return clave >= fechaDesde && clave <= fechaHasta;
+      }
+      if (clave !== fechaDesde) return false;
+      const bIni = parsearMinutos(horaDesde);
+      const bFin = parsearMinutos(horaHasta);
+      const resMin = p.hora * 60 + p.minuto;
+      if (bFin === bIni) return resMin === bIni;
+      return resMin >= bIni && resMin < bFin;
     }).length;
 
     return {
@@ -302,8 +375,8 @@ export default function AgendaView({
     fechaHasta,
     horaDesde,
     horaHasta,
+    listaHorariosNormalizados,
     reservasActivasIso,
-    horariosIso,
   ]);
 
   const resumen = useMemo(() => {
@@ -316,16 +389,17 @@ export default function AgendaView({
         ).length
       : 0;
     const horariosAfectados = new Set<string>();
-    for (const hIso of horariosIso) {
-      const t = new Date(hIso).getTime();
+    for (const h of listaHorariosNormalizados) {
+      const tIni = new Date(h.fechaHora).getTime();
+      const tFin = tIni + h.duracionMin * 60_000;
       if (
-        bloqueos.some(
-          (b) =>
-            t >= new Date(b.inicioIso).getTime() &&
-            t <= new Date(b.finIso).getTime(),
-        )
+        bloqueos.some((b) => {
+          const bIni = new Date(b.inicioIso).getTime();
+          const bFin = new Date(b.finIso).getTime();
+          return tIni < bFin && tFin > bIni;
+        })
       ) {
-        horariosAfectados.add(hIso);
+        horariosAfectados.add(h.fechaHora);
       }
     }
     return {
@@ -333,7 +407,7 @@ export default function AgendaView({
       enCurso,
       horariosPausados: horariosAfectados.size,
     };
-  }, [bloqueos, horariosIso, ahoraMs]);
+  }, [bloqueos, listaHorariosNormalizados, ahoraMs]);
 
   function abrirNuevo(opciones?: {
     modoInicial?: "dias" | "horas";
@@ -539,9 +613,10 @@ export default function AgendaView({
                 const enCurso = Boolean(
                   ahoraMs && iniMs <= ahoraMs && finMs >= ahoraMs,
                 );
-                const pausados = horariosIso.filter((iso) => {
-                  const t = new Date(iso).getTime();
-                  return t >= iniMs && t <= finMs;
+                const pausados = listaHorariosNormalizados.filter((h) => {
+                  const tIni = new Date(h.fechaHora).getTime();
+                  const tFin = tIni + h.duracionMin * 60_000;
+                  return tIni < finMs && tFin > iniMs;
                 }).length;
 
                 return (

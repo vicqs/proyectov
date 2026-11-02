@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
+  AlertTriangle,
   CalendarCheck,
   CalendarDays,
   Clock,
@@ -19,6 +20,7 @@ import Drawer from "../Drawer";
 import ConfirmDialog from "../ConfirmDialog";
 import { toast } from "../Toast";
 import { etiquetaDia } from "../../lib/horarios";
+import { formatearPrecioUsd } from "../../lib/formato";
 
 export interface VistaHorario {
   id: string;
@@ -184,6 +186,15 @@ function generarFechas(
   return fechas;
 }
 
+export function formatearDuracionMin(duracionMin?: number): string {
+  if (!duracionMin || duracionMin <= 0) return "";
+  const horas = Math.floor(duracionMin / 60);
+  const resto = duracionMin % 60;
+  if (resto === 0) return `${horas}h`;
+  if (horas === 0) return `${resto}m`;
+  return `${horas}h ${resto}m`;
+}
+
 function calcularRangoHoras(
   hora24: string,
   duracionMin?: number,
@@ -191,6 +202,7 @@ function calcularRangoHoras(
   inicioTexto: string;
   finTexto: string;
   duracionTexto: string;
+  terminaDeNoche: boolean;
 } {
   const [hh, mm] = hora24.split(":").map(Number);
   const m = Number.isNaN(mm) ? 0 : mm;
@@ -200,7 +212,12 @@ function calcularRangoHoras(
   const inicioTexto = `${h % 12 === 0 ? 12 : h % 12}:${mPad} ${h < 12 ? "a.m." : "p.m."}`;
 
   if (!duracionMin || duracionMin <= 0) {
-    return { inicioTexto, finTexto: "", duracionTexto: "" };
+    return {
+      inicioTexto,
+      finTexto: "",
+      duracionTexto: "",
+      terminaDeNoche: false,
+    };
   }
 
   const minutosTotales = h * 60 + m + duracionMin;
@@ -209,23 +226,22 @@ function calcularRangoHoras(
   const finMPad = String(finM).padStart(2, "0");
   const finTexto = `${finH % 12 === 0 ? 12 : finH % 12}:${finMPad} ${finH < 12 ? "a.m." : "p.m."}`;
 
-  const horas = Math.floor(duracionMin / 60);
-  const resto = duracionMin % 60;
-  let duracionTexto = "";
-  if (resto === 0) {
-    duracionTexto = `${horas}h`;
-  } else if (horas === 0) {
-    duracionTexto = `${resto}m`;
-  } else {
-    duracionTexto = `${horas}h ${resto}m`;
-  }
+  const duracionTexto = formatearDuracionMin(duracionMin);
+  const terminaDeNoche = minutosTotales > 18 * 60;
 
-  return { inicioTexto, finTexto, duracionTexto };
+  return { inicioTexto, finTexto, duracionTexto, terminaDeNoche };
+}
+
+export interface ServicioHorarioItem {
+  id: string;
+  nombre: string;
+  duracionMin?: number;
+  precioUsd?: number;
 }
 
 interface HorariosViewProps {
   horarios: VistaHorario[];
-  servicios: { id: string; nombre: string; duracionMin?: number }[];
+  servicios: ServicioHorarioItem[];
   /** `fechaHora` viene en formato `datetime-local` (sin zona horaria). */
   onCrear: (datos: {
     servicioId: string;
@@ -290,6 +306,12 @@ export default function HorariosView({
   const [semanas, setSemanas] = useState(4);
   const [cupos, setCupos] = useState("6");
   const [guardando, setGuardando] = useState(false);
+
+  const servicioActual = useMemo(
+    () => servicios.find((s) => s.id === servicioId),
+    [servicios, servicioId],
+  );
+  const duracionMinActual = servicioActual?.duracionMin ?? 0;
 
   const [servicioFiltro, setServicioFiltro] = useState("");
   const [pestanaTemporal, setPestanaTemporal] = useState<
@@ -1051,11 +1073,26 @@ export default function HorariosView({
               onChange={(e) => setServicioId(e.target.value)}
               className={SELECT}
             >
-              {servicios.map((servicio) => (
-                <option key={servicio.id} value={servicio.id}>
-                  {servicio.nombre}
-                </option>
-              ))}
+              {servicios.map((servicio) => {
+                const duracionTexto = formatearDuracionMin(
+                  servicio.duracionMin,
+                );
+                const precioTexto =
+                  typeof servicio.precioUsd === "number"
+                    ? formatearPrecioUsd(servicio.precioUsd)
+                    : "";
+                const partes = [
+                  servicio.nombre,
+                  duracionTexto,
+                  precioTexto,
+                ].filter(Boolean);
+
+                return (
+                  <option key={servicio.id} value={servicio.id}>
+                    {partes.join(" · ")}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -1128,20 +1165,36 @@ export default function HorariosView({
             {/* Atajos rápidos de hora frecuente */}
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="mr-1 text-xs text-slate-500">Hora rápida:</span>
-              {HORAS_RAPIDAS.map((op) => (
-                <button
-                  key={op.valor}
-                  type="button"
-                  onClick={() => setHora(op.valor)}
-                  className={`vuki-focus rounded-full border px-2.5 py-1 text-xs font-medium transition ${
-                    hora.slice(0, 5) === op.valor
-                      ? "border-(--marca) bg-(--marca-fondo) font-semibold text-(--marca-texto)"
-                      : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  {op.etiqueta}
-                </button>
-              ))}
+              {HORAS_RAPIDAS.map((op) => {
+                const [chipH, chipM] = op.valor.split(":").map(Number);
+                const minFin =
+                  (chipH || 0) * 60 + (chipM || 0) + duracionMinActual;
+                const excedeNoche = duracionMinActual > 0 && minFin > 18 * 60;
+                const seleccionado = hora.slice(0, 5) === op.valor;
+
+                return (
+                  <button
+                    key={op.valor}
+                    type="button"
+                    disabled={excedeNoche}
+                    title={
+                      excedeNoche
+                        ? `Con duración de ${formatearDuracionMin(duracionMinActual)}, esta hora terminaría a las ${calcularRangoHoras(op.valor, duracionMinActual).finTexto} (después de las 6:00 p.m.)`
+                        : undefined
+                    }
+                    onClick={() => setHora(op.valor)}
+                    className={`vuki-focus rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                      excedeNoche
+                        ? "cursor-not-allowed border-slate-200 bg-slate-100/70 text-slate-400 opacity-40 line-through decoration-slate-400/50"
+                        : seleccionado
+                          ? "border-(--marca) bg-(--marca-fondo) font-semibold text-(--marca-texto)"
+                          : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    {op.etiqueta}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -1285,17 +1338,31 @@ export default function HorariosView({
                   srv?.duracionMin,
                 );
                 return (
-                  <p>
-                    <strong className="font-semibold text-vuki-ink">
-                      Listo para publicar:
-                    </strong>{" "}
-                    {formatoFechaLargaClave(fecha)}{" "}
-                    {rango.finTexto
-                      ? `de ${rango.inicioTexto} a ${rango.finTexto} (${rango.duracionTexto})`
-                      : `a las ${rango.inicioTexto}`}{" "}
-                    · {cupos || 0}{" "}
-                    {Number(cupos) === 1 ? "cupo" : "cupos"}.
-                  </p>
+                  <div>
+                    <p>
+                      <strong className="font-semibold text-vuki-ink">
+                        Listo para publicar:
+                      </strong>{" "}
+                      {formatoFechaLargaClave(fecha)}{" "}
+                      {rango.finTexto
+                        ? `de ${rango.inicioTexto} a ${rango.finTexto} (${rango.duracionTexto})`
+                        : `a las ${rango.inicioTexto}`}{" "}
+                      · {cupos || 0}{" "}
+                      {Number(cupos) === 1 ? "cupo" : "cupos"}.
+                    </p>
+                    {rango.terminaDeNoche && (
+                      <p className="mt-1.5 flex items-center gap-1.5 font-medium text-amber-800">
+                        <AlertTriangle
+                          className="h-3.5 w-3.5 shrink-0 text-amber-600"
+                          aria-hidden="true"
+                        />
+                        <span>
+                          Atención: con una duración de {rango.duracionTexto},
+                          esta actividad terminaría a las {rango.finTexto} (después de las 6:00 p.m.).
+                        </span>
+                      </p>
+                    )}
+                  </div>
                 );
               })() : (
                 <p>Selecciona la fecha y hora del horario.</p>
@@ -1312,20 +1379,34 @@ export default function HorariosView({
                 srv?.duracionMin,
               );
               return (
-                <p>
-                  <strong className="font-semibold text-vuki-ink">
-                    Se crearán {fechasLote.length}{" "}
-                    {fechasLote.length === 1 ? "horario" : "horarios"}
-                  </strong>
-                  {fechasLote.length > MAX_LOTE ? ` (máximo ${MAX_LOTE})` : ""}:{" "}
-                  del {formatoFechaCortaLocal(fechasLote[0])} al{" "}
-                  {formatoFechaCortaLocal(fechasLote[fechasLote.length - 1])}{" "}
-                  {rango.finTexto
-                    ? `de ${rango.inicioTexto} a ${rango.finTexto} (${rango.duracionTexto})`
-                    : `a las ${rango.inicioTexto}`}{" "}
-                  · {cupos || 0} {Number(cupos) === 1 ? "cupo" : "cupos"} por
-                  fecha.
-                </p>
+                <div>
+                  <p>
+                    <strong className="font-semibold text-vuki-ink">
+                      Se crearán {fechasLote.length}{" "}
+                      {fechasLote.length === 1 ? "horario" : "horarios"}
+                    </strong>
+                    {fechasLote.length > MAX_LOTE ? ` (máximo ${MAX_LOTE})` : ""}:{" "}
+                    del {formatoFechaCortaLocal(fechasLote[0])} al{" "}
+                    {formatoFechaCortaLocal(fechasLote[fechasLote.length - 1])}{" "}
+                    {rango.finTexto
+                      ? `de ${rango.inicioTexto} a ${rango.finTexto} (${rango.duracionTexto})`
+                      : `a las ${rango.inicioTexto}`}{" "}
+                    · {cupos || 0} {Number(cupos) === 1 ? "cupo" : "cupos"} por
+                    fecha.
+                  </p>
+                  {rango.terminaDeNoche && (
+                    <p className="mt-1.5 flex items-center gap-1.5 font-medium text-amber-800">
+                      <AlertTriangle
+                        className="h-3.5 w-3.5 shrink-0 text-amber-600"
+                        aria-hidden="true"
+                      />
+                      <span>
+                        Atención: con una duración de {rango.duracionTexto},
+                        estas salidas terminarían a las {rango.finTexto} (después de las 6:00 p.m.).
+                      </span>
+                    </p>
+                  )}
+                </div>
               );
             })()}
           </div>

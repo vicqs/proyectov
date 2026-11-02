@@ -35,7 +35,10 @@ export default async function HorariosPage({
   const inicioHoy = new Date(ahora);
   inicioHoy.setHours(0, 0, 0, 0);
 
-  let servicios: Pick<Servicio, "id" | "nombre" | "duracion_min">[] = [];
+  let servicios: Pick<
+    Servicio,
+    "id" | "nombre" | "duracion_min" | "precio_usd"
+  >[] = [];
   let horarios: Horario[] = [];
   let reservas: Reserva[] = [];
 
@@ -110,6 +113,7 @@ export default async function HorariosPage({
         id: s.id,
         nombre: s.nombre,
         duracionMin: s.duracion_min,
+        precioUsd: s.precio_usd,
       }))}
       horarios={construirHorarios(horarios, reservas, []).map((h) => ({
         id: h.id,

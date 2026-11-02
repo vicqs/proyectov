@@ -1,5 +1,5 @@
 import { requerirEmpresa, type EmpresaPageProps } from "@/lib/empresa";
-import type { BloqueoExcepcion, Horario, Reserva } from "@/types/database";
+import type { BloqueoExcepcion, Horario, Reserva, Servicio } from "@/types/database";
 import AgendaEmpresaClient from "./AgendaEmpresaClient";
 
 function hoyClaveCR(ahoraMs: number): string {
@@ -34,9 +34,10 @@ export default async function AgendaPage({
   let bloqueos: BloqueoExcepcion[] = [];
   let horarios: Horario[] = [];
   let reservas: Reserva[] = [];
+  let servicios: Pick<Servicio, "id" | "duracion_min">[] = [];
 
   if (negocio) {
-    const [bloqueosRes, horariosRes, reservasRes] = await Promise.all([
+    const [bloqueosRes, horariosRes, reservasRes, serviciosRes] = await Promise.all([
       supabase
         .from("bloqueos_excepcion")
         .select("*")
@@ -53,6 +54,10 @@ export default async function AgendaPage({
         .select("*")
         .eq("negocio_id", negocio.id)
         .gte("fecha_hora", inicioHoyIso),
+      supabase
+        .from("servicios")
+        .select("id, duracion_min")
+        .eq("negocio_id", negocio.id),
     ]);
 
     if (!bloqueosRes.error) {
@@ -60,7 +65,18 @@ export default async function AgendaPage({
     }
     horarios = (horariosRes.data ?? []) as Horario[];
     reservas = (reservasRes.data ?? []) as Reserva[];
+    servicios = (serviciosRes.data ?? []) as Pick<Servicio, "id" | "duracion_min">[];
   }
+
+  const duracionPorServicio = new Map(
+    servicios.map((s) => [s.id, s.duracion_min]),
+  );
+
+  const horariosDetallados = horarios.map((h) => ({
+    id: h.id,
+    fechaHora: h.fecha_hora,
+    duracionMin: duracionPorServicio.get(h.servicio_id) ?? 60,
+  }));
 
   const reservasActivasIso = reservas
     .filter((r) => r.estado !== "cancelada")
@@ -80,6 +96,7 @@ export default async function AgendaPage({
         abrir: nuevo === "1",
         fecha: fechaSugerida,
       }}
+      horarios={horariosDetallados}
       horariosIso={horarios.map((h) => h.fecha_hora)}
       reservasActivasIso={reservasActivasIso}
       bloqueos={bloqueos.map((b) => ({

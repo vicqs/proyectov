@@ -22,7 +22,12 @@ export default function HorariosEmpresaClient({
 }: {
   slug: string;
   horarios: VistaHorario[];
-  servicios: { id: string; nombre: string; duracionMin?: number }[];
+  servicios: {
+    id: string;
+    nombre: string;
+    duracionMin?: number;
+    precioUsd?: number;
+  }[];
   hoyClave?: string;
   sugerenciaInicial?: SugerenciaHorarioInicial;
 }) {

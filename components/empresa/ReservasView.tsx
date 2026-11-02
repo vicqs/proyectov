@@ -49,8 +49,44 @@ export interface HorarioManual {
   servicio: string;
   label: string;
   cuposDisponibles: number;
+  cuposTotales?: number;
   precioUsd?: number;
+  fechaHora?: string;
+  duracionMin?: number;
 }
+
+const MOCK_HORARIOS_MANUAL: HorarioManual[] = [
+  {
+    id: "hm-1",
+    servicio: "Clase de surf 1h",
+    label: "Lun 2 nov 9:00 a.m.",
+    fechaHora: "2026-11-02T15:00:00.000Z",
+    duracionMin: 60,
+    cuposTotales: 6,
+    cuposDisponibles: 5,
+    precioUsd: 45,
+  },
+  {
+    id: "hm-2",
+    servicio: "Alquiler de tabla (día completo)",
+    label: "Lun 2 nov 8:00 a.m.",
+    fechaHora: "2026-11-02T14:00:00.000Z",
+    duracionMin: 480,
+    cuposTotales: 8,
+    cuposDisponibles: 8,
+    precioUsd: 20,
+  },
+  {
+    id: "hm-3",
+    servicio: "Clase de surf 1h",
+    label: "Mar 3 nov 9:00 a.m.",
+    fechaHora: "2026-11-03T15:00:00.000Z",
+    duracionMin: 60,
+    cuposTotales: 6,
+    cuposDisponibles: 6,
+    precioUsd: 45,
+  },
+];
 
 type VistaRapida =
   | "todas"
@@ -152,6 +188,41 @@ function fechaHoraCR(iso: string): string {
   return `${DIAS_CORTOS[diaSemana]} ${dia} ${MESES_CORTOS[mes]} ${anio} · ${h12}:${min} ${sufijo}`;
 }
 
+/**
+ * Formato detallado de fecha y rango horario para resúmenes (ej. "Lun 2 nov · 9:00 a.m. – 10:00 a.m.").
+ */
+function formatearDetalleHorario(
+  fechaIso?: string,
+  duracionMin?: number,
+  labelFallback?: string,
+): string {
+  if (!fechaIso) return labelFallback ?? "";
+  const ms = new Date(fechaIso).getTime();
+  if (Number.isNaN(ms)) return labelFallback ?? "";
+
+  const { diaSemana, dia, mes, hora, minuto } = partesCR(fechaIso);
+  const diaTexto = `${DIAS_CORTOS[diaSemana]} ${dia} ${MESES_CORTOS[mes]}`;
+
+  const h12 = hora % 12 === 0 ? 12 : hora % 12;
+  const minPad = String(minuto).padStart(2, "0");
+  const sufijo = hora < 12 ? "a.m." : "p.m.";
+  const inicioTexto = `${h12}:${minPad} ${sufijo}`;
+
+  if (!duracionMin || duracionMin <= 0) {
+    return `${diaTexto} · ${inicioTexto}`;
+  }
+
+  const minutosTotales = hora * 60 + minuto + duracionMin;
+  const finHora = Math.floor(minutosTotales / 60) % 24;
+  const finMin = minutosTotales % 60;
+  const finH12 = finHora % 12 === 0 ? 12 : finHora % 12;
+  const finMinPad = String(finMin).padStart(2, "0");
+  const finSufijo = finHora < 12 ? "a.m." : "p.m.";
+  const finTexto = `${finH12}:${finMinPad} ${finSufijo}`;
+
+  return `${diaTexto} · ${inicioTexto} – ${finTexto}`;
+}
+
 function sumarUnDiaClave(clave: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(clave)) return "";
   const [y, m, d] = clave.split("-").map(Number);
@@ -231,9 +302,41 @@ export default function ReservasView({
   onCancelar,
   manual,
 }: ReservasViewProps) {
+  const horariosDisponibles = useMemo(() => {
+    const base = manual ? manual.horarios : MOCK_HORARIOS_MANUAL;
+    const refMs = ahoraMs ?? Date.now();
+
+    return base
+      .filter((h) => {
+        if (h.fechaHora) {
+          const ms = new Date(h.fechaHora).getTime();
+          if (!Number.isNaN(ms) && ms <= refMs) return false;
+        }
+        return true;
+      })
+      .map((h) => {
+        if (h.cuposTotales !== undefined && h.fechaHora) {
+          const t = new Date(h.fechaHora).getTime();
+          const ocupados = reservas
+            .filter(
+              (r) =>
+                r.estado !== "cancelada" &&
+                new Date(r.fechaIso).getTime() === t &&
+                r.servicio === h.servicio,
+            )
+            .reduce((sum, r) => sum + (r.cupos ?? 1), 0);
+          return {
+            ...h,
+            cuposDisponibles: Math.max(0, h.cuposTotales - ocupados),
+          };
+        }
+        return h;
+      });
+  }, [manual, reservas, ahoraMs]);
+
   const primerHorarioDisponible =
-    manual?.horarios.find((h) => h.cuposDisponibles > 0)?.id ??
-    manual?.horarios[0]?.id ??
+    horariosDisponibles.find((h) => h.cuposDisponibles > 0)?.id ??
+    horariosDisponibles[0]?.id ??
     "";
 
   const [vista, setVista] = useState<VistaRapida>("todas");
@@ -443,8 +546,8 @@ export default function ReservasView({
 
   function abrirManual() {
     const idInicial =
-      manual?.horarios.find((h) => h.cuposDisponibles > 0)?.id ??
-      manual?.horarios[0]?.id ??
+      horariosDisponibles.find((h) => h.cuposDisponibles > 0)?.id ??
+      horariosDisponibles[0]?.id ??
       "";
     setHorarioId(idInicial);
     setNombre("");
@@ -461,7 +564,7 @@ export default function ReservasView({
 
   function cambiarHorarioManual(nuevoId: string) {
     setHorarioId(nuevoId);
-    const nuevo = manual?.horarios.find((h) => h.id === nuevoId);
+    const nuevo = horariosDisponibles.find((h) => h.id === nuevoId);
     if (nuevo && Number(cupos) > nuevo.cuposDisponibles) {
       setCupos(String(Math.max(1, nuevo.cuposDisponibles)));
     }
@@ -470,9 +573,14 @@ export default function ReservasView({
   async function handleManual(evento: React.FormEvent) {
     evento.preventDefault();
     if (!manual) return;
+    const idFinal = horarioId || horarioElegido?.id;
+    if (!idFinal) {
+      toast.error("Selecciona un horario disponible.");
+      return;
+    }
     setGuardando(true);
     const error = await manual.onCrear({
-      horarioId,
+      horarioId: idFinal,
       nombre: nombre.trim(),
       email: email.trim(),
       cupos: Number(cupos),
@@ -488,14 +596,24 @@ export default function ReservasView({
   }
 
   const horariosConCupo =
-    manual?.horarios.filter((h) => h.cuposDisponibles > 0) ?? [];
-  const horarioElegido = manual?.horarios.find((h) => h.id === horarioId);
+    horariosDisponibles.filter((h) => h.cuposDisponibles > 0);
+  const horarioElegido =
+    horariosDisponibles.find((h) => h.id === horarioId) ??
+    horariosDisponibles.find((h) => h.cuposDisponibles > 0) ??
+    horariosDisponibles[0];
   const maxCuposManual = Math.max(1, horarioElegido?.cuposDisponibles ?? 1);
   const cuposNum = Math.max(1, Number(cupos) || 1);
   const montoManualEstimado =
     horarioElegido?.precioUsd !== undefined
       ? horarioElegido.precioUsd * cuposNum
       : undefined;
+  const textoFechaHoraDetalle = horarioElegido
+    ? formatearDetalleHorario(
+        horarioElegido.fechaHora,
+        horarioElegido.duracionMin,
+        horarioElegido.label,
+      )
+    : "";
 
   const pestanas: { id: VistaRapida; etiqueta: string; conteo: number }[] = [
     { id: "todas", etiqueta: "Todas", conteo: reservas.length },
@@ -1251,15 +1369,13 @@ export default function ReservasView({
           onClose={cerrarDrawerManual}
           titulo="Reserva manual"
         >
-          {horariosConCupo.length === 0 ? (
+          {horariosDisponibles.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-(--marca-borde) bg-(--marca-fondo) p-5 text-center">
               <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-(--marca-texto) shadow-sm">
                 <Clock className="h-5 w-5" aria-hidden="true" />
               </div>
               <h3 className="mt-3 font-display text-sm font-bold text-vuki-ink">
-                {manual.horarios.length === 0
-                  ? "No tienes horarios futuros publicados"
-                  : "Todos tus horarios futuros están completos"}
+                No tienes horarios futuros publicados
               </h3>
               <p className="mt-1 text-xs leading-relaxed text-slate-600">
                 Para registrar una reserva manual primero necesitas un horario
@@ -1287,11 +1403,11 @@ export default function ReservasView({
                 <select
                   id="m-horario"
                   required
-                  value={horarioId}
+                  value={horarioId || horarioElegido?.id || ""}
                   onChange={(e) => cambiarHorarioManual(e.target.value)}
                   className={SELECT}
                 >
-                  {manual.horarios.map((h) => (
+                  {horariosDisponibles.map((h) => (
                     <option
                       key={h.id}
                       value={h.id}
@@ -1433,13 +1549,20 @@ export default function ReservasView({
 
               {horarioElegido && (
                 <div className="rounded-2xl border border-(--marca-borde) bg-(--marca-fondo) px-4 py-3 text-xs text-slate-700">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">
-                      {horarioElegido.servicio} · {cuposNum}{" "}
-                      {cuposNum === 1 ? "cupo" : "cupos"}
-                    </span>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-slate-900 truncate">
+                        {horarioElegido.servicio} · {cuposNum}{" "}
+                        {cuposNum === 1 ? "cupo" : "cupos"}
+                      </p>
+                      {textoFechaHoraDetalle && (
+                        <p className="mt-0.5 text-[11px] text-slate-600">
+                          {textoFechaHoraDetalle}
+                        </p>
+                      )}
+                    </div>
                     {montoManualEstimado !== undefined && (
-                      <span className="font-display text-sm font-bold text-vuki-ink">
+                      <span className="shrink-0 font-display text-sm font-bold text-vuki-ink">
                         {formatearPrecioUsd(montoManualEstimado)}
                       </span>
                     )}
@@ -1449,7 +1572,7 @@ export default function ReservasView({
 
               <motion.button
                 type="submit"
-                disabled={guardando || !horarioId}
+                disabled={guardando || !(horarioId || horarioElegido?.id)}
                 whileTap={{ scale: 0.97 }}
                 className="vuki-focus flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
