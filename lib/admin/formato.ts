@@ -60,3 +60,12 @@ export function celdaCsv(valor: unknown): string {
   if (/^[=+\-@\t\r]/.test(texto)) texto = `'${texto}`;
   return `"${texto.replace(/"/g, '""')}"`;
 }
+
+/** Retorna la cantidad formateada con la forma singular o plural según el valor. */
+export function pluralizar(
+  cantidad: number,
+  singular: string,
+  plural: string,
+): string {
+  return `${cantidad} ${cantidad === 1 ? singular : plural}`;
+}

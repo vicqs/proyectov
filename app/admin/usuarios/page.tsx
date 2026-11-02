@@ -133,7 +133,7 @@ export default async function UsuariosPage({
                 {rol ? (
                   <Insignia tono="azul">{ETIQUETA_ROL[rol]}</Insignia>
                 ) : (
-                  "Empresa"
+                  <Insignia tono="gris">Empresa</Insignia>
                 )}
               </Celda>
               <Celda>
@@ -144,7 +144,7 @@ export default async function UsuariosPage({
                 )}
               </Celda>
               <Celda className="whitespace-nowrap">{fechaHora(u.last_sign_in_at)}</Celda>
-              <Celda>
+              <Celda className="whitespace-nowrap">
                 {propio ? (
                   <span className="text-xs text-slate-400">Tu cuenta</span>
                 ) : protegido ? (
@@ -152,7 +152,7 @@ export default async function UsuariosPage({
                     Solo superadmin
                   </span>
                 ) : (
-                  <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 whitespace-nowrap">
                     <AccionForm
                       accion={bloquearUsuarioAction.bind(
                         null,
@@ -161,7 +161,8 @@ export default async function UsuariosPage({
                       )}
                       boton={p?.bloqueado ? "Desbloquear" : "Bloquear"}
                       variante={p?.bloqueado ? "neutro_sm" : "peligro_sutil"}
-                      tamano="sm"
+                      tamano="xs"
+                      claseBoton="text-xs px-2.5 py-1 whitespace-nowrap"
                       icono={
                         p?.bloqueado ? (
                           <ShieldCheck
@@ -182,7 +183,8 @@ export default async function UsuariosPage({
                       accion={cerrarSesionesAction.bind(null, u.id)}
                       boton="Cerrar sesiones"
                       variante="neutro_sm"
-                      tamano="sm"
+                      tamano="xs"
+                      claseBoton="text-xs px-2.5 py-1 whitespace-nowrap"
                       icono={
                         <LogOut
                           className="h-3.5 w-3.5 text-slate-500"
@@ -195,7 +197,8 @@ export default async function UsuariosPage({
                         accion={restablecerContrasenaAction.bind(null, u.id)}
                         boton="Contraseña temporal"
                         variante="neutro_sm"
-                        tamano="sm"
+                        tamano="xs"
+                        claseBoton="text-xs px-2.5 py-1 whitespace-nowrap"
                         icono={
                           <KeyRound
                             className="h-3.5 w-3.5 text-slate-500"

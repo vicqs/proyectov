@@ -26,7 +26,8 @@ interface Props {
   children?: React.ReactNode;
   boton: string;
   variante?: keyof typeof VARIANTES;
-  tamano?: "normal" | "sm";
+  tamano?: "normal" | "sm" | "xs";
+  claseBoton?: string;
   icono?: React.ReactNode;
   /** Pide confirmación antes de enviar (usa ConfirmDialog). */
   confirmar?: string;
@@ -48,6 +49,7 @@ export function AccionForm({
   boton,
   variante = "primario",
   tamano = "normal",
+  claseBoton = "",
   icono,
   confirmar,
   limpiarAlOk = false,
@@ -102,11 +104,11 @@ export function AccionForm({
         <button
           type="submit"
           disabled={pendiente || deshabilitado}
-          className={`whitespace-nowrap ${VARIANTES[variante]}`}
+          className={`whitespace-nowrap ${VARIANTES[variante]} ${tamano === "xs" ? "!min-h-0 text-xs !px-2.5 !py-1" : ""} ${claseBoton}`}
         >
           {pendiente ? (
             <Loader2
-              className={`${tamano === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} animate-spin shrink-0`}
+              className={`${tamano === "xs" ? "h-3 w-3" : tamano === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} animate-spin shrink-0`}
               aria-hidden="true"
             />
           ) : (

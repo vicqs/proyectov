@@ -19,7 +19,7 @@ import {
 } from "../../lib/admin/datos";
 import { tienePermiso } from "../../lib/roles";
 import { estadoEfectivo } from "../../lib/negocio-estado";
-import { fechaCorta, usd } from "../../lib/admin/formato";
+import { fechaCorta, pluralizar, usd } from "../../lib/admin/formato";
 import { esCobroPasarela } from "../../lib/pagos";
 import {
   Celda,
@@ -83,7 +83,7 @@ export default async function AdminResumenPage() {
           titulo="Negocios"
           icono={<Building2 className="h-4 w-4" />}
           valor={String(vivos.length)}
-          nota={`${nuevos30} nuevos en 30 días`}
+          nota={`${pluralizar(nuevos30, "nuevo", "nuevos")} en 30 días`}
           href="/admin/negocios"
         />
         <Estadistica
@@ -129,14 +129,14 @@ export default async function AdminResumenPage() {
           titulo="Reservas totales"
           icono={<CalendarCheck className="h-4 w-4" />}
           valor={String(reservas.length)}
-          nota={`${pagadas.length} pagadas`}
+          nota={pluralizar(pagadas.length, "pagada", "pagadas")}
           href="/admin/reservas"
         />
         <Estadistica
           titulo="Atención pendiente"
           icono={<LifeBuoy className="h-4 w-4" />}
           valor={String(atencion)}
-          nota={`${ticketsAbiertos} tickets · ${reportesPendientes} reportes · ${erroresSinResolver} errores`}
+          nota={`${pluralizar(ticketsAbiertos, "ticket", "tickets")} · ${pluralizar(reportesPendientes, "reporte", "reportes")} · ${pluralizar(erroresSinResolver, "error", "errores")}`}
           tono={atencion > 0 ? "malo" : "normal"}
           href="/admin/soporte?estado=abierto"
         />

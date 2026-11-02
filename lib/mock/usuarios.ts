@@ -52,27 +52,26 @@ export interface MockUsuario {
   last_sign_in_at: string;
 }
 
-const ARRANQUE = new Date().toISOString();
-
 function usuario(
   id: string,
   c: { correo: string; clave: string },
+  minutosAtras = 0,
 ): MockUsuario {
   return {
     id,
     email: c.correo,
     password: c.clave,
     created_at: "2026-01-15T12:00:00.000Z",
-    last_sign_in_at: ARRANQUE,
+    last_sign_in_at: new Date(Date.now() - minutosAtras * 60_000).toISOString(),
   };
 }
 
 /** Mutable: el administrador global puede invitar usuarios nuevos. */
 export const mockUsuarios: MockUsuario[] = [
-  usuario(MOCK_USER_ID, C1),
-  usuario(MOCK_USER_ID_2, C2),
-  usuario(MOCK_USER_ID_3, C3),
-  usuario(MOCK_ADMIN_ID, C4),
-  usuario(MOCK_FINANZAS_ID, C5),
-  usuario(MOCK_SOPORTE_ID, C6),
+  usuario(MOCK_USER_ID, C1, 1692),
+  usuario(MOCK_USER_ID_2, C2, 4715),
+  usuario(MOCK_USER_ID_3, C3, 7865),
+  usuario(MOCK_ADMIN_ID, C4, 14),
+  usuario(MOCK_FINANZAS_ID, C5, 198),
+  usuario(MOCK_SOPORTE_ID, C6, 42),
 ];

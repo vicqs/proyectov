@@ -3,7 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Ban, Check, Loader2, RotateCcw } from "lucide-react";
+import { Ban, Check, Copy, Loader2, RotateCcw } from "lucide-react";
+import { toast } from "../Toast";
 import {
   CLASE_BOTON_NEUTRO,
   CLASE_SELECT,
@@ -111,6 +112,21 @@ export function ReservasAdminClient({
   const [pendiente, iniciar] = useTransition();
   const [reservaParaReembolso, setReservaParaReembolso] =
     useState<ReservaParaReembolso | null>(null);
+  const [idCopiado, setIdCopiado] = useState<string | null>(null);
+
+  async function copiarId(id: string) {
+    if (typeof window === "undefined") return;
+    try {
+      await navigator.clipboard.writeText(id);
+      setIdCopiado(id);
+      toast.success("ID de reserva copiado al portapapeles");
+      window.setTimeout(() => {
+        setIdCopiado((actual) => (actual === id ? null : actual));
+      }, 2000);
+    } catch {
+      toast.error("No se pudo copiar el ID.");
+    }
+  }
 
   const vistaActiva =
     estadoInicial === "pagada"
@@ -279,12 +295,27 @@ export function ReservasAdminClient({
           <tr key={r.id}>
             <Celda>
               <p className="font-medium text-slate-800">{r.fechaHora}</p>
-              <p
-                className="mt-0.5 font-mono text-[11px] text-slate-400 select-all"
-                title="ID de reserva"
-              >
-                {r.id.slice(0, 13)}...
-              </p>
+              <div className="mt-0.5 flex items-center gap-1.5">
+                <span
+                  className="font-mono text-[11px] text-slate-400 select-all"
+                  title={`ID completo: ${r.id}`}
+                >
+                  {r.id.slice(0, 8)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void copiarId(r.id)}
+                  title={idCopiado === r.id ? "¡Copiado!" : "Copiar ID completo"}
+                  aria-label={`Copiar ID de reserva ${r.id}`}
+                  className="vuki-focus inline-flex h-5 w-5 items-center justify-center rounded text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                >
+                  {idCopiado === r.id ? (
+                    <Check className="h-3 w-3 text-emerald-600" aria-hidden="true" />
+                  ) : (
+                    <Copy className="h-3 w-3" aria-hidden="true" />
+                  )}
+                </button>
+              </div>
             </Celda>
             <Celda>
               <Link
@@ -299,7 +330,7 @@ export function ReservasAdminClient({
               <p className="text-slate-800">{r.emailCliente}</p>
               {r.trxId && (
                 <p className="text-xs text-slate-400 font-mono">
-                  {r.esPagoManual ? "Pago manual" : `trx ${r.trxId}`}
+                  {r.esPagoManual ? "Pago manual" : r.trxId}
                 </p>
               )}
             </Celda>
