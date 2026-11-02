@@ -38,6 +38,8 @@ interface Props {
   /** Deshabilita el botón (p. ej. cuando no hay nada que procesar). */
   deshabilitado?: boolean;
   className?: string;
+  /** Elementos a colocar en la fila inferior junto al botón (a la izquierda del botón). */
+  pie?: React.ReactNode;
 }
 
 const ESTADO_INICIAL: ResultadoAccion = {};
@@ -56,6 +58,7 @@ export function AccionForm({
   enLinea = false,
   deshabilitado = false,
   className = "",
+  pie,
 }: Props) {
   const [estado, enviar, pendiente] = useActionState(accion, ESTADO_INICIAL);
   const [dialogoAbierto, setDialogoAbierto] = useState(false);
@@ -92,30 +95,41 @@ export function AccionForm({
     ref.current?.requestSubmit();
   }
 
+  const botonElemento = (
+    <button
+      type="submit"
+      disabled={pendiente || deshabilitado}
+      className={`whitespace-nowrap ${VARIANTES[variante]} ${tamano === "xs" ? "!min-h-0 text-xs !px-2.5 !py-1" : ""} ${claseBoton}`}
+    >
+      {pendiente ? (
+        <Loader2
+          className={`${tamano === "xs" ? "h-3 w-3" : tamano === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} animate-spin shrink-0`}
+          aria-hidden="true"
+        />
+      ) : (
+        icono && <span className="shrink-0">{icono}</span>
+      )}
+      <span>{boton}</span>
+    </button>
+  );
+
   return (
     <>
       <form
         ref={ref}
         action={enviar}
         onSubmit={alEnviar}
-        className={`${enLinea ? "flex flex-wrap items-end gap-2" : "space-y-3"} ${className}`}
+        className={`${enLinea ? "flex flex-wrap items-end gap-2" : "space-y-4"} ${className}`}
       >
         {children}
-        <button
-          type="submit"
-          disabled={pendiente || deshabilitado}
-          className={`whitespace-nowrap ${VARIANTES[variante]} ${tamano === "xs" ? "!min-h-0 text-xs !px-2.5 !py-1" : ""} ${claseBoton}`}
-        >
-          {pendiente ? (
-            <Loader2
-              className={`${tamano === "xs" ? "h-3 w-3" : tamano === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} animate-spin shrink-0`}
-              aria-hidden="true"
-            />
-          ) : (
-            icono && <span className="shrink-0">{icono}</span>
-          )}
-          <span>{boton}</span>
-        </button>
+        {pie ? (
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between border-t border-slate-100">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">{pie}</div>
+            <div className="flex shrink-0 items-center justify-end">{botonElemento}</div>
+          </div>
+        ) : (
+          botonElemento
+        )}
       </form>
 
       {confirmar && (

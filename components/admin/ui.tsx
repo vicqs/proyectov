@@ -221,27 +221,47 @@ export function Insignia({
   );
 }
 
+export type ColumnaTabla =
+  | string
+  | {
+      nombre: string;
+      className?: string;
+    };
+
 export function Tabla({
   columnas,
   children,
   vacio = "Sin resultados.",
   vacia = false,
+  className = "",
+  tableClassName = "min-w-[44rem]",
 }: {
-  columnas: string[];
+  columnas: ColumnaTabla[];
   children: React.ReactNode;
   vacio?: string;
   vacia?: boolean;
+  className?: string;
+  tableClassName?: string;
 }) {
   return (
-    <div className="min-w-0 max-w-full overflow-x-auto rounded-2xl border border-sky-100 bg-white shadow-sm shadow-slate-900/[0.02]">
-      <table className="w-full min-w-[44rem] text-left text-sm">
+    <div
+      className={`min-w-0 max-w-full overflow-x-auto rounded-2xl border border-sky-100 bg-white shadow-sm shadow-slate-900/[0.02] ${className}`}
+    >
+      <table className={`w-full text-left text-sm ${tableClassName}`}>
         <thead className="border-b border-sky-100 bg-sky-50/70 text-xs uppercase tracking-wider text-slate-600">
           <tr>
-            {columnas.map((c) => (
-              <th key={c} className="whitespace-nowrap px-4 py-3 font-semibold">
-                {c}
-              </th>
-            ))}
+            {columnas.map((c, i) => {
+              const nombre = typeof c === "string" ? c : c.nombre;
+              const cl = typeof c === "object" ? c.className ?? "" : "";
+              return (
+                <th
+                  key={typeof c === "string" ? (c || `col-${i}`) : `${c.nombre || "col"}-${i}`}
+                  className={`whitespace-nowrap px-4 py-3 font-semibold ${cl}`}
+                >
+                  {nombre}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 text-slate-700 [&>tr]:transition-colors [&>tr:hover]:bg-sky-50/50">

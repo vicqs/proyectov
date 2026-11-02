@@ -33,6 +33,9 @@ export default function Drawer({
   useEffect(() => {
     if (!abierto) return;
     const anterior = document.activeElement as HTMLElement | null;
+    const scrollAnterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
     const enfoque = window.setTimeout(() => {
       panelRef.current
         ?.querySelector<HTMLElement>(
@@ -45,6 +48,7 @@ export default function Drawer({
     }
     document.addEventListener("keydown", alPresionarTecla);
     return () => {
+      document.body.style.overflow = scrollAnterior;
       window.clearTimeout(enfoque);
       document.removeEventListener("keydown", alPresionarTecla);
       anterior?.focus?.();
@@ -77,7 +81,7 @@ export default function Drawer({
               damping: 32,
               mass: 0.8,
             }}
-            className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-white shadow-2xl"
+            className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-white shadow-2xl whitespace-normal"
           >
             <motion.div
               initial={{ opacity: 0, y: 8 }}

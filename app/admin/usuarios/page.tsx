@@ -152,7 +152,7 @@ export default async function UsuariosPage({
                     Solo superadmin
                   </span>
                 ) : (
-                  <div className="flex items-center gap-1.5 whitespace-nowrap">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <AccionForm
                       accion={bloquearUsuarioAction.bind(
                         null,

@@ -1,6 +1,6 @@
 import { requerirAdmin } from "../../../lib/admin/auth";
 import { leer } from "../../../lib/admin/db";
-import { fechaHora } from "../../../lib/admin/formato";
+import { fechaHora, parametro } from "../../../lib/admin/formato";
 import { estadoEfectivo } from "../../../lib/negocio-estado";
 import {
   alternarAnuncioAction,
@@ -9,6 +9,7 @@ import {
   enviarComunicadoAction,
 } from "../../../actions/admin/comunicacion";
 import { AccionForm } from "../../../components/admin/AccionForm";
+import { ComunicacionTabs } from "../../../components/admin/ComunicacionTabs";
 import {
   CLASE_INPUT,
   CLASE_SELECT,
@@ -34,8 +35,16 @@ const ETIQUETAS_SEVERIDAD: Record<string, string> = {
   critico: "Crítico",
 };
 
-export default async function ComunicacionPage() {
+export default async function ComunicacionPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requerirAdmin("comunicacion");
+  const sp = searchParams ? await searchParams : {};
+  const tabParam = parametro(sp?.tab);
+  const tabInicial = tabParam === "comunicados" ? "comunicados" : "anuncios";
+
   const [anuncios, comunicados, negocios] = await Promise.all([
     leer("anuncios").catch(() => []),
     leer("comunicados").catch(() => []),
@@ -74,11 +83,8 @@ export default async function ComunicacionPage() {
     </>
   );
 
-  return (
-    <PaginaAdmin
-      titulo="Comunicación"
-      descripcion="Anuncios dentro del panel de empresa y correos masivos."
-    >
+  const anunciosContent = (
+    <div className="space-y-6">
       <Tarjeta
         titulo="Nuevo anuncio"
         descripcion="Se muestra en el panel de las empresas del segmento hasta que expire o lo desactives."
@@ -184,7 +190,11 @@ export default async function ComunicacionPage() {
           </tr>
         ))}
       </Tabla>
+    </div>
+  );
 
+  const comunicadosContent = (
+    <div className="space-y-6">
       <Tarjeta
         titulo="Enviar comunicado por correo"
         descripcion="Texto plano al dueño de cada negocio del segmento (máximo 200 negocios por envío)."
@@ -255,6 +265,21 @@ export default async function ComunicacionPage() {
           ))}
         </Tabla>
       </Tarjeta>
+    </div>
+  );
+
+  return (
+    <PaginaAdmin
+      titulo="Comunicación"
+      descripcion="Anuncios dentro del panel de empresa y correos masivos."
+    >
+      <ComunicacionTabs
+        tabInicial={tabInicial}
+        conteoAnuncios={ordenados.length}
+        conteoComunicados={comunicados.length}
+        anunciosContent={anunciosContent}
+        comunicadosContent={comunicadosContent}
+      />
     </PaginaAdmin>
   );
 }

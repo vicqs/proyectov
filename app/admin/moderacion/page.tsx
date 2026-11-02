@@ -104,13 +104,22 @@ export default async function ModeracionPage({
                   "—"
                 )}
                 {n && (
-                  <p className="text-xs">
+                  <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
                     <Link
                       href={`/${n.slug}`}
                       target="_blank"
                       className="text-slate-400 hover:text-sky-700 hover:underline"
                     >
                       Ver perfil público ↗
+                    </Link>
+                    <span className="text-slate-300" aria-hidden="true">
+                      ·
+                    </span>
+                    <Link
+                      href={`/admin/negocios/${n.id}`}
+                      className="font-medium text-sky-700 hover:underline"
+                    >
+                      {"Abrir ficha ->"}
                     </Link>
                   </p>
                 )}

@@ -87,6 +87,7 @@ export const mockNegocios: Negocio[] = [
     imagen_portada_url: null,
     estado_suscripcion: "activa",
     stripe_customer_id: "mock_cus_kayak",
+    proximo_cobro: "2026-12-03T12:00:00.000Z",
     creado_en: enDias(-60),
   },
   {

@@ -98,7 +98,7 @@ export default async function SoportePage({
         </select>
       </FiltrosGet>
       <Tabla
-        columnas={["Asunto", "Negocio", "Estado", "Prioridad", "Actualizado"]}
+        columnas={["Asunto", "Negocio", "Estado", "Prioridad", "Actualizado", ""]}
         vacia={pag.filas.length === 0}
       >
         {pag.filas.map((t) => (
@@ -123,6 +123,14 @@ export default async function SoportePage({
               </Insignia>
             </Celda>
             <Celda>{fechaHora(t.actualizado_en)}</Celda>
+            <Celda className="text-right whitespace-nowrap">
+              <Link
+                href={`/admin/soporte/${t.id}`}
+                className="font-medium text-sky-700 hover:underline"
+              >
+                {"Atender ->"}
+              </Link>
+            </Celda>
           </tr>
         ))}
       </Tabla>

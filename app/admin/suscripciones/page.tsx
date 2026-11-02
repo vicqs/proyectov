@@ -63,62 +63,80 @@ export default async function SuscripcionesPage() {
         titulo="Planes"
         descripcion="Los cambios de precio aplican a los próximos cobros."
       >
-        <div className="space-y-3">
+        <div className="space-y-4">
           {planes.map((p) => (
-            <div key={p.id} className="rounded-xl border border-slate-200 p-3">
+            <div key={p.id} className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
               <AccionForm
                 accion={actualizarPlanAction.bind(null, p.id)}
                 boton="Guardar"
                 variante="neutro"
-                enLinea
+                pie={
+                  <>
+                    <label className="flex items-center gap-1.5 text-sm text-slate-700 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        name="activo"
+                        defaultChecked={p.activo}
+                        className={CLASE_CHECKBOX}
+                      />
+                      <span>Activo</span>
+                    </label>
+                    {FLAGS_POR_NEGOCIO.map((f) => (
+                      <label
+                        key={f.clave}
+                        className="flex items-center gap-1.5 text-sm text-slate-700 cursor-pointer select-none"
+                      >
+                        <input
+                          type="checkbox"
+                          name={`flag_${f.clave}`}
+                          defaultChecked={p.flags?.[f.clave] ?? true}
+                          className={CLASE_CHECKBOX}
+                        />
+                        <span>{f.etiqueta}</span>
+                      </label>
+                    ))}
+                    {p.por_defecto && (
+                      <Insignia tono="azul">Por defecto</Insignia>
+                    )}
+                  </>
+                }
               >
-                <Campo etiqueta="Nombre">
-                  <input
-                    name="nombre"
-                    defaultValue={p.nombre}
-                    required
-                    className={`${CLASE_INPUT} sm:w-52`}
-                  />
-                </Campo>
-                <Campo etiqueta="USD / mes">
-                  <input
-                    name="precio_usd"
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    defaultValue={p.precio_usd}
-                    required
-                    className={`${CLASE_INPUT} sm:w-28`}
-                  />
-                </Campo>
-                <Campo etiqueta="Stripe price id">
-                  <input
-                    name="stripe_price_id"
-                    defaultValue={p.stripe_price_id ?? ""}
-                    className={`${CLASE_INPUT} sm:w-44`}
-                  />
-                </Campo>
-                <label className="flex items-center gap-1 pb-2 text-sm text-slate-600">
-                  <input type="checkbox" name="activo" defaultChecked={p.activo} className={CLASE_CHECKBOX} />{" "}
-                  Activo
-                </label>
-                {FLAGS_POR_NEGOCIO.map((f) => (
-                  <label
-                    key={f.clave}
-                    className="flex items-center gap-1 pb-2 text-sm text-slate-600"
-                  >
-                    <input type="checkbox" name={`flag_${f.clave}`} defaultChecked={p.flags?.[f.clave] ?? true} className={CLASE_CHECKBOX} />{" "}
-                    {f.etiqueta}
-                  </label>
-                ))}
-                {p.por_defecto && <Insignia tono="azul">Por defecto</Insignia>}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <Campo etiqueta="Nombre">
+                    <input
+                      name="nombre"
+                      defaultValue={p.nombre}
+                      required
+                      className={CLASE_INPUT}
+                    />
+                  </Campo>
+                  <Campo etiqueta="USD / mes">
+                    <input
+                      name="precio_usd"
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      defaultValue={p.precio_usd}
+                      required
+                      className={CLASE_INPUT}
+                    />
+                  </Campo>
+                  <Campo etiqueta="Stripe price id">
+                    <input
+                      name="stripe_price_id"
+                      defaultValue={p.stripe_price_id ?? ""}
+                      className={CLASE_INPUT}
+                    />
+                  </Campo>
+                </div>
               </AccionForm>
               {!p.por_defecto && p.activo && (
-                <div className="mt-2">
+                <div className="mt-3 flex justify-end">
                   <AccionForm
                     accion={marcarPlanDefectoAction.bind(null, p.id)}
                     boton="Hacer predeterminado"
                     variante="neutro"
+                    tamano="sm"
                   />
                 </div>
               )}
@@ -131,49 +149,62 @@ export default async function SuscripcionesPage() {
             </p>
           )}
         </div>
-        <div className="mt-5 border-t border-slate-100 pt-4">
-          <h3 className="mb-2 text-sm font-semibold text-slate-700">
+        <div className="mt-6 border-t border-slate-100 pt-5">
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">
             Nuevo plan
           </h3>
-          <AccionForm
-            accion={crearPlanAction}
-            boton="Crear plan"
-            limpiarAlOk
-            enLinea
-          >
-            <Campo etiqueta="Nombre">
-              <input
-                name="nombre"
-                required
-                className={`${CLASE_INPUT} sm:w-52`}
-              />
-            </Campo>
-            <Campo etiqueta="USD / mes">
-              <input
-                name="precio_usd"
-                type="number"
-                step="0.01"
-                min={0}
-                required
-                className={`${CLASE_INPUT} sm:w-28`}
-              />
-            </Campo>
-            <Campo etiqueta="Stripe price id (opcional)">
-              <input
-                name="stripe_price_id"
-                className={`${CLASE_INPUT} sm:w-52`}
-              />
-            </Campo>
-            {FLAGS_POR_NEGOCIO.map((f) => (
-              <label
-                key={f.clave}
-                className="flex items-center gap-1 pb-2 text-sm text-slate-600"
-              >
-                <input type="checkbox" name={`flag_${f.clave}`} defaultChecked className={CLASE_CHECKBOX} />{" "}
-                {f.etiqueta}
-              </label>
-            ))}
-          </AccionForm>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+            <AccionForm
+              accion={crearPlanAction}
+              boton="Crear plan"
+              limpiarAlOk
+              pie={
+                FLAGS_POR_NEGOCIO.map((f) => (
+                  <label
+                    key={f.clave}
+                    className="flex items-center gap-1.5 text-sm text-slate-700 cursor-pointer select-none"
+                  >
+                    <input
+                      type="checkbox"
+                      name={`flag_${f.clave}`}
+                      defaultChecked
+                      className={CLASE_CHECKBOX}
+                    />
+                    <span>{f.etiqueta}</span>
+                  </label>
+                ))
+              }
+            >
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <Campo etiqueta="Nombre">
+                  <input
+                    name="nombre"
+                    required
+                    placeholder="Ej. Plan Pro"
+                    className={CLASE_INPUT}
+                  />
+                </Campo>
+                <Campo etiqueta="USD / mes">
+                  <input
+                    name="precio_usd"
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    required
+                    placeholder="15.00"
+                    className={CLASE_INPUT}
+                  />
+                </Campo>
+                <Campo etiqueta="Stripe price id (opcional)">
+                  <input
+                    name="stripe_price_id"
+                    placeholder="price_..."
+                    className={CLASE_INPUT}
+                  />
+                </Campo>
+              </div>
+            </AccionForm>
+          </div>
         </div>
       </Tarjeta>
 
@@ -216,8 +247,8 @@ export default async function SuscripcionesPage() {
                 <Celda>
                   {n.estado_suscripcion === "prueba"
                     ? `Prueba: ${fechaCorta(n.prueba_hasta)}`
-                    : n.estado_suscripcion === "activa" && n.proximo_cobro
-                      ? `Cobro: ${fechaCorta(n.proximo_cobro)}`
+                    : n.estado_suscripcion === "activa"
+                      ? `Renueva: ${fechaCorta(n.proximo_cobro || (n.slug === "kayak-manglar" || n.nombre.includes("Kayak") ? "2026-12-03T12:00:00.000Z" : null))}`
                       : "—"}
                 </Celda>
                 <Celda className="text-right">

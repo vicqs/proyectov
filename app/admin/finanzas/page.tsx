@@ -7,7 +7,8 @@ import {
   indexar,
   montoReserva,
 } from "../../../lib/admin/datos";
-import { fechaHora, usd } from "../../../lib/admin/formato";
+import { fechaHora, pluralizar, usd } from "../../../lib/admin/formato";
+import { estadoEfectivo } from "../../../lib/negocio-estado";
 import { esCobroPasarela, esTrxPasarela } from "../../../lib/pagos";
 import {
   CLASE_BOTON_NEUTRO,
@@ -24,6 +25,12 @@ export default async function FinanzasAdminPage() {
   const reembolsos = await leer("reembolsos").catch(() => []);
 
   const vivos = negocios.filter((n) => !n.eliminado_en);
+  const activas = vivos.filter((n) => estadoEfectivo(n) === "activa").length;
+  const enPrueba = vivos.filter((n) => estadoEfectivo(n) === "prueba").length;
+  const notaMrr =
+    activas === 1 && enPrueba === 1
+      ? "1 suscripción activa · 1 en prueba"
+      : `${pluralizar(activas, "suscripción activa", "suscripciones activas")} · ${enPrueba} en prueba`;
   const idx = indexar(servicios);
   const nombreNegocio = new Map(negocios.map((n) => [n.id, n.nombre]));
   const pagadas = reservas.filter(esCobroPasarela);
@@ -121,7 +128,7 @@ export default async function FinanzasAdminPage() {
           titulo="MRR"
           valor={usd(mrr)}
           tono="bueno"
-          nota="Suscripciones activas con descuento"
+          nota={notaMrr}
         />
         <Estadistica titulo="ARR estimado" valor={usd(mrr * 12)} />
         <Estadistica
@@ -140,28 +147,52 @@ export default async function FinanzasAdminPage() {
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Tarjeta titulo="Volumen por mes">
-          <Tabla columnas={["Mes", "Volumen"]} vacia={meses.length === 0}>
+          <Tabla
+            columnas={[
+              "Mes",
+              {
+                nombre: "Volumen",
+                className: "text-right pr-4 whitespace-nowrap",
+              },
+            ]}
+            tableClassName="w-full table-fixed"
+            vacia={meses.length === 0}
+          >
             {meses.map(([mes, monto]) => (
               <tr key={mes}>
                 <Celda>{mes}</Celda>
-                <Celda>{usd(monto)}</Celda>
+                <Celda className="text-right pr-4 whitespace-nowrap">
+                  {usd(monto)}
+                </Celda>
               </tr>
             ))}
           </Tabla>
         </Tarjeta>
         <Tarjeta titulo="Top negocios por volumen">
-          <Tabla columnas={["Negocio", "Volumen"]} vacia={top.length === 0}>
+          <Tabla
+            columnas={[
+              "Negocio",
+              {
+                nombre: "Volumen",
+                className: "text-right pr-4 whitespace-nowrap",
+              },
+            ]}
+            tableClassName="w-full table-fixed"
+            vacia={top.length === 0}
+          >
             {top.map(([id, monto]) => (
               <tr key={id}>
-                <Celda>
+                <Celda className="truncate">
                   <Link
                     href={`/admin/negocios/${id}`}
-                    className="text-sky-700 hover:underline"
+                    className="block truncate text-sky-700 hover:underline"
                   >
                     {nombreNegocio.get(id) ?? id}
                   </Link>
                 </Celda>
-                <Celda>{usd(monto)}</Celda>
+                <Celda className="text-right pr-4 whitespace-nowrap">
+                  {usd(monto)}
+                </Celda>
               </tr>
             ))}
           </Tabla>
@@ -174,7 +205,7 @@ export default async function FinanzasAdminPage() {
         descripcion="Reservas cuyo estado no coincide con su pago o reembolso."
       >
         <Tabla
-          columnas={["Negocio", "Reserva", "Fecha", "Problema"]}
+          columnas={["Negocio", "Reserva", "Fecha", "Problema", ""]}
           vacia={discrepancias.length === 0}
           vacio="Sin discrepancias."
         >
@@ -192,6 +223,14 @@ export default async function FinanzasAdminPage() {
               </Celda>
               <Celda>{fechaHora(d.fecha)}</Celda>
               <Celda>{d.problema}</Celda>
+              <Celda className="text-right whitespace-nowrap">
+                <Link
+                  href="/admin/reservas"
+                  className="font-medium text-sky-700 hover:underline"
+                >
+                  {"Revisar reserva ->"}
+                </Link>
+              </Celda>
             </tr>
           ))}
         </Tabla>
