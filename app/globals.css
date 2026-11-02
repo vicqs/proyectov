@@ -164,6 +164,11 @@ select.vuki-input-sm:active {
   padding-left: 2.25rem !important;
 }
 
+/* Inputs con prefijo de moneda ($) */
+.vuki-input-currency {
+  padding-left: 2.125rem !important;
+}
+
 .vuki-textarea {
   @apply vuki-focus w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-base sm:text-sm font-normal text-slate-900 placeholder:font-normal placeholder:text-slate-400 shadow-xs transition hover:border-slate-400 focus:border-sky-500 focus:bg-white focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 resize-y;
 }

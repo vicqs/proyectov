@@ -451,7 +451,7 @@ export default function SoporteEmpresaClient({
                             ? "Enviar respuesta"
                             : "Responder y reabrir ticket"
                         }
-                        variante="neutro"
+                        variante="primario"
                         limpiarAlOk
                       >
                         <div>

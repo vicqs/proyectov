@@ -604,7 +604,7 @@ export default function ServiciosView({
                 <div className="relative">
                   <span
                     aria-hidden="true"
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400"
+                    className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400 select-none"
                   >
                     $
                   </span>
@@ -620,7 +620,7 @@ export default function ServiciosView({
                       setForm({ ...form, precioUsd: e.target.value })
                     }
                     placeholder="35.00"
-                    className={`${INPUT} pl-7`}
+                    className={`${INPUT} !pl-8.5`}
                   />
                 </div>
               </div>

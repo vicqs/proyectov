@@ -138,10 +138,12 @@ export default function ParColoresMarca({
             Panel: sección activa
           </span>
           <span
-            className="rounded-full px-4 py-1.5 text-xs font-semibold shadow-sm"
+            className={`rounded-full px-4 py-1.5 text-xs font-semibold shadow-sm ${
+              textoSobre(primario) === "#ffffff" ? "text-white" : "text-slate-900"
+            }`}
             style={{ background: degradado, color: textoSobre(primario) }}
           >
-            Botón reservar · $35.00
+            Botón reserva · $45.00
           </span>
         </div>
       </div>

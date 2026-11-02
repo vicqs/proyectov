@@ -46,7 +46,7 @@ function ratio(l1: number, l2: number): number {
 export function textoSobre(hex: string): "#ffffff" | "#0f172a" {
   if (!esHex(hex)) return "#ffffff";
   const l = luminancia(hex);
-  return ratio(l, 1) >= ratio(l, luminancia("#0f172a")) ? "#ffffff" : "#0f172a";
+  return l < 0.35 ? "#ffffff" : "#0f172a";
 }
 
 /** Mejor ratio de contraste (1–21) alcanzable con texto blanco u oscuro sobre `hex`. */

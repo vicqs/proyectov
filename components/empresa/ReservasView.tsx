@@ -427,6 +427,12 @@ export default function ReservasView({
 
   async function handleCancelar() {
     if (!porCancelar || !onCancelar || cancelando) return;
+    const ctx = contextoTemporal(porCancelar.fechaIso, hoyClave, ahoraMs);
+    if (ctx.etiqueta === "Pasada") {
+      toast.error("No se puede cancelar una reserva cuya salida ya ocurrió.");
+      setPorCancelar(null);
+      return;
+    }
     setCancelando(true);
     const error = await onCancelar(porCancelar.id);
     setCancelando(false);
@@ -514,8 +520,25 @@ export default function ReservasView({
       : []),
   ];
 
-  const botonCancelar = (reserva: VistaReserva) =>
-    onCancelar && reserva.estado !== "cancelada" ? (
+  const botonCancelar = (reserva: VistaReserva) => {
+    if (!onCancelar || reserva.estado === "cancelada") return null;
+
+    const ctx = contextoTemporal(reserva.fechaIso, hoyClave, ahoraMs);
+    const esPasada = ctx.etiqueta === "Pasada";
+
+    if (esPasada) {
+      return (
+        <span
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-500"
+          title="La salida ya ocurrió, esta reserva no se puede cancelar"
+        >
+          <Check className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+          Finalizada
+        </span>
+      );
+    }
+
+    return (
       <button
         type="button"
         onClick={() => setPorCancelar(reserva)}
@@ -525,7 +548,8 @@ export default function ReservasView({
         <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
         Cancelar
       </button>
-    ) : null;
+    );
+  };
 
   const descripcionCancelacion = porCancelar
     ? (() => {
@@ -803,24 +827,30 @@ export default function ReservasView({
               )}
 
               <div className="grid grid-cols-2 gap-2 sm:col-span-2 lg:col-span-2">
-                <input
-                  type="date"
-                  aria-label="Desde fecha"
-                  title="Desde fecha"
-                  value={desde}
-                  max={hasta || undefined}
-                  onChange={(e) => setDesde(e.target.value)}
-                  className="vuki-focus min-h-10 min-w-0 rounded-xl border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-sky-500 sm:text-sm"
-                />
-                <input
-                  type="date"
-                  aria-label="Hasta fecha"
-                  title="Hasta fecha"
-                  value={hasta}
-                  min={desde || undefined}
-                  onChange={(e) => setHasta(e.target.value)}
-                  className="vuki-focus min-h-10 min-w-0 rounded-xl border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-sky-500 sm:text-sm"
-                />
+                <label className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-slate-600">
+                  <span className="shrink-0">Desde</span>
+                  <input
+                    type="date"
+                    aria-label="Desde fecha"
+                    title="Desde fecha"
+                    value={desde}
+                    max={hasta || undefined}
+                    onChange={(e) => setDesde(e.target.value)}
+                    className="vuki-focus min-h-10 min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-sky-500 sm:text-sm"
+                  />
+                </label>
+                <label className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-slate-600">
+                  <span className="shrink-0">Hasta</span>
+                  <input
+                    type="date"
+                    aria-label="Hasta fecha"
+                    title="Hasta fecha"
+                    value={hasta}
+                    min={desde || undefined}
+                    onChange={(e) => setHasta(e.target.value)}
+                    className="vuki-focus min-h-10 min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-sky-500 sm:text-sm"
+                  />
+                </label>
               </div>
             </div>
 

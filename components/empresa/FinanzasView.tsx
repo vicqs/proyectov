@@ -931,7 +931,7 @@ export default function FinanzasView({
                         <th className="px-4 py-3.5 whitespace-nowrap">
                           Fecha del servicio
                         </th>
-                        <th className="px-4 py-3.5">Servicio</th>
+                        <th className="min-w-[160px] px-4 py-3.5">Servicio</th>
                         <th className="px-4 py-3.5">Cliente</th>
                         <th className="px-4 py-3.5 text-right whitespace-nowrap">
                           Impuestos
@@ -979,13 +979,13 @@ export default function FinanzasView({
                               )}
                             </td>
 
-                            <td className="px-4 py-3.5">
+                            <td className="min-w-[160px] px-4 py-3.5">
                               <p className="font-medium text-slate-800">
                                 {pago.service_name}
                               </p>
                               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                                 {pago.cupos !== undefined && (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-slate-600">
                                     <Users
                                       className="h-3 w-3"
                                       aria-hidden="true"
@@ -1064,19 +1064,24 @@ export default function FinanzasView({
                             </td>
 
                             <td className="px-4 py-3.5 text-right whitespace-nowrap font-medium text-slate-800">
-                              {formatoMoneda(pago.gross_amount, pago.currency)}
+                              <span className="whitespace-nowrap">
+                                {formatoMoneda(pago.gross_amount, pago.currency)}
+                              </span>
                             </td>
 
                             <td className="px-4 py-3.5 text-right whitespace-nowrap text-xs text-slate-500">
-                              −
-                              {formatoMoneda(
-                                pago.gateway_fee_amount,
-                                pago.currency,
-                              )}
+                              <span className="whitespace-nowrap">
+                                −{formatoMoneda(
+                                  pago.gateway_fee_amount,
+                                  pago.currency,
+                                )}
+                              </span>
                             </td>
 
                             <td className="px-4 py-3.5 text-right whitespace-nowrap font-display font-bold text-emerald-800">
-                              {formatoMoneda(pago.net_amount, pago.currency)}
+                              <span className="whitespace-nowrap">
+                                {formatoMoneda(pago.net_amount, pago.currency)}
+                              </span>
                             </td>
 
                             {/* Nueva columna HACIENDA / FACTURA (al final de la fila) */}
@@ -1178,7 +1183,7 @@ export default function FinanzasView({
                           </div>
 
                           {pago.cupos !== undefined && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px]">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] whitespace-nowrap">
                               <Users className="h-3 w-3" aria-hidden="true" />
                               {pago.cupos}{" "}
                               {pago.cupos === 1 ? "persona" : "personas"}
