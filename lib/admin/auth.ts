@@ -9,7 +9,11 @@ import { tienePermiso, type Permiso } from "../roles";
 
 export type Admin = { user: User; email: string; rol: RolAdmin };
 
-export type ResultadoAccion = { ok?: string; error?: string };
+export type ResultadoAccion = {
+  ok?: string;
+  error?: string;
+  negocio?: unknown;
+};
 
 /** Correos con acceso de superadministrador desde el entorno (bootstrap inicial). */
 function correosGlobales(): string[] {

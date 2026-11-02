@@ -18,14 +18,23 @@ import {
   obtenerConfiguracion,
 } from "../../../../lib/plataforma";
 import { estadoEfectivo } from "../../../../lib/negocio-estado";
+import { cuposOcupados } from "../../../../lib/horarios";
 import { facturasPendientes } from "../../../../lib/facturas-pendientes";
 import { esCobroPasarela } from "../../../../lib/pagos";
+import {
+  Briefcase,
+  CalendarCheck,
+  CreditCard,
+  TrendingUp,
+} from "lucide-react";
 import {
   fechaCorta,
   fechaHora,
   parametro,
+  pluralizar,
   usd,
 } from "../../../../lib/admin/formato";
+import { BotonCopiar } from "../../../../components/admin/BotonCopiar";
 import {
   agregarNotaAction,
   cambiarSlugAction,
@@ -168,6 +177,23 @@ function SinAcceso() {
 
 type NegocioFila = FilaDe<"negocios">;
 
+function formatearIban(iban: string): string {
+  if (!iban) return "—";
+  const limpio = iban.replace(/\s+/g, "").toUpperCase();
+  return limpio.match(/.{1,4}/g)?.join(" ") ?? limpio;
+}
+
+function formatearDuracionServicio(minutos: number): string {
+  if (!Number.isFinite(minutos) || minutos <= 0) return "—";
+  if (minutos < 60) return `${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+  if (resto === 0) {
+    return `${horas}h (${minutos} min)`;
+  }
+  return `${horas}h ${resto}m (${minutos} min)`;
+}
+
 async function Resumen({
   negocio,
   ownerEmail,
@@ -186,60 +212,147 @@ async function Resumen({
     .filter(esCobroPasarela)
     .reduce((a, r) => a + montoReserva(r, idx), 0);
   const precio = calcularPrecio(negocio, planes);
+  const estado = estadoEfectivo(negocio);
+  const etiquetaSuscripcion =
+    estado === "prueba"
+      ? "En prueba"
+      : estado === "activa"
+        ? "Activa"
+        : "Inactiva";
 
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Estadistica titulo="Servicios" valor={String(servicios.length)} />
+        <Estadistica
+          titulo="Servicios"
+          icono={<Briefcase className="h-4 w-4" />}
+          valor={String(servicios.length)}
+          nota={pluralizar(servicios.length, "servicio", "servicios")}
+        />
         <Estadistica
           titulo="Reservas"
+          icono={<CalendarCheck className="h-4 w-4" />}
           valor={String(reservas.length)}
-          nota={`${pagadas.length} pagadas`}
+          nota={pluralizar(pagadas.length, "pagada", "pagadas")}
           href={`/admin/reservas?negocio=${negocio.id}`}
         />
         <Estadistica
           titulo="Volumen cobrado"
+          icono={<TrendingUp className="h-4 w-4" />}
           valor={usd(ingresos)}
           tono="bueno"
           href="/admin/finanzas"
         />
         <Estadistica
           titulo="Cuota mensual"
+          icono={<CreditCard className="h-4 w-4" />}
           valor={usd(precio.precio)}
           nota={`${precio.plan.nombre}${precio.descuentoPct ? ` · -${precio.descuentoPct}%` : ""}`}
         />
       </div>
       <Tarjeta titulo="Datos del negocio">
-        <dl className="grid gap-3 text-sm sm:grid-cols-2">
-          <Dato t="Dueño" v={ownerEmail} />
+        <dl className="grid gap-3.5 sm:grid-cols-2">
+          <Dato t="Dueño" v={ownerEmail || "—"} />
           <Dato t="Alta" v={fechaCorta(negocio.creado_en)} />
-          <Dato t="Suscripción" v={estadoEfectivo(negocio)} />
+          <Dato
+            t="Suscripción"
+            v={
+              <div className="flex flex-wrap items-center gap-2">
+                <Insignia
+                  tono={
+                    estado === "activa"
+                      ? "verde"
+                      : estado === "prueba"
+                        ? "azul"
+                        : "ambar"
+                  }
+                >
+                  {etiquetaSuscripcion}
+                </Insignia>
+                {negocio.suspendido && (
+                  <Insignia tono="rojo">Suspendido</Insignia>
+                )}
+              </div>
+            }
+          />
           {negocio.estado_suscripcion === "prueba" ? (
             <Dato t="Prueba hasta" v={fechaCorta(negocio.prueba_hasta)} />
           ) : negocio.estado_suscripcion === "activa" ? (
             <Dato t="Próximo cobro" v={fechaCorta(negocio.proximo_cobro)} />
-          ) : null}
-          <Dato t="Cliente Stripe" v={negocio.stripe_customer_id ?? "—"} />
-          <Dato t="Cuenta IBAN" v={negocio.cuenta_iban || "—"} />
-          <div className="sm:col-span-2">
-            <dt className="text-xs uppercase tracking-wider text-slate-400">
-              Descripción
-            </dt>
-            <dd className="mt-0.5 text-slate-700">
-              {negocio.descripcion || "—"}
-            </dd>
-          </div>
+          ) : (
+            <Dato t="Ciclo de cobro" v="Sin cobro programado" />
+          )}
+          <Dato
+            t="Cliente Stripe"
+            v={
+              negocio.stripe_customer_id ? (
+                <span className="font-mono text-xs text-slate-700">
+                  {negocio.stripe_customer_id}
+                </span>
+              ) : (
+                <span className="text-slate-400">—</span>
+              )
+            }
+          />
+          <Dato
+            t="Cuenta IBAN"
+            v={
+              negocio.cuenta_iban ? (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-mono text-xs font-semibold tracking-wider text-slate-900">
+                    {formatearIban(negocio.cuenta_iban)}
+                  </span>
+                  <BotonCopiar
+                    texto={negocio.cuenta_iban}
+                    etiqueta="Copiar cuenta IBAN"
+                    mensajeExito="Cuenta IBAN copiada"
+                  />
+                </div>
+              ) : (
+                <span className="text-slate-400">No registrada</span>
+              )
+            }
+          />
+          <Dato
+            t="Descripción"
+            v={
+              negocio.descripcion ? (
+                <span className="text-slate-700 leading-relaxed">
+                  {negocio.descripcion}
+                </span>
+              ) : (
+                <span className="text-slate-400 italic">
+                  Sin descripción registrada
+                </span>
+              )
+            }
+            className="sm:col-span-2"
+          />
         </dl>
       </Tarjeta>
     </>
   );
 }
 
-function Dato({ t, v }: { t: string; v: string }) {
+function Dato({
+  t,
+  v,
+  className = "",
+}: {
+  t: string;
+  v: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div>
-      <dt className="text-xs uppercase tracking-wider text-slate-400">{t}</dt>
-      <dd className="mt-0.5 break-all text-slate-700">{v}</dd>
+    <div
+      className={`rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 transition-colors hover:border-slate-200/80 ${className}`}
+    >
+      <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+        {t}
+      </dt>
+      <dd className="mt-1 text-sm font-medium text-slate-800 break-words">
+        {v}
+      </dd>
     </div>
   );
 }
@@ -283,7 +396,7 @@ async function VistaSoporte({
             <tr key={s.id}>
               <Celda>{s.nombre}</Celda>
               <Celda>{usd(s.precio_usd)}</Celda>
-              <Celda>{s.duracion_min} min</Celda>
+              <Celda>{formatearDuracionServicio(s.duracion_min)}</Celda>
             </tr>
           ))}
         </Tabla>
@@ -293,13 +406,30 @@ async function VistaSoporte({
           columnas={["Servicio", "Fecha", "Cupos"]}
           vacia={proximos.length === 0}
         >
-          {proximos.slice(0, 30).map((h) => (
-            <tr key={h.id}>
-              <Celda>{idx.get(h.servicio_id)?.nombre ?? "—"}</Celda>
-              <Celda>{fechaHora(h.fecha_hora)}</Celda>
-              <Celda>{h.cupos_totales}</Celda>
-            </tr>
-          ))}
+          {proximos.slice(0, 30).map((h) => {
+            const ocupados = cuposOcupados(
+              reservas,
+              h.servicio_id,
+              h.fecha_hora,
+            );
+            const disponibles = Math.max(0, h.cupos_totales - ocupados);
+            return (
+              <tr key={h.id}>
+                <Celda>{idx.get(h.servicio_id)?.nombre ?? "—"}</Celda>
+                <Celda>{fechaHora(h.fecha_hora)}</Celda>
+                <Celda>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-medium text-slate-900">
+                      {ocupados}/{h.cupos_totales} ocupados
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      ({disponibles} {disponibles === 1 ? "disponible" : "disponibles"})
+                    </span>
+                  </div>
+                </Celda>
+              </tr>
+            );
+          })}
         </Tabla>
       </Tarjeta>
       <Tarjeta titulo={`Bloqueos (${bloqueos.length})`}>
@@ -336,7 +466,11 @@ async function VistaSoporte({
                         : "ambar"
                   }
                 >
-                  {r.estado}
+                  {r.estado === "pagada"
+                    ? "Pagada"
+                    : r.estado === "cancelada"
+                      ? "Cancelada"
+                      : "Pendiente"}
                 </Insignia>
               </Celda>
               <Celda>{usd(montoReserva(r, idx))}</Celda>

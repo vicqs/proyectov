@@ -119,6 +119,7 @@ export async function crearNegocioAction(
       ok: temporal
         ? `Negocio creado. Usuario ${email} con contraseña temporal: ${temporal} (compártela de forma segura; no se volverá a mostrar).`
         : `Negocio creado y asignado a ${email}.`,
+      negocio,
     };
   });
   return resultado;
