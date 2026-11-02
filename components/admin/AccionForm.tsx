@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import ConfirmDialog from "../ConfirmDialog";
 import { toast } from "../Toast";
+import { cn } from "../../lib/cn";
 import type { ResultadoAccion } from "../../lib/admin/auth";
 
 type Accion = (
@@ -21,6 +22,7 @@ const VARIANTES = {
 } as const;
 
 interface Props {
+  id?: string;
   accion: Accion;
   /** Campos del formulario (inputs ocultos o visibles). */
   children?: React.ReactNode;
@@ -46,6 +48,7 @@ const ESTADO_INICIAL: ResultadoAccion = {};
 
 /** Formulario genérico para Server Actions de administración con feedback vía Toast estándar. */
 export function AccionForm({
+  id,
   accion,
   children,
   boton,
@@ -116,10 +119,14 @@ export function AccionForm({
   return (
     <>
       <form
+        id={id}
         ref={ref}
         action={enviar}
         onSubmit={alEnviar}
-        className={`${enLinea ? "flex flex-wrap items-end gap-2" : "space-y-4"} ${className}`}
+        className={cn(
+          enLinea ? "flex flex-wrap items-center gap-2" : "space-y-4",
+          className,
+        )}
       >
         {children}
         {pie ? (

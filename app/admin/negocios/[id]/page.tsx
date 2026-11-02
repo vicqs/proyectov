@@ -35,14 +35,12 @@ import {
   usd,
 } from "../../../../lib/admin/formato";
 import { BotonCopiar } from "../../../../components/admin/BotonCopiar";
+import { TarjetaDatosPublicos } from "../../../../components/admin/TarjetaDatosPublicos";
+import { TarjetaEliminacion } from "../../../../components/admin/TarjetaEliminacion";
 import {
   agregarNotaAction,
-  cambiarSlugAction,
-  editarDatosNegocioAction,
-  eliminarNegocioAction,
   limpiarContenidoAction,
   reactivarNegocioAction,
-  restaurarNegocioAction,
   suspenderNegocioAction,
 } from "../../../../actions/admin/negocios";
 import {
@@ -486,140 +484,97 @@ async function Cuenta({ negocioId }: { negocioId: string }) {
   const negocio = await leerUno("negocios", { eq: { id: negocioId } });
   if (!negocio) notFound();
   return (
-    <>
-      <Tarjeta titulo="Datos públicos">
-        <AccionForm
-          accion={editarDatosNegocioAction.bind(null, negocioId)}
-          boton="Guardar datos"
-        >
-          <Campo etiqueta="Nombre">
-            <input
-              name="nombre"
-              defaultValue={negocio.nombre}
-              required
-              maxLength={80}
-              className={CLASE_INPUT}
-            />
-          </Campo>
-          <Campo etiqueta="Descripción">
-            <TextareaConContador
-              name="descripcion"
-              defaultValue={negocio.descripcion ?? ""}
-              maxLength={600}
-              rows={3}
-            />
-          </Campo>
-        </AccionForm>
-      </Tarjeta>
+    <div className="space-y-6">
+      {/* Tarjeta superior: Datos públicos (Nombre y Slug en 2 columnas, Descripción debajo) */}
+      <TarjetaDatosPublicos
+        negocioId={negocioId}
+        nombre={negocio.nombre}
+        slug={negocio.slug}
+        descripcion={negocio.descripcion ?? ""}
+      />
 
-      <Tarjeta
-        titulo="Slug"
-        descripcion="Cambiarlo rompe los enlaces públicos existentes."
-      >
-        <AccionForm
-          accion={cambiarSlugAction.bind(null, negocioId)}
-          boton="Cambiar slug"
-          variante="neutro"
-          confirmar="¿Cambiar el slug? El enlace anterior dejará de funcionar."
-          enLinea
-        >
-          <input
-            name="slug"
-            defaultValue={negocio.slug}
-            required
-            className={`${CLASE_INPUT} sm:w-64`}
-            aria-label="Slug"
-          />
-        </AccionForm>
-      </Tarjeta>
-
-      <Tarjeta
-        titulo="Moderación de contenido"
-        descripcion="Retira contenido inapropiado del perfil público."
-      >
-        <AccionForm
-          accion={limpiarContenidoAction.bind(null, negocioId)}
-          boton="Retirar contenido"
-          variante="peligro"
-          confirmar="¿Retirar este contenido del perfil?"
-          enLinea
-        >
-          <select
-            name="que"
-            className={CLASE_SELECT}
-            aria-label="Contenido"
+      {/* Grid de 2 columnas para tarjetas de control */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Columna izquierda: Moderación de contenido y Suspensión */}
+        <div className="space-y-6">
+          <Tarjeta
+            titulo="Moderación de contenido"
+            descripcion="Retira contenido inapropiado del perfil público."
           >
-            <option value="descripcion">Descripción</option>
-            <option value="logo">Logo</option>
-            <option value="portada">Imagen de portada</option>
-            <option value="todo">Todo lo anterior</option>
-          </select>
-        </AccionForm>
-      </Tarjeta>
-
-      <Tarjeta titulo="Suspensión">
-        {negocio.suspendido ? (
-          <AccionForm
-            accion={reactivarNegocioAction.bind(null, negocioId)}
-            boton="Reactivar negocio"
-          />
-        ) : (
-          <AccionForm
-            accion={suspenderNegocioAction.bind(null, negocioId)}
-            boton="Suspender negocio"
-            variante="peligro"
-            confirmar="Se ocultará el perfil público y se bloqueará el panel. ¿Continuar?"
-            enLinea
-          >
-            <input
-              name="motivo"
-              required
-              minLength={3}
-              maxLength={300}
-              placeholder="Motivo (lo verá la empresa)"
-              className={`${CLASE_INPUT} sm:w-80`}
-              aria-label="Motivo"
-            />
-          </AccionForm>
-        )}
-      </Tarjeta>
-
-      <Tarjeta
-        titulo="Eliminación"
-        descripcion="El negocio dejará de existir para la empresa y el público (se puede restaurar)."
-      >
-        {negocio.eliminado_en ? (
-          <AccionForm
-            accion={restaurarNegocioAction.bind(null, negocioId)}
-            boton="Restaurar negocio"
-          />
-        ) : (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-xs text-slate-600">
-              <span>Para confirmar, escribe exactamente:</span>
-              <code className="rounded bg-slate-100 px-2 py-0.5 font-mono font-bold text-slate-800 select-all border border-slate-200">
-                {negocio.slug}
-              </code>
-            </div>
             <AccionForm
-              accion={eliminarNegocioAction.bind(null, negocioId)}
-              boton="Eliminar negocio"
+              accion={limpiarContenidoAction.bind(null, negocioId)}
+              boton="Retirar contenido"
               variante="peligro"
-              confirmar="El negocio dejará de existir para empresa y público (se puede restaurar). ¿Continuar?"
+              confirmar="¿Retirar este contenido del perfil?"
               enLinea
+              className="w-full flex-col sm:flex-row items-stretch sm:items-center gap-2"
             >
-              <input
-                name="confirmar"
-                required
-                placeholder={`Escribe «${negocio.slug}»`}
-                className={`${CLASE_INPUT} sm:w-72`}
-                aria-label="Confirmación"
-              />
+              <select
+                name="que"
+                className={`${CLASE_SELECT} flex-1 min-w-0`}
+                aria-label="Contenido"
+              >
+                <option value="descripcion">Descripción</option>
+                <option value="logo">Logo</option>
+                <option value="portada">Imagen de portada</option>
+                <option value="todo">Todo lo anterior</option>
+              </select>
             </AccionForm>
-          </div>
-        )}
-      </Tarjeta>
-    </>
+          </Tarjeta>
+
+          <Tarjeta
+            titulo="Suspensión"
+            descripcion={
+              negocio.suspendido
+                ? "El negocio está actualmente suspendido para el público y panel."
+                : "Oculta el perfil público y bloquea el panel del negocio."
+            }
+          >
+            {negocio.suspendido ? (
+              <div className="space-y-3">
+                {negocio.motivo_suspension && (
+                  <p className="rounded-lg border border-red-100 bg-red-50 p-2.5 text-xs text-red-600">
+                    <b>Motivo de suspensión:</b> {negocio.motivo_suspension}
+                  </p>
+                )}
+                <AccionForm
+                  accion={reactivarNegocioAction.bind(null, negocioId)}
+                  boton="Reactivar negocio"
+                />
+              </div>
+            ) : (
+              <AccionForm
+                accion={suspenderNegocioAction.bind(null, negocioId)}
+                boton="Suspender negocio"
+                variante="peligro"
+                confirmar="Se ocultará el perfil público y se bloqueará el panel. ¿Continuar?"
+                enLinea
+                className="w-full flex-col sm:flex-row items-stretch sm:items-center gap-2"
+              >
+                <input
+                  name="motivo"
+                  required
+                  minLength={3}
+                  maxLength={300}
+                  placeholder="Motivo (lo verá la empresa)"
+                  className={`${CLASE_INPUT} flex-1 min-w-0`}
+                  aria-label="Motivo"
+                />
+              </AccionForm>
+            )}
+          </Tarjeta>
+        </div>
+
+        {/* Columna derecha: Eliminación (zona de peligro) */}
+        <div>
+          <TarjetaEliminacion
+            negocioId={negocioId}
+            slug={negocio.slug}
+            eliminadoEn={negocio.eliminado_en}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -633,180 +588,255 @@ async function Facturacion({ negocioId }: { negocioId: string }) {
   const pendientes = await facturasPendientes(negocio.stripe_customer_id);
   const precio = calcularPrecio(negocio, planes);
   return (
-    <>
+    <div className="space-y-6">
+      {/* Barra de resumen compacta superior */}
       <Tarjeta titulo="Estado actual">
-        <p className="text-sm text-slate-600">
-          Suscripción: <b>{estadoEfectivo(negocio)}</b> · Plan:{" "}
-          <b>{precio.plan.nombre}</b> · Cuota: <b>{usd(precio.precio)}</b>
-          {negocio.estado_suscripcion === "prueba" &&
-            ` · Prueba hasta: ${fechaCorta(negocio.prueba_hasta)}`}
-          {negocio.estado_suscripcion === "activa" &&
-            ` · Próximo cobro: ${fechaCorta(negocio.proximo_cobro)}`}
-        </p>
-      </Tarjeta>
-      <Tarjeta
-        titulo="Estado manual"
-        descripcion="Activo: perfil público y panel funcionan, próximo cobro en 30 días. En prueba: igual que activo hasta su fecha de fin (14 días si estaba vencida). Inactivo: el panel funciona pero el enlace público no recibe reservas. Para suspender o eliminar usa las pestañas de cuenta."
-      >
-        <AccionForm
-          accion={cambiarEstadoManualAction.bind(null, negocioId)}
-          boton="Aplicar estado"
-          variante="neutro"
-          confirmar="¿Cambiar el estado de la suscripción manualmente?"
-          enLinea
-        >
-          <select
-            name="estado"
-            defaultValue={negocio.estado_suscripcion}
-            className={CLASE_SELECT}
-            aria-label="Estado"
-          >
-            <option value="activa">Activo</option>
-            <option value="prueba">En prueba</option>
-            <option value="inactiva">Inactivo</option>
-          </select>
-        </AccionForm>
-      </Tarjeta>
-      <Tarjeta titulo="Plan">
-        <AccionForm
-          accion={asignarPlanAction.bind(null, negocioId)}
-          boton="Asignar plan"
-          variante="neutro"
-          enLinea
-        >
-          <select
-            name="plan_id"
-            defaultValue={negocio.plan_id ?? ""}
-            className={`${CLASE_SELECT} sm:w-72`}
-            aria-label="Plan"
-          >
-            <option value="">Plan por defecto</option>
-            {planes
-              .filter((p) => p.activo)
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre} · {usd(p.precio_usd)}
-                </option>
-              ))}
-          </select>
-        </AccionForm>
-      </Tarjeta>
-      <Tarjeta
-        titulo="Funciones"
-        descripcion="Heredar usa lo que incluye el plan. Una función apagada globalmente no se puede forzar aquí."
-      >
-        <AccionForm
-          accion={actualizarFuncionesNegocioAction.bind(null, negocioId)}
-          boton="Guardar funciones"
-          variante="neutro"
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-          {FLAGS_POR_NEGOCIO.map((f) => {
-            const actual = negocio.flags_override?.[f.clave];
-            return (
-              <Campo key={f.clave} etiqueta={f.etiqueta}>
-                <select
-                  name={`flag_${f.clave}`}
-                  defaultValue={
-                    actual === undefined ? "" : actual ? "on" : "off"
-                  }
-                  className={`${CLASE_SELECT} w-full`}
-                >
-                  <option value="">
-                    Heredar del plan (
-                    {funcionActiva(
-                      config,
-                      { ...negocio, flags_override: {} },
-                      planes,
-                      f.clave,
-                    )
-                      ? "activa"
-                      : "inactiva"}
-                    )
-                  </option>
-                  <option value="on">Activada</option>
-                  <option value="off">Desactivada</option>
-                </select>
-              </Campo>
-            );
-          })}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-600">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Suscripción:
+            </span>
+            <Insignia
+              tono={
+                negocio.estado_suscripcion === "activa"
+                  ? "verde"
+                  : negocio.estado_suscripcion === "prueba"
+                    ? "azul"
+                    : "ambar"
+              }
+            >
+              <span className="capitalize">{estadoEfectivo(negocio)}</span>
+            </Insignia>
           </div>
-        </AccionForm>
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Plan:
+            </span>{" "}
+            <b className="font-semibold text-slate-900">{precio.plan.nombre}</b>
+          </div>
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Cuota:
+            </span>{" "}
+            <b className="font-semibold text-slate-900">{usd(precio.precio)}</b>
+          </div>
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              {negocio.estado_suscripcion === "prueba"
+                ? "Fin de prueba:"
+                : negocio.estado_suscripcion === "activa"
+                  ? "Próximo cobro:"
+                  : "Ciclo:"}
+            </span>{" "}
+            <span className="font-medium text-slate-800">
+              {negocio.estado_suscripcion === "prueba"
+                ? fechaCorta(negocio.prueba_hasta)
+                : negocio.estado_suscripcion === "activa"
+                  ? fechaCorta(negocio.proximo_cobro)
+                  : "Sin cobro programado"}
+            </span>
+          </div>
+        </div>
       </Tarjeta>
-      <Tarjeta titulo="Descuento">
-        <AccionForm
-          accion={aplicarDescuentoAction.bind(null, negocioId)}
-          boton="Aplicar descuento"
-          variante="neutro"
-          enLinea
+
+      {/* Grid de 2 columnas para tarjetas operativas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        {/* Fila 1 (Columna izquierda): Estado manual */}
+        <Tarjeta
+          titulo="Estado manual"
+          descripcion="Activo: perfil público y panel funcionan. En prueba: periodo de prueba vigente. Inactivo: panel funciona pero sin reservas públicas."
         >
-          <input
-            name="descuento_pct"
-            type="number"
-            min={0}
-            max={100}
-            step="1"
-            defaultValue={negocio.descuento_pct ?? 0}
-            className={`${CLASE_INPUT} sm:w-28`}
-            aria-label="Descuento %"
-          />
-          <span className="pb-2 text-sm text-slate-500">%</span>
-        </AccionForm>
-      </Tarjeta>
-      <Tarjeta titulo="Extender prueba">
-        <AccionForm
-          accion={extenderPruebaAction.bind(null, negocioId)}
-          boton="Extender"
-          variante="neutro"
-          enLinea
+          <AccionForm
+            accion={cambiarEstadoManualAction.bind(null, negocioId)}
+            boton="Aplicar estado"
+            variante="neutro"
+            confirmar="¿Cambiar el estado de la suscripción manualmente?"
+            enLinea
+            className="flex items-center gap-3 w-full"
+          >
+            <select
+              name="estado"
+              defaultValue={negocio.estado_suscripcion}
+              className={`${CLASE_SELECT} flex-1 min-w-0`}
+              aria-label="Estado"
+            >
+              <option value="activa">Activo</option>
+              <option value="prueba">En prueba</option>
+              <option value="inactiva">Inactivo</option>
+            </select>
+          </AccionForm>
+        </Tarjeta>
+
+        {/* Fila 1 (Columna derecha): Plan */}
+        <Tarjeta
+          titulo="Plan"
+          descripcion="Asigna o cambia el plan contratado para este negocio."
         >
-          <input
-            name="dias"
-            type="number"
-            min={1}
-            max={365}
-            defaultValue={7}
-            className={`${CLASE_INPUT} sm:w-28`}
-            aria-label="Días"
+          <AccionForm
+            accion={asignarPlanAction.bind(null, negocioId)}
+            boton="Asignar plan"
+            variante="neutro"
+            enLinea
+            className="flex items-center gap-3 w-full"
+          >
+            <select
+              name="plan_id"
+              defaultValue={negocio.plan_id ?? ""}
+              className={`${CLASE_SELECT} flex-1 min-w-0`}
+              aria-label="Plan"
+            >
+              <option value="">Plan por defecto</option>
+              {planes
+                .filter((p) => p.activo)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre} · {usd(p.precio_usd)}
+                  </option>
+                ))}
+            </select>
+          </AccionForm>
+        </Tarjeta>
+
+        {/* Fila 2 (Columna izquierda): Descuento */}
+        <Tarjeta
+          titulo="Descuento (%)"
+          descripcion="Aplica un porcentaje de descuento sobre la cuota mensual."
+        >
+          <AccionForm
+            accion={aplicarDescuentoAction.bind(null, negocioId)}
+            boton="Aplicar descuento"
+            variante="neutro"
+            enLinea
+            className="flex items-center gap-3 w-full"
+          >
+            <div className="relative w-32 sm:w-36 shrink-0">
+              <input
+                name="descuento_pct"
+                type="number"
+                min={0}
+                max={100}
+                step="1"
+                defaultValue={negocio.descuento_pct ?? 0}
+                className={`${CLASE_INPUT} pr-8`}
+                aria-label="Descuento (%)"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
+                %
+              </span>
+            </div>
+          </AccionForm>
+        </Tarjeta>
+
+        {/* Fila 2 (Columna derecha): Extender prueba */}
+        <Tarjeta
+          titulo="Días a extender"
+          descripcion="Suma días adicionales al periodo de prueba gratuito."
+        >
+          <AccionForm
+            accion={extenderPruebaAction.bind(null, negocioId)}
+            boton="Extender"
+            variante="neutro"
+            enLinea
+            className="flex items-center gap-3 w-full"
+          >
+            <div className="relative w-32 sm:w-36 shrink-0">
+              <input
+                name="dias"
+                type="number"
+                min={1}
+                max={365}
+                defaultValue={7}
+                className={`${CLASE_INPUT} pr-14`}
+                aria-label="Días a extender"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
+                días
+              </span>
+            </div>
+          </AccionForm>
+        </Tarjeta>
+
+        {/* Fila 3 (Columna izquierda): Funciones */}
+        <Tarjeta
+          titulo="Funciones"
+          descripcion="Heredar usa lo que incluye el plan. Una función apagada globalmente no se puede forzar aquí."
+        >
+          <AccionForm
+            accion={actualizarFuncionesNegocioAction.bind(null, negocioId)}
+            boton="Guardar funciones"
+            variante="neutro"
+          >
+            <div className="space-y-3">
+              {FLAGS_POR_NEGOCIO.map((f) => {
+                const actual = negocio.flags_override?.[f.clave];
+                return (
+                  <Campo key={f.clave} etiqueta={f.etiqueta}>
+                    <select
+                      name={`flag_${f.clave}`}
+                      defaultValue={
+                        actual === undefined ? "" : actual ? "on" : "off"
+                      }
+                      className={`${CLASE_SELECT} w-full`}
+                    >
+                      <option value="">
+                        Heredar del plan (
+                        {funcionActiva(
+                          config,
+                          { ...negocio, flags_override: {} },
+                          planes,
+                          f.clave,
+                        )
+                          ? "activa"
+                          : "inactiva"}
+                        )
+                      </option>
+                      <option value="on">Activada</option>
+                      <option value="off">Desactivada</option>
+                    </select>
+                  </Campo>
+                );
+              })}
+            </div>
+          </AccionForm>
+        </Tarjeta>
+
+        {/* Fila 3 (Columna derecha): Reintentar cobro */}
+        <Tarjeta
+          titulo="Reintentar cobro"
+          descripcion="Cobra las facturas abiertas del cliente en Stripe. Solo se habilita si hay cobros pendientes."
+        >
+          {pendientes.facturas.length > 0 ? (
+            <ul className="mb-4 divide-y divide-slate-100 text-sm">
+              {pendientes.facturas.map((f) => (
+                <li
+                  key={f.id}
+                  className="flex flex-wrap items-center justify-between gap-2 py-2"
+                >
+                  <span className="text-slate-700">
+                    Factura <b>{f.numero}</b> · emitida el {fechaCorta(f.creada)}
+                  </span>
+                  <span className="text-slate-600">
+                    <b>{usd(f.monto)}</b> · {f.intentos}{" "}
+                    {f.intentos === 1 ? "intento" : "intentos"} de cobro
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mb-4 text-sm text-slate-500">
+              {pendientes.aviso ?? "No hay cobros pendientes."}
+            </p>
+          )}
+          <AccionForm
+            accion={reintentarCobroAction.bind(null, negocioId)}
+            boton="Reintentar cobro"
+            variante="neutro"
+            confirmar="¿Reintentar el cobro ahora?"
+            deshabilitado={pendientes.facturas.length === 0}
           />
-          <span className="pb-2 text-sm text-slate-500">días</span>
-        </AccionForm>
-      </Tarjeta>
-      <Tarjeta
-        titulo="Reintentar cobro"
-        descripcion="Cobra las facturas abiertas del cliente en Stripe. Solo se habilita si hay cobros pendientes."
-      >
-        {pendientes.facturas.length > 0 ? (
-          <ul className="mb-4 divide-y divide-slate-100 text-sm">
-            {pendientes.facturas.map((f) => (
-              <li
-                key={f.id}
-                className="flex flex-wrap items-center justify-between gap-2 py-2"
-              >
-                <span className="text-slate-700">
-                  Factura <b>{f.numero}</b> · emitida el {fechaCorta(f.creada)}
-                </span>
-                <span className="text-slate-600">
-                  <b>{usd(f.monto)}</b> · {f.intentos}{" "}
-                  {f.intentos === 1 ? "intento" : "intentos"} de cobro
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mb-4 text-sm text-slate-500">
-            {pendientes.aviso ?? "No hay cobros pendientes."}
-          </p>
-        )}
-        <AccionForm
-          accion={reintentarCobroAction.bind(null, negocioId)}
-          boton="Reintentar cobro"
-          variante="neutro"
-          confirmar="¿Reintentar el cobro ahora?"
-          deshabilitado={pendientes.facturas.length === 0}
-        />
-      </Tarjeta>
-    </>
+        </Tarjeta>
+      </div>
+    </div>
   );
 }
 
