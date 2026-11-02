@@ -12,6 +12,10 @@
 :root {
   --background: #ffffff;
   --foreground: #0f172a;
+  --marca: #0284c7;
+  --marca-fondo: color-mix(in srgb, #0284c7 8%, white);
+  --marca-borde: color-mix(in srgb, #0284c7 22%, white);
+  --marca-texto: color-mix(in srgb, #0284c7 40%, #0f172a);
 }
 
 html {
@@ -59,7 +63,7 @@ body {
 
 /* Controles de Formulario */
 .vuki-select {
-  @apply vuki-focus min-h-10 min-w-0 rounded-xl border border-slate-300 bg-white pl-3.5 pr-10 py-2 text-base sm:text-sm font-medium text-slate-700 shadow-xs transition hover:border-slate-400 focus:border-sky-500 cursor-pointer disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400;
+  @apply vuki-focus min-h-10 min-w-0 rounded-xl border border-slate-300 bg-white pl-3.5 pr-10 py-2 text-base sm:text-sm font-medium text-slate-700 shadow-xs transition hover:border-slate-400 focus:border-sky-500 focus:outline-none cursor-pointer disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -76,7 +80,9 @@ body {
 }
 
 .vuki-select:focus,
+.vuki-select:focus-visible,
 .vuki-select:active {
+  outline: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 15 6-6 6 6'/%3E%3C/svg%3E");
   background-position: right 0.95rem calc(50% - 2px);
 }
@@ -115,15 +121,18 @@ select.vuki-input-sm:hover {
 }
 
 select.vuki-input:focus,
+select.vuki-input:focus-visible,
 select.vuki-input:active,
 select.vuki-input-sm:focus,
+select.vuki-input-sm:focus-visible,
 select.vuki-input-sm:active {
+  outline: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 15 6-6 6 6'/%3E%3C/svg%3E");
   background-position: right 0.95rem calc(50% - 2px);
 }
 
 .vuki-select-sm {
-  @apply vuki-focus min-h-9 min-w-0 rounded-xl border border-slate-200 bg-white pl-3 pr-8 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition hover:border-slate-300 focus:border-sky-500 cursor-pointer disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400;
+  @apply vuki-focus min-h-9 min-w-0 rounded-xl border border-slate-200 bg-white pl-3 pr-8 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition hover:border-slate-300 focus:border-sky-500 focus:outline-none cursor-pointer disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -140,7 +149,9 @@ select.vuki-input-sm:active {
 }
 
 .vuki-select-sm:focus,
+.vuki-select-sm:focus-visible,
 .vuki-select-sm:active {
+  outline: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 15 6-6 6 6'/%3E%3C/svg%3E");
   background-position: right 0.8rem calc(50% - 2px);
 }

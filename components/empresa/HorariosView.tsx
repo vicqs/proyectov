@@ -252,7 +252,7 @@ interface HorariosViewProps {
 }
 
 const INPUT = "vuki-input min-h-11";
-const SELECT = "vuki-select min-h-11 w-full";
+const SELECT = "vuki-select min-h-11 w-full focus:outline-none";
 
 /** Gestión de horarios y cupos compartida por `/[slug]/admin/horarios`. */
 export default function HorariosView({
@@ -1187,10 +1187,10 @@ export default function HorariosView({
                       aria-pressed={dias.includes(i)}
                       aria-label={NOMBRES_DIAS_LARGOS[i].toLowerCase()}
                       onClick={() => alternarDia(i)}
-                      className={`vuki-focus h-10 w-10 rounded-full text-sm font-semibold transition ${
+                      className={`vuki-focus flex h-10 w-10 items-center justify-center rounded-full border text-sm font-semibold transition ${
                         dias.includes(i)
-                          ? "bg-vuki-ink text-white shadow-sm"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
+                          ? "border-(--marca) bg-(--marca-fondo) text-(--marca-texto)"
+                          : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
                       }`}
                     >
                       {letra}
@@ -1200,30 +1200,12 @@ export default function HorariosView({
               </div>
 
               <div>
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <label
-                    htmlFor="semanas"
-                    className="block text-sm font-medium text-slate-700"
-                  >
-                    Durante cuántas semanas
-                  </label>
-                  <div className="flex gap-1">
-                    {SEMANAS_RAPIDAS.map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setSemanas(n)}
-                        className={`vuki-focus rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
-                          semanas === n
-                            ? "border-(--marca) bg-(--marca-fondo) text-(--marca-texto)"
-                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        {n} sem
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <label
+                  htmlFor="semanas"
+                  className="mb-1.5 block text-sm font-medium text-slate-700"
+                >
+                  Durante cuántas semanas
+                </label>
                 <input
                   id="semanas"
                   type="number"
@@ -1237,6 +1219,23 @@ export default function HorariosView({
                   }
                   className={INPUT}
                 />
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="mr-1 text-xs text-slate-500">Semanas rápidas:</span>
+                  {SEMANAS_RAPIDAS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setSemanas(n)}
+                      className={`vuki-focus rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                        semanas === n
+                          ? "border-(--marca) bg-(--marca-fondo) font-semibold text-(--marca-texto)"
+                          : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      {n} sem
+                    </button>
+                  ))}
+                </div>
               </div>
             </>
           )}

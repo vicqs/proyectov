@@ -119,7 +119,7 @@ const ESTADO_LABEL: Record<VistaReserva["estado"], string> = {
 };
 
 const INPUT = "vuki-input min-h-11";
-const SELECT = "vuki-select min-h-11 w-full";
+const SELECT = "vuki-select min-h-11 w-full focus:outline-none";
 
 function partesCR(iso: string) {
   const cr = new Date(new Date(iso).getTime() + CR_OFFSET_MS);

@@ -238,6 +238,7 @@ export default function AgendaView({
   const [eliminando, setEliminando] = useState(false);
 
   const mananaClave = hoyClave ? sumarDiasClave(hoyClave, 1) : "";
+  const sabadoClave = hoyClave ? proximoSabadoClave(hoyClave) : "";
 
   const rangoActual = useMemo(() => {
     const inicioLocal =
@@ -756,6 +757,33 @@ export default function AgendaView({
                   onChange={(e) => cambiarFechaDesde(e.target.value)}
                   className={INPUT}
                 />
+                {hoyClave && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="mr-1 text-xs text-slate-500">Fecha rápida:</span>
+                    {[
+                      { etiqueta: "Hoy", valor: hoyClave },
+                      { etiqueta: "Mañana", valor: mananaClave },
+                      ...(sabadoClave &&
+                      sabadoClave !== hoyClave &&
+                      sabadoClave !== mananaClave
+                        ? [{ etiqueta: "Próx. sábado", valor: sabadoClave }]
+                        : []),
+                    ].map((op) => (
+                      <button
+                        key={op.etiqueta}
+                        type="button"
+                        onClick={() => cambiarFechaDesde(op.valor)}
+                        className={`vuki-focus rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                          fechaDesde === op.valor
+                            ? "border-(--marca) bg-(--marca-fondo) font-semibold text-(--marca-texto)"
+                            : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        {op.etiqueta}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
