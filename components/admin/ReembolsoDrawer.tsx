@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { DollarSign, Loader2 } from "lucide-react";
 import Drawer from "../Drawer";
 import { toast } from "../Toast";
@@ -34,6 +34,16 @@ export function ReembolsoDrawer({
   ) => Promise<ResultadoAccion>;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const [monto, setMonto] = useState<string>("");
+  const [motivo, setMotivo] = useState<string>("");
+
+  // Sincronizar monto y limpiar motivo al abrir con una nueva reserva
+  useEffect(() => {
+    if (reserva) {
+      setMonto(reserva.montoUsd.toFixed(2));
+      setMotivo("");
+    }
+  }, [reserva]);
 
   async function accionConId(
     previo: ResultadoAccion,
@@ -48,6 +58,11 @@ export function ReembolsoDrawer({
     ESTADO_INICIAL,
   );
 
+  function handleClose() {
+    if (pendiente) return;
+    onClose();
+  }
+
   useEffect(() => {
     if (estado.ok) {
       toast.success(estado.ok);
@@ -57,14 +72,33 @@ export function ReembolsoDrawer({
     }
   }, [estado, onClose]);
 
+  const totalCobrado = reserva?.montoUsd ?? 0;
+  const mitadCobrado = Math.round((totalCobrado / 2) * 100) / 100;
+
+  const montoNum = parseFloat(monto);
+  const esMontoValido =
+    !isNaN(montoNum) && montoNum > 0 && montoNum <= totalCobrado;
+  const esMotivoValido = motivo.trim().length > 0;
+  const esFormularioValido = esMontoValido && esMotivoValido;
+  const deshabilitarBoton = pendiente || !!estado.ok || !esFormularioValido;
+
+  const esTotalSeleccionado =
+    !isNaN(montoNum) && Math.abs(montoNum - totalCobrado) < 0.001;
+  const esMitadSeleccionada =
+    !isNaN(montoNum) && Math.abs(montoNum - mitadCobrado) < 0.001;
+
   return (
     <Drawer
       abierto={!!reserva}
       titulo="Reembolsar reserva"
-      onClose={onClose}
+      onClose={handleClose}
     >
       {reserva && (
-        <div className="flex flex-1 flex-col justify-between overflow-y-auto p-6">
+        <form
+          ref={formRef}
+          action={enviar}
+          className="flex flex-col min-h-full gap-5"
+        >
           <div className="space-y-5">
             {/* Ficha resumen de la reserva */}
             <div className="rounded-2xl border border-sky-100 bg-sky-50/60 p-4 text-xs">
@@ -105,89 +139,129 @@ export function ReembolsoDrawer({
                 <div className="flex items-center justify-between border-t border-sky-200/60 pt-2 text-sm">
                   <span className="font-semibold text-slate-700">Total cobrado:</span>
                   <span className="font-bold text-emerald-800 font-display">
-                    {usd(reserva.montoUsd)}
+                    {usd(totalCobrado)}
                   </span>
                 </div>
               </div>
             </div>
 
             {/* Formulario */}
-            <form ref={formRef} action={enviar} className="space-y-4">
-              <div>
-                <label
-                  htmlFor="monto_usd"
-                  className="mb-1.5 block text-sm font-medium text-slate-700"
-                >
-                  Monto a devolver (USD)
-                </label>
-                <div className="relative">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                    <DollarSign className="h-4 w-4" />
-                  </span>
-                  <input
-                    id="monto_usd"
-                    name="monto_usd"
-                    type="number"
-                    step="0.01"
-                    min={0.01}
-                    max={reserva.montoUsd}
-                    defaultValue={reserva.montoUsd}
-                    required
-                    className={`${CLASE_INPUT} !pl-9`}
-                  />
-                </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  Puedes reembolsar el total o una parte (hasta {usd(reserva.montoUsd)}).
-                </p>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="motivo"
-                  className="mb-1.5 block text-sm font-medium text-slate-700"
-                >
-                  Motivo del reembolso
-                </label>
-                <TextareaConContador
-                  id="motivo"
-                  name="motivo"
+            <div>
+              <label
+                htmlFor="monto_usd"
+                className="mb-1.5 block text-sm font-medium text-slate-700"
+              >
+                Monto a devolver (USD)
+              </label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <DollarSign className="h-4 w-4" />
+                </span>
+                <input
+                  id="monto_usd"
+                  name="monto_usd"
+                  type="number"
+                  step="0.01"
+                  min={0.01}
+                  max={totalCobrado}
+                  value={monto}
+                  onChange={(e) => setMonto(e.target.value)}
                   required
-                  rows={3}
-                  maxLength={500}
-                  placeholder="Ej. Cancelación justificada por solicitud del cliente..."
+                  className={`${CLASE_INPUT} !pl-9`}
                 />
-                <p className="mt-1 text-xs text-slate-500">
-                  Quedará registrado en la auditoría y en el historial de la pasarela.
-                </p>
               </div>
 
-              <div className="rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 text-xs text-amber-900 leading-relaxed">
-                ⚠️ Se registrará la orden de reembolso. Esta acción no se puede deshacer.
-              </div>
-
-              <div className="flex gap-2 pt-2">
+              {/* Chips rápidos de cálculo */}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={onClose}
-                  disabled={pendiente}
-                  className="vuki-focus flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50 active:scale-[0.98]"
+                  onClick={() => setMonto(totalCobrado.toFixed(2))}
+                  className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+                    esTotalSeleccionado
+                      ? "border-sky-500 bg-sky-50 text-sky-700 font-semibold ring-1 ring-sky-500/20"
+                      : "border-slate-200 bg-slate-50/80 text-slate-600 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-800"
+                  }`}
                 >
-                  Cancelar
+                  Total (${totalCobrado.toFixed(2)})
                 </button>
                 <button
-                  type="submit"
-                  disabled={pendiente || !!estado.ok}
-                  className="vuki-focus inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 py-2.5 text-sm font-semibold text-white shadow-xs transition hover:bg-red-700 active:scale-[0.98] disabled:opacity-60"
+                  type="button"
+                  onClick={() => setMonto(mitadCobrado.toFixed(2))}
+                  className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+                    esMitadSeleccionada
+                      ? "border-sky-500 bg-sky-50 text-sky-700 font-semibold ring-1 ring-sky-500/20"
+                      : "border-slate-200 bg-slate-50/80 text-slate-600 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-800"
+                  }`}
                 >
-                  {pendiente && (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  )}
-                  Confirmar reembolso
+                  50% (${mitadCobrado.toFixed(2)})
                 </button>
               </div>
-            </form>
+
+              <p className="mt-1.5 text-xs text-slate-500">
+                Puedes reembolsar el total o una parte (hasta {usd(totalCobrado)}).
+              </p>
+
+              {monto.length > 0 && !isNaN(montoNum) && montoNum > totalCobrado && (
+                <p className="mt-1 text-xs text-red-600">
+                  El monto a devolver no puede superar el total cobrado ({usd(totalCobrado)}).
+                </p>
+              )}
+              {monto.length > 0 && !isNaN(montoNum) && montoNum <= 0 && (
+                <p className="mt-1 text-xs text-red-600">
+                  El monto a devolver debe ser mayor a 0.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label
+                htmlFor="motivo"
+                className="mb-1.5 block text-sm font-medium text-slate-700"
+              >
+                Motivo del reembolso
+              </label>
+              <TextareaConContador
+                id="motivo"
+                name="motivo"
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                required
+                rows={3}
+                maxLength={500}
+                placeholder="Ej. Cancelación justificada por solicitud del cliente..."
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Quedará registrado en la auditoría y en el historial de la pasarela.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 text-xs text-amber-900 leading-relaxed">
+              ⚠️ Se registrará la orden de reembolso. Esta acción no se puede deshacer.
+            </div>
           </div>
-        </div>
+
+          {/* Barra de acciones fijada al pie inferior */}
+          <div className="mt-auto pt-4 border-t border-slate-100 flex gap-2.5">
+            <button
+              type="button"
+              onClick={handleClose}
+              disabled={pendiente}
+              className="vuki-btn-secondary flex-1"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={deshabilitarBoton}
+              className="vuki-btn-danger flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {pendiente && (
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden="true" />
+              )}
+              Confirmar reembolso
+            </button>
+          </div>
+        </form>
       )}
     </Drawer>
   );

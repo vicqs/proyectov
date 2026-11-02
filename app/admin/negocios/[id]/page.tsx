@@ -158,7 +158,9 @@ export default async function NegocioDetallePage({
         (puedeGestionar ? <Cuenta negocioId={id} /> : <SinAcceso />)}
       {tab === "facturacion" &&
         (puedeFacturar ? <Facturacion negocioId={id} /> : <SinAcceso />)}
-      {tab === "soporte" && <Notas negocioId={id} />}
+      {tab === "soporte" && (
+        <Notas negocioId={id} negocioNombre={negocio.nombre} />
+      )}
     </PaginaAdmin>
   );
 }
@@ -355,7 +357,10 @@ function Dato({
   );
 }
 
-/** Vista de solo lectura de lo que ve el dueño; cada consulta queda auditada. */
+// Caché en memoria para evitar auditorías duplicadas en el mismo minuto por StrictMode o cambio de pestañas
+const cacheSoporteVista = new Map<string, number>();
+
+/** Vista de solo lectura de lo que ve el dueño; cada consulta queda auditada una vez por minuto. */
 async function VistaSoporte({
   id,
   admin,
@@ -363,12 +368,34 @@ async function VistaSoporte({
   id: string;
   admin: Awaited<ReturnType<typeof requerirAdmin>>;
 }) {
-  await registrarAuditoria(admin, {
-    accion: "soporte.vista",
-    entidad: "negocio",
-    entidad_id: id,
-    negocio_id: id,
-  });
+  const ahora = Date.now();
+  const cacheKey = `${admin.user.id}:${id}`;
+  const ultimoTimestamp = cacheSoporteVista.get(cacheKey) ?? 0;
+
+  // Evita duplicados por doble montaje (StrictMode) o cambio rápido de pestañas (ventana de 60 segundos)
+  if (ahora - ultimoTimestamp > 60_000) {
+    cacheSoporteVista.set(cacheKey, ahora);
+
+    // Verificación en BD por si se ejecuta en diferentes workers o instancias
+    const unMinutoAtras = new Date(ahora - 60_000).toISOString();
+    const reciente = await leerUno("auditoria", {
+      eq: {
+        negocio_id: id,
+        accion: "soporte.vista",
+        actor_id: admin.user.id,
+      },
+      gte: { creado_en: unMinutoAtras },
+    });
+
+    if (!reciente) {
+      await registrarAuditoria(admin, {
+        accion: "soporte.vista",
+        entidad: "negocio",
+        entidad_id: id,
+        negocio_id: id,
+      });
+    }
+  }
   const [servicios, horarios, bloqueos, reservas] = await Promise.all([
     leer("servicios", { eq: { negocio_id: id } }),
     leer("horarios", { eq: { negocio_id: id }, orden: ["fecha_hora", true] }),
@@ -717,10 +744,10 @@ async function Facturacion({ negocioId }: { negocioId: string }) {
                 max={100}
                 step="1"
                 defaultValue={negocio.descuento_pct ?? 0}
-                className={`${CLASE_INPUT} pr-8`}
+                className={`${CLASE_INPUT} vuki-input-sin-spinner pr-9 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                 aria-label="Descuento (%)"
               />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
+              <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 select-none">
                 %
               </span>
             </div>
@@ -746,10 +773,10 @@ async function Facturacion({ negocioId }: { negocioId: string }) {
                 min={1}
                 max={365}
                 defaultValue={7}
-                className={`${CLASE_INPUT} pr-14`}
+                className={`${CLASE_INPUT} vuki-input-sin-spinner pr-14 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                 aria-label="Días a extender"
               />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
+              <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 select-none">
                 días
               </span>
             </div>
@@ -840,7 +867,67 @@ async function Facturacion({ negocioId }: { negocioId: string }) {
   );
 }
 
-async function Notas({ negocioId }: { negocioId: string }) {
+const ETIQUETAS_ACCIONES: Record<string, string> = {
+  "soporte.vista": "Consulta de soporte",
+  "negocio.nota": "Nota interna",
+  "negocio.crear": "Creación de negocio",
+  "negocio.editar": "Edición de negocio",
+  "negocio.suspender": "Suspensión de negocio",
+  "negocio.reactivar": "Reactivación de negocio",
+  "negocio.eliminar": "Eliminación de negocio",
+  "negocio.restaurar": "Restauración de negocio",
+  "negocio.cambiar_slug": "Cambio de slug",
+  "negocio.cambiar_estado": "Cambio de estado",
+  "negocio.limpiar_contenido": "Limpieza de contenido",
+  "negocio.transferir": "Transferencia de negocio",
+  "negocio.funciones": "Actualización de funciones",
+  "negocio.aplicar_plan": "Aplicación de plan",
+  "negocio.cancelar_plan": "Cancelación de plan",
+  "suscripcion.plan": "Cambio de plan",
+  "suscripcion.descuento": "Aplicación de descuento",
+  "suscripcion.extender_prueba": "Extensión de prueba",
+  "suscripcion.estado_manual": "Estado de suscripción",
+  "suscripcion.reintentar_cobro": "Reintento de cobro",
+  "ticket.crear": "Creación de ticket",
+  "ticket.responder": "Respuesta a ticket",
+  "ticket.actualizar": "Actualización de ticket",
+  "reserva.cancelar": "Cancelación de reserva",
+  "reembolso.registrar": "Registro de reembolso",
+  "reembolso.completar": "Reembolso completado",
+  "usuario.cerrar_sesiones": "Cierre de sesiones",
+  "usuario.restablecer_contrasena": "Restablecimiento de contraseña",
+  "configuracion.general": "Configuración general",
+  "configuracion.plantillas": "Configuración de plantillas",
+  "configuracion.legal": "Configuración legal",
+  "equipo.asignar_rol": "Asignación de rol",
+  "equipo.quitar_rol": "Remoción de rol",
+  "anuncio.crear": "Creación de anuncio",
+  "anuncio.eliminar": "Eliminación de anuncio",
+  "comunicado.enviar": "Envío de comunicado",
+  "sistema.resolver": "Resolución de error",
+  "sistema.reprocesar_webhook": "Reprocesamiento de webhook",
+};
+
+function formatoAccion(accion: string) {
+  const etiqueta = ETIQUETAS_ACCIONES[accion];
+  if (etiqueta) {
+    return (
+      <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5">
+        <span className="font-medium text-slate-800">{etiqueta}</span>
+        <span className="font-mono text-[11px] text-slate-400">({accion})</span>
+      </div>
+    );
+  }
+  return <span className="font-mono text-xs text-slate-700">{accion}</span>;
+}
+
+async function Notas({
+  negocioId,
+  negocioNombre,
+}: {
+  negocioId: string;
+  negocioNombre?: string;
+}) {
   const [notas, tickets, reportes, auditoria] = await Promise.all([
     leer("notas_internas", {
       eq: { negocio_id: negocioId },
@@ -860,6 +947,32 @@ async function Notas({ negocioId }: { negocioId: string }) {
       limite: 25,
     }),
   ]);
+
+  // Deduplicación en la visualización:
+  // Evita mostrar eventos idénticos consecutivos en el mismo minuto o consultas duplicadas consecutivas
+  const auditoriaDeduplicada = auditoria.filter((item, index) => {
+    if (index === 0) return true;
+    const previo = auditoria[index - 1];
+    const esMismoEvento =
+      item.accion === previo.accion &&
+      item.actor_email === previo.actor_email &&
+      item.negocio_id === previo.negocio_id;
+
+    if (!esMismoEvento) return true;
+
+    // Deduplica soporte.vista consecutivos
+    if (item.accion === "soporte.vista") return false;
+
+    // Deduplica eventos idénticos consecutivos ocurridos en menos de 60 segundos
+    const diffMs = Math.abs(
+      new Date(previo.creado_en).getTime() - new Date(item.creado_en).getTime(),
+    );
+    return diffMs > 60_000;
+  });
+
+  const eventosVisibles = auditoriaDeduplicada.slice(0, 8);
+  const busquedaAuditoria = encodeURIComponent(negocioNombre || negocioId);
+
   return (
     <>
       <Tarjeta
@@ -893,54 +1006,84 @@ async function Notas({ negocioId }: { negocioId: string }) {
           ))}
         </ul>
       </Tarjeta>
-      <Tarjeta titulo="Tickets">
-        <Tabla
-          columnas={["Asunto", "Estado", "Creado"]}
-          vacia={tickets.length === 0}
-        >
-          {tickets.map((t) => (
-            <tr key={t.id}>
-              <Celda>
-                <Link
-                  href={`/admin/soporte/${t.id}`}
-                  className="text-sky-700 hover:underline"
-                >
-                  {t.asunto}
-                </Link>
-              </Celda>
-              <Celda>{t.estado}</Celda>
-              <Celda>{fechaHora(t.creado_en)}</Celda>
-            </tr>
-          ))}
-        </Tabla>
-      </Tarjeta>
-      <Tarjeta titulo="Reportes del perfil">
-        <Tabla
-          columnas={["Motivo", "Estado", "Fecha"]}
-          vacia={reportes.length === 0}
-        >
-          {reportes.map((r) => (
-            <tr key={r.id}>
-              <Celda>{r.motivo}</Celda>
-              <Celda>{r.estado}</Celda>
-              <Celda>{fechaHora(r.creado_en)}</Celda>
-            </tr>
-          ))}
-        </Tabla>
-      </Tarjeta>
-      <Tarjeta titulo="Actividad reciente">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Tarjeta titulo="Tickets">
+          <Tabla
+            columnas={["Asunto", "Estado", "Creado"]}
+            vacia={tickets.length === 0}
+          >
+            {tickets.map((t) => (
+              <tr key={t.id}>
+                <Celda>
+                  <Link
+                    href={`/admin/soporte/${t.id}`}
+                    className="text-sky-700 hover:underline"
+                  >
+                    {t.asunto}
+                  </Link>
+                </Celda>
+                <Celda>{t.estado}</Celda>
+                <Celda>{fechaHora(t.creado_en)}</Celda>
+              </tr>
+            ))}
+          </Tabla>
+        </Tarjeta>
+        <Tarjeta titulo="Reportes del perfil">
+          <Tabla
+            columnas={["Motivo", "Estado", "Fecha"]}
+            vacia={reportes.length === 0}
+          >
+            {reportes.map((r) => (
+              <tr key={r.id}>
+                <Celda>{r.motivo}</Celda>
+                <Celda>{r.estado}</Celda>
+                <Celda>{fechaHora(r.creado_en)}</Celda>
+              </tr>
+            ))}
+          </Tabla>
+        </Tarjeta>
+      </div>
+      <Tarjeta
+        titulo="Actividad reciente"
+        descripcion="Historial de acciones y eventos registrados para este negocio."
+        accion={
+          <Link
+            href={`/admin/auditoria?q=${busquedaAuditoria}`}
+            className="text-xs font-semibold text-sky-700 hover:text-sky-800 hover:underline"
+          >
+            Ver en Auditoría &rarr;
+          </Link>
+        }
+      >
         <Tabla
           columnas={["Fecha", "Actor", "Acción"]}
-          vacia={auditoria.length === 0}
+          vacia={eventosVisibles.length === 0}
         >
-          {auditoria.map((a) => (
+          {eventosVisibles.map((a) => (
             <tr key={a.id}>
-              <Celda>{fechaHora(a.creado_en)}</Celda>
-              <Celda>{a.actor_email}</Celda>
-              <Celda>{a.accion}</Celda>
+              <Celda className="whitespace-nowrap text-slate-500">
+                {fechaHora(a.creado_en)}
+              </Celda>
+              <Celda className="text-slate-700 font-medium">
+                {a.actor_email}
+              </Celda>
+              <Celda>{formatoAccion(a.accion)}</Celda>
             </tr>
           ))}
         </Tabla>
+        {auditoriaDeduplicada.length > 8 && (
+          <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
+            <span>
+              Mostrando los 8 eventos más recientes de {auditoriaDeduplicada.length} registrados.
+            </span>
+            <Link
+              href={`/admin/auditoria?q=${busquedaAuditoria}`}
+              className="font-medium text-sky-700 hover:underline"
+            >
+              Ver todos en Auditoría &rarr;
+            </Link>
+          </div>
+        )}
       </Tarjeta>
     </>
   );

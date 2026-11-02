@@ -1,14 +1,29 @@
 "use server";
 
 import { z } from "zod";
-import { accionAdmin, type ResultadoAccion } from "../../lib/admin/auth";
+import {
+  accionAdmin,
+  requerirAdmin,
+  type ResultadoAccion,
+} from "../../lib/admin/auth";
 import { registrarAuditoria } from "../../lib/admin/auditoria";
-import { actualizar, insertar, leerUno } from "../../lib/admin/db";
+import { actualizar, insertar, leer, leerUno } from "../../lib/admin/db";
 import { campo, revalidarAdmin } from "../../lib/admin/util";
 import { revalidatePath } from "next/cache";
+import type { TicketMensaje } from "../../types/database";
 
 const ESTADOS = ["abierto", "en_curso", "resuelto", "cerrado"] as const;
 const PRIORIDADES = ["baja", "normal", "alta"] as const;
+
+export async function cargarMensajesTicketAction(
+  ticketId: string,
+): Promise<TicketMensaje[]> {
+  await requerirAdmin("soporte");
+  return leer("ticket_mensajes", {
+    eq: { ticket_id: ticketId },
+    orden: ["creado_en", true],
+  });
+}
 
 export async function responderTicketAdminAction(
   id: string,
@@ -28,10 +43,25 @@ export async function responderTicketAdminAction(
       autor_email: admin.email,
       mensaje,
     });
+
+    const estadoCrudo = campo(datos, "estado");
+    const prioridadCruda = campo(datos, "prioridad");
+
+    const estadoFinal = (ESTADOS as readonly string[]).includes(estadoCrudo)
+      ? (estadoCrudo as (typeof ESTADOS)[number])
+      : ticket.estado === "abierto"
+        ? "en_curso"
+        : ticket.estado;
+
+    const prioridadFinal = (PRIORIDADES as readonly string[]).includes(prioridadCruda)
+      ? (prioridadCruda as (typeof PRIORIDADES)[number])
+      : ticket.prioridad;
+
     await actualizar(
       "tickets",
       {
-        estado: ticket.estado === "abierto" ? "en_curso" : ticket.estado,
+        estado: estadoFinal,
+        prioridad: prioridadFinal,
         actualizado_en: new Date().toISOString(),
       },
       { id },
@@ -41,6 +71,7 @@ export async function responderTicketAdminAction(
       entidad: "ticket",
       entidad_id: id,
       negocio_id: ticket.negocio_id,
+      detalle: { estado: estadoFinal, prioridad: prioridadFinal },
     });
     revalidarAdmin();
     revalidatePath("/[slug]/admin/soporte", "page");

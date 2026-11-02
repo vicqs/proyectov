@@ -10,6 +10,7 @@ interface DrawerProps {
   titulo: string;
   onClose: () => void;
   children: React.ReactNode;
+  ancho?: string;
 }
 
 /**
@@ -23,6 +24,7 @@ export default function Drawer({
   titulo,
   onClose,
   children,
+  ancho = "max-w-md",
 }: DrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
@@ -81,7 +83,7 @@ export default function Drawer({
               damping: 32,
               mass: 0.8,
             }}
-            className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-white shadow-2xl whitespace-normal"
+            className={`fixed right-0 top-0 z-50 flex h-full w-full ${ancho} flex-col bg-white shadow-2xl whitespace-normal`}
           >
             <motion.div
               initial={{ opacity: 0, y: 8 }}

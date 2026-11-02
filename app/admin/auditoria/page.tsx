@@ -30,6 +30,7 @@ export default async function AuditoriaPage({
         !q ||
         a.accion.toLowerCase().includes(q) ||
         a.actor_email.toLowerCase().includes(q) ||
+        (a.negocio_id && a.negocio_id.toLowerCase().includes(q)) ||
         (nombre.get(a.negocio_id ?? "") ?? "").toLowerCase().includes(q),
     )
     .sort((a, b) => b.creado_en.localeCompare(a.creado_en));

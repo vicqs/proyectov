@@ -5,19 +5,10 @@ import { calcularPrecio, FLAGS_POR_NEGOCIO } from "../../../lib/plataforma";
 import { estadoEfectivo } from "../../../lib/negocio-estado";
 import { isStripeMockMode, stripe } from "../../../lib/stripe";
 import { fechaCorta, fechaHora, usd } from "../../../lib/admin/formato";
-import {
-  actualizarPlanAction,
-  crearPlanAction,
-  marcarPlanDefectoAction,
-} from "../../../actions/admin/suscripciones";
-import { AccionForm } from "../../../components/admin/AccionForm";
 import { InsigniaNegocio } from "../../../components/admin/InsigniaNegocio";
+import { PlanesAdminSection } from "../../../components/admin/PlanesAdminSection";
 import {
-  CLASE_CHECKBOX,
-  CLASE_INPUT,
-  Campo,
   Celda,
-  Insignia,
   PaginaAdmin,
   Tabla,
   Tarjeta,
@@ -59,154 +50,14 @@ export default async function SuscripcionesPage() {
       titulo="Suscripciones y planes"
       descripcion={`${vivos.length} negocios · ${enRiesgo} con prueba que vence en 7 días.`}
     >
-      <Tarjeta
-        titulo="Planes"
-        descripcion="Los cambios de precio aplican a los próximos cobros."
-      >
-        <div className="space-y-4">
-          {planes.map((p) => (
-            <div key={p.id} className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-              <AccionForm
-                accion={actualizarPlanAction.bind(null, p.id)}
-                boton="Guardar"
-                variante="neutro"
-                pie={
-                  <>
-                    <label className="flex items-center gap-1.5 text-sm text-slate-700 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        name="activo"
-                        defaultChecked={p.activo}
-                        className={CLASE_CHECKBOX}
-                      />
-                      <span>Activo</span>
-                    </label>
-                    {FLAGS_POR_NEGOCIO.map((f) => (
-                      <label
-                        key={f.clave}
-                        className="flex items-center gap-1.5 text-sm text-slate-700 cursor-pointer select-none"
-                      >
-                        <input
-                          type="checkbox"
-                          name={`flag_${f.clave}`}
-                          defaultChecked={p.flags?.[f.clave] ?? true}
-                          className={CLASE_CHECKBOX}
-                        />
-                        <span>{f.etiqueta}</span>
-                      </label>
-                    ))}
-                    {p.por_defecto && (
-                      <Insignia tono="azul">Por defecto</Insignia>
-                    )}
-                  </>
-                }
-              >
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <Campo etiqueta="Nombre">
-                    <input
-                      name="nombre"
-                      defaultValue={p.nombre}
-                      required
-                      className={CLASE_INPUT}
-                    />
-                  </Campo>
-                  <Campo etiqueta="USD / mes">
-                    <input
-                      name="precio_usd"
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      defaultValue={p.precio_usd}
-                      required
-                      className={CLASE_INPUT}
-                    />
-                  </Campo>
-                  <Campo etiqueta="Stripe price id">
-                    <input
-                      name="stripe_price_id"
-                      defaultValue={p.stripe_price_id ?? ""}
-                      className={CLASE_INPUT}
-                    />
-                  </Campo>
-                </div>
-              </AccionForm>
-              {!p.por_defecto && p.activo && (
-                <div className="mt-3 flex justify-end">
-                  <AccionForm
-                    accion={marcarPlanDefectoAction.bind(null, p.id)}
-                    boton="Hacer predeterminado"
-                    variante="neutro"
-                    tamano="sm"
-                  />
-                </div>
-              )}
-            </div>
-          ))}
-          {planes.length === 0 && (
-            <p className="text-sm text-slate-400">
-              Sin planes (¿falta ejecutar la migración?). Se usa el precio de
-              respaldo.
-            </p>
-          )}
-        </div>
-        <div className="mt-6 border-t border-slate-100 pt-5">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">
-            Nuevo plan
-          </h3>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-            <AccionForm
-              accion={crearPlanAction}
-              boton="Crear plan"
-              limpiarAlOk
-              pie={
-                FLAGS_POR_NEGOCIO.map((f) => (
-                  <label
-                    key={f.clave}
-                    className="flex items-center gap-1.5 text-sm text-slate-700 cursor-pointer select-none"
-                  >
-                    <input
-                      type="checkbox"
-                      name={`flag_${f.clave}`}
-                      defaultChecked
-                      className={CLASE_CHECKBOX}
-                    />
-                    <span>{f.etiqueta}</span>
-                  </label>
-                ))
-              }
-            >
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <Campo etiqueta="Nombre">
-                  <input
-                    name="nombre"
-                    required
-                    placeholder="Ej. Plan Pro"
-                    className={CLASE_INPUT}
-                  />
-                </Campo>
-                <Campo etiqueta="USD / mes">
-                  <input
-                    name="precio_usd"
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    required
-                    placeholder="15.00"
-                    className={CLASE_INPUT}
-                  />
-                </Campo>
-                <Campo etiqueta="Stripe price id (opcional)">
-                  <input
-                    name="stripe_price_id"
-                    placeholder="price_..."
-                    className={CLASE_INPUT}
-                  />
-                </Campo>
-              </div>
-            </AccionForm>
-          </div>
-        </div>
-      </Tarjeta>
+      <PlanesAdminSection
+        planesIniciales={planes}
+        flagsDisponibles={FLAGS_POR_NEGOCIO.map((f) => ({
+          clave: f.clave,
+          etiqueta: f.etiqueta,
+          ayuda: f.ayuda,
+        }))}
+      />
 
       <Tarjeta titulo="Suscripciones por negocio">
         <Tabla
