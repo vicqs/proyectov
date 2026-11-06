@@ -1,4 +1,4 @@
-import type { Reserva, Servicio } from "@/types/database";
+import type { Reembolso, Reserva, Servicio } from "@/types/database";
 import type {
   ClientIdType,
   FinancialTransaction,
@@ -7,6 +7,8 @@ import type {
   ServiceFiscalSummary,
   VoucherType,
 } from "@/types/finanzas";
+import { reservaOcupaCupo } from "@/lib/horarios";
+import { esCobroPasarela, esPagoManual, esTrxPasarela, montoEfectivoReserva } from "@/lib/pagos";
 
 /** Comisión estimada de la pasarela bancaria (4.25%). vuki cobra 0% por venta. */
 export const GATEWAY_FEE_RATE_DEFAULT = 0.0425;
@@ -283,4 +285,227 @@ export function generarConsecutivoHaciendaMock(
   const num = String(Math.max(1, Math.floor(secuencia))).padStart(10, "0");
   return `00100001${codigoDoc}${num}`;
 }
+
+export interface ResumenKpiFinanciero {
+  subtotalUsd: number;
+  ivaUsd: number;
+  brutoUsd: number;
+  comisionesUsd: number;
+  netoUsd: number;
+  brutoCrc: number;
+  netoCrc: number;
+  tipoCambioRef: number;
+  cupos: number;
+  facturadas: number;
+  pendientesFactura: number;
+}
+
+/** Calcula los totales KPI (USD y CRC) e indicadores de facturación de las transacciones filtradas. */
+export function calcularResumenKpiFinanciero(
+  transaccionesFiltradas: FinancialTransaction[],
+  todasTransacciones: FinancialTransaction[],
+): ResumenKpiFinanciero {
+  let subtotalUsd = 0;
+  let ivaUsd = 0;
+  let brutoUsd = 0;
+  let comisionesUsd = 0;
+  let netoUsd = 0;
+  let brutoCrc = 0;
+  let netoCrc = 0;
+  let cupos = 0;
+  let facturadas = 0;
+
+  for (const t of transaccionesFiltradas) {
+    subtotalUsd += montoEnUsd(
+      t.subtotal_amount,
+      t.currency,
+      t.exchange_rate_bccr,
+    );
+    ivaUsd += montoEnUsd(t.iva_amount, t.currency, t.exchange_rate_bccr);
+    brutoUsd += montoEnUsd(t.gross_amount, t.currency, t.exchange_rate_bccr);
+    comisionesUsd += montoEnUsd(
+      t.gateway_fee_amount,
+      t.currency,
+      t.exchange_rate_bccr,
+    );
+    netoUsd += montoEnUsd(t.net_amount, t.currency, t.exchange_rate_bccr);
+    brutoCrc += montoEnCrc(t.gross_amount, t.currency, t.exchange_rate_bccr);
+    netoCrc += montoEnCrc(t.net_amount, t.currency, t.exchange_rate_bccr);
+    cupos += t.cupos ?? 1;
+    if (t.invoice_status === "issued") facturadas += 1;
+  }
+
+  const tipoCambioRef =
+    transaccionesFiltradas[0]?.exchange_rate_bccr ??
+    todasTransacciones[0]?.exchange_rate_bccr ??
+    EXCHANGE_RATE_BCCR_DEFAULT;
+
+  return {
+    subtotalUsd: redondearMoneda(subtotalUsd),
+    ivaUsd: redondearMoneda(ivaUsd),
+    brutoUsd: redondearMoneda(brutoUsd),
+    comisionesUsd: redondearMoneda(comisionesUsd),
+    netoUsd: redondearMoneda(netoUsd),
+    brutoCrc: redondearMoneda(brutoCrc),
+    netoCrc: redondearMoneda(netoCrc),
+    tipoCambioRef,
+    cupos,
+    facturadas,
+    pendientesFactura: transaccionesFiltradas.length - facturadas,
+  };
+}
+
+export const COLUMNAS_CSV_D104 = [
+  "Fecha_Servicio",
+  "ID_Transaccion",
+  "Servicio",
+  "Codigo_CABYS",
+  "Tipo_Comprobante",
+  "Tipo_ID_Cliente",
+  "Identificacion_Cliente",
+  "Nombre_Cliente",
+  "Correo_Cliente",
+  "Moneda",
+  "Tipo_Cambio_BCCR",
+  "Subtotal_Sin_IVA",
+  "Tarifa_IVA",
+  "Monto_IVA",
+  "Total_Bruto_Facturado",
+  "Comision_Pasarela_Gasto",
+  "Neto_Liquidado",
+  "Estado_Factura",
+  "Consecutivo_Hacienda",
+];
+
+/** Construye las filas para el archivo CSV de declaración D-104 (Ministerio de Hacienda CR). */
+export function filasCsvD104(
+  transacciones: FinancialTransaction[],
+  formatearFecha: (iso: string) => string,
+): (string | number)[][] {
+  return transacciones.map((t) => [
+    formatearFecha(t.service_date),
+    t.transaction_ref,
+    t.service_name,
+    t.cabys_code,
+    t.voucher_type,
+    t.client_id_type ?? "",
+    t.client_tax_id ?? "",
+    t.client_name ?? "",
+    t.client_email,
+    t.currency,
+    t.exchange_rate_bccr.toFixed(2),
+    t.subtotal_amount.toFixed(2),
+    t.iva_rate.toFixed(2),
+    t.iva_amount.toFixed(2),
+    t.gross_amount.toFixed(2),
+    t.gateway_fee_amount.toFixed(2),
+    t.net_amount.toFixed(2),
+    t.invoice_status === "issued" ? "Facturado" : "Pendiente",
+    t.invoice_consecutive ?? "",
+  ]);
+}
+
+/**
+ * Reconcilia las reservas del negocio, las transacciones financieras persistidas
+ * y los reembolsos para construir el estado consolidado del Dashboard Financiero.
+ */
+export function reconciliarFinanzasNegocio({
+  reservasDb,
+  trxPersistidas,
+  servicios,
+  reembolsosDb,
+}: {
+  reservasDb: Reserva[];
+  trxPersistidas: FinancialTransaction[];
+  servicios: Servicio[];
+  reembolsosDb: Pick<Reembolso, "reserva_id" | "monto_usd" | "estado">[];
+}) {
+  const serviciosPorId = new Map(servicios.map((s) => [s.id, s]));
+  const montoReembolsoPorReserva = new Map(
+    reembolsosDb.map((r) => [r.reserva_id, r.monto_usd]),
+  );
+  const reembolsosCompletadosIds = new Set(
+    reembolsosDb
+      .filter((r) => r.estado === "completado")
+      .map((r) => r.reserva_id),
+  );
+  const filas = reservasDb.map((r) => ({
+    ...r,
+    servicio: serviciosPorId.get(r.servicio_id) ?? null,
+  }));
+  const pagos = filas.filter((r) => esCobroPasarela(r));
+  const noPagadasIds = new Set(
+    filas.filter((r) => r.estado !== "pagada").map((r) => r.id),
+  );
+
+  const pagosManuales = filas.filter(
+    (r) => r.estado === "pagada" && esPagoManual(r.trx_id),
+  );
+  const reembolsos = filas.filter(
+    (r) =>
+      r.estado === "cancelada" &&
+      esTrxPasarela(r.trx_id) &&
+      !reembolsosCompletadosIds.has(r.id),
+  );
+  const pendientes = filas.filter(
+    (r) => r.estado === "pendiente" && reservaOcupaCupo(r),
+  );
+
+  const porReservaId = new Map<string, FinancialTransaction>();
+  const porRef = new Map<string, FinancialTransaction>();
+  for (const t of trxPersistidas) {
+    if (t.reserva_id) porReservaId.set(t.reserva_id, t);
+    if (t.transaction_ref) porRef.set(t.transaction_ref, t);
+  }
+
+  const usadasIds = new Set<string>();
+  const mapeadas = pagos.map((p) => {
+    const existente =
+      porReservaId.get(p.id) ??
+      (p.trx_id ? porRef.get(p.trx_id) : undefined);
+    if (!existente) {
+      return reservaATransaccionFinanciera(p, p.servicio);
+    }
+    usadasIds.add(existente.id);
+    return existente;
+  });
+
+  const independientes = trxPersistidas.filter(
+    (t) =>
+      !usadasIds.has(t.id) &&
+      (!t.reserva_id || !noPagadasIds.has(t.reserva_id)),
+  );
+
+  const transacciones = [...mapeadas, ...independientes].sort((a, b) =>
+    b.service_date.localeCompare(a.service_date),
+  );
+
+  const montoDe = (r: (typeof filas)[number]) =>
+    montoEfectivoReserva(r, r.servicio?.precio_usd);
+
+  return {
+    transacciones,
+    pagosManualesResumen: {
+      cantidad: pagosManuales.length,
+      monto: pagosManuales.reduce((acc, r) => acc + montoDe(r), 0),
+    },
+    detalleManuales: pagosManuales.map((r) => ({
+      fechaIso: r.fecha_hora,
+      monto: montoDe(r),
+    })),
+    reembolsosPendientes: {
+      cantidad: reembolsos.length,
+      monto: reembolsos.reduce(
+        (acc, r) =>
+          acc + (montoReembolsoPorReserva.get(r.id) ?? montoDe(r)),
+        0,
+      ),
+    },
+    pendientesCobro: {
+      cantidad: pendientes.length,
+      monto: pendientes.reduce((acc, r) => acc + montoDe(r), 0),
+    },
+  };
+}
+
 

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { supabaseAdmin } from "./supabase";
+import type { DatabaseClient } from "./data/db";
 import type { TipoRegistroSistema } from "../types/database";
 
 /** Registro operativo (webhooks, correos, errores). Nunca lanza ni guarda secretos. */
@@ -10,9 +10,14 @@ export async function registrarSistema(evento: {
   estado: "ok" | "error";
   detalle?: string | null;
   payload?: Record<string, unknown> | null;
-}): Promise<void> {
+}, client?: DatabaseClient): Promise<void> {
   try {
-    const { error } = await supabaseAdmin.from("registro_sistema").insert({
+    const supabase = client ?? null;
+    if (!supabase) {
+      console.info("[registro_sistema] Solo log de servidor; no hay un cliente administrativo o webhook verificado.", evento.tipo, evento.origen, evento.estado);
+      return;
+    }
+    const { error } = await supabase.from("registro_sistema").insert({
       tipo: evento.tipo,
       origen: evento.origen,
       estado: evento.estado,

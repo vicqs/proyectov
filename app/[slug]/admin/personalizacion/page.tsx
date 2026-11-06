@@ -31,7 +31,18 @@ export default async function PersonalizacionPage({
       }
     >
       <PersonalizacionForm
-        negocio={negocio}
+        negocio={{
+          slug: negocio.slug,
+          nombre: negocio.nombre,
+          descripcion: negocio.descripcion,
+          cuenta_iban: negocio.cuenta_iban,
+          whatsapp: negocio.whatsapp,
+          color_tema: negocio.color_tema,
+          color_secundario: negocio.color_secundario,
+          logo_url: negocio.logo_url,
+          imagen_portada_url: negocio.imagen_portada_url,
+          email_contacto: negocio.email_contacto,
+        }}
         emailCuenta={user.email ?? ""}
         maxImagenMb={config.max_imagen_mb}
       />

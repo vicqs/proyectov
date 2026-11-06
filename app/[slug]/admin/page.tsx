@@ -1,18 +1,15 @@
 import { requerirEmpresa, type EmpresaPageProps } from "@/lib/empresa";
-import { construirHorarios } from "@/lib/horarios";
-import { esCobroPasarela, esPagoManual } from "@/lib/pagos";
+import { construirHorarios, reservaOcupaCupo } from "@/lib/horarios";
+import { esCobroPasarela, esPagoManual, montoEfectivoReserva } from "@/lib/pagos";
 import { rutaPanelEmpresa } from "@/lib/rutas-empresa";
-import type { Horario, Reserva, Servicio } from "@/types/database";
+import { hoyClaveCR } from "@/lib/zona-horaria";
+import type { BloqueoExcepcion, Horario, Servicio } from "@/types/database";
 import InicioView from "@/components/empresa/InicioView";
+import { leer } from "@/lib/data/server";
+import { COLUMNAS_RESERVA_PANEL, type ReservaPanel } from "@/lib/data/columnas";
 
-interface PagoConPrecio extends Reserva {
+interface PagoConPrecio extends ReservaPanel {
   servicio: Pick<Servicio, "precio_usd"> | null;
-}
-
-function hoyClaveCR(ahoraMs: number): string {
-  const cr = new Date(ahoraMs - 6 * 3_600_000);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${cr.getUTCFullYear()}-${p(cr.getUTCMonth() + 1)}-${p(cr.getUTCDate())}`;
 }
 
 /**
@@ -22,50 +19,44 @@ function hoyClaveCR(ahoraMs: number): string {
  */
 export default async function EmpresaInicioPage({ params }: EmpresaPageProps) {
   const { slug } = await params;
-  const { supabase, negocio } = await requerirEmpresa(slug);
+  const { negocio } = await requerirEmpresa(slug);
 
   const ahoraMs = Date.now();
-  const ahoraIso = new Date(ahoraMs).toISOString();
   const hoyClave = hoyClaveCR(ahoraMs);
+  const inicioHoyMs = new Date(`${hoyClave}T00:00:00-06:00`).getTime();
+  const inicioHoyIso = new Date(inicioHoyMs).toISOString();
+  const finHoyMs = inicioHoyMs + 86_400_000;
+  const haceSemana = ahoraMs - 7 * 86_400_000;
 
-  let proximas: Reserva[] = [];
+  let proximas: ReservaPanel[] = [];
   let pagos: PagoConPrecio[] = [];
   let manualesPagadas: PagoConPrecio[] = [];
   let servicios: Servicio[] = [];
   let totalReservas = 0;
   let horarios: Horario[] = [];
-  let todas: Reserva[] = [];
+  let todas: ReservaPanel[] = [];
+  let bloqueos: BloqueoExcepcion[] = [];
 
   if (negocio) {
-    const [serviciosRes, todasRes, horariosRes] = await Promise.all([
-      supabase
-        .from("servicios")
-        .select("*")
-        .eq("negocio_id", negocio.id)
-        .order("nombre", { ascending: true }),
-      supabase.from("reservas").select("*").eq("negocio_id", negocio.id),
-      supabase
-        .from("horarios")
-        .select("*")
-        .eq("negocio_id", negocio.id)
-        .gte("fecha_hora", ahoraIso),
+    [servicios, todas, horarios, bloqueos] = await Promise.all([
+      leer("servicios", { eq: { negocio_id: negocio.id }, orden: ["nombre", true] }),
+      leer("reservas", { eq: { negocio_id: negocio.id }, columnas: COLUMNAS_RESERVA_PANEL }),
+      leer("horarios", { eq: { negocio_id: negocio.id }, gte: { fecha_hora: inicioHoyIso } }),
+      leer("bloqueos_excepcion", { eq: { negocio_id: negocio.id }, gte: { fecha_fin: inicioHoyIso } }),
     ]);
 
-    servicios = (serviciosRes.data ?? []) as Servicio[];
-    todas = (todasRes.data ?? []) as Reserva[];
-    horarios = (horariosRes.data ?? []) as Horario[];
-    totalReservas = todas.filter((r) => r.estado !== "cancelada").length;
+    totalReservas = todas.filter((r) => reservaOcupaCupo(r, ahoraMs)).length;
 
     proximas = todas
       .filter(
         (r) =>
-          (r.estado === "pendiente" || r.estado === "pagada") &&
+          reservaOcupaCupo(r, ahoraMs) &&
           new Date(r.fecha_hora).getTime() >= ahoraMs,
       )
       .sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora))
       .slice(0, 5);
 
-    const conServicio = (r: Reserva): PagoConPrecio => ({
+    const conServicio = (r: ReservaPanel): PagoConPrecio => ({
       ...r,
       servicio: servicios.find((s) => s.id === r.servicio_id) ?? null,
     });
@@ -77,20 +68,16 @@ export default async function EmpresaInicioPage({ params }: EmpresaPageProps) {
   }
 
   const montoDe = (p: PagoConPrecio) =>
-    p.monto_usd ?? (p.servicio?.precio_usd ?? 0) * (p.cupos ?? 1);
+    montoEfectivoReserva(p, p.servicio?.precio_usd);
   const totalCobrado = pagos.reduce((acc, pago) => acc + montoDe(pago), 0);
   const cobrosManualesUsd = manualesPagadas.reduce(
     (acc, pago) => acc + montoDe(pago),
     0,
   );
 
-  const inicioHoyMs = new Date(`${hoyClave}T00:00:00-06:00`).getTime();
-  const finHoyMs = inicioHoyMs + 86_400_000;
-  const haceSemana = ahoraMs - 7 * 86_400_000;
-
   const reservasDeHoy = todas.filter((r) => {
     const t = new Date(r.fecha_hora).getTime();
-    return r.estado !== "cancelada" && t >= inicioHoyMs && t < finHoyMs;
+    return reservaOcupaCupo(r, ahoraMs) && t >= inicioHoyMs && t < finHoyMs;
   });
   const reservasHoy = reservasDeHoy.length;
   const personasHoy = reservasDeHoy.reduce(
@@ -115,7 +102,7 @@ export default async function EmpresaInicioPage({ params }: EmpresaPageProps) {
   const pocosCupos = construirHorarios(
     horarios.filter((h) => new Date(h.fecha_hora).getTime() <= limite),
     todas,
-    [],
+    bloqueos,
   )
     .filter((h) => h.cuposDisponibles <= 2)
     .slice(0, 5)

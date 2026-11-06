@@ -17,6 +17,7 @@ import {
 } from "../../lib/tipos-publicos";
 import { LocaleProvider, useTranslations } from "../../lib/i18n";
 import { reservarYPagarAction } from "../../actions/pago-simulado";
+import { mensajeErrorUsuario } from "../../lib/errores";
 
 export interface NegocioPublico {
   nombre: string;
@@ -96,15 +97,19 @@ function NegocioProfileContenido({
     if (!servicioSeleccionado || !horario) {
       return { error: t("horario_no_disponible") };
     }
-    const resultado = await reservarYPagarAction({
-      servicioId: servicioSeleccionado.id,
-      email: emailCliente,
-      nombre: nombreCliente.trim() || undefined,
-      fechaHora: horario.fechaHora,
-      cupos,
-    });
-    if (!resultado.error) setHuboReserva(true);
-    return resultado;
+    try {
+      const resultado = await reservarYPagarAction({
+        servicioId: servicioSeleccionado.id,
+        email: emailCliente,
+        nombre: nombreCliente.trim() || undefined,
+        fechaHora: horario.fechaHora,
+        cupos,
+      });
+      if (!resultado.error) setHuboReserva(true);
+      return resultado;
+    } catch (error) {
+      return { error: mensajeErrorUsuario(error, t("error_pago")) };
+    }
   }
 
   function cerrarSheet() {
@@ -198,7 +203,7 @@ function NegocioProfileContenido({
           transition={{ duration: 0.5, delay: 0.1 }}
           className="mt-8"
         >
-          <h1 className="break-words text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+          <h1 className="break-words font-display text-3xl font-bold tracking-tight text-vuki-ink sm:text-4xl">
             {negocio.nombre}
           </h1>
           <div
@@ -212,15 +217,27 @@ function NegocioProfileContenido({
             {negocio.descripcion}
           </p>
           {whatsappUrl && (
-            <a
+            <motion.a
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 shadow-xs transition hover:bg-emerald-100 hover:border-emerald-400 focus-visible:outline-2 focus-visible:outline-emerald-700"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.03, y: -1 }}
+              whileTap={{ scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 400, damping: 20 }}
+              className="vuki-focus group mt-4 inline-flex min-h-11 items-center gap-2.5 rounded-full border border-emerald-300/80 bg-emerald-50/90 px-4 py-2 text-sm font-semibold text-emerald-800 shadow-xs transition-colors hover:border-emerald-400 hover:bg-emerald-100/90 hover:shadow-sm hover:shadow-emerald-600/10"
             >
-              <MessageCircle className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-              WhatsApp
-            </a>
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 duration-1000" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              <MessageCircle
+                className="h-4 w-4 text-emerald-600 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110"
+                aria-hidden="true"
+              />
+              <span>WhatsApp</span>
+            </motion.a>
           )}
         </motion.header>
 
@@ -259,7 +276,7 @@ function NegocioProfileContenido({
           {hrefReportar && (
             <Link
               href={hrefReportar}
-              className="inline-block rounded-lg px-2 py-2 text-xs text-slate-500 hover:text-slate-700 hover:underline focus-visible:underline"
+              className="vuki-focus inline-block rounded-lg px-2 py-2 text-xs text-slate-500 hover:text-slate-700 hover:underline focus-visible:underline"
             >
               {t("reportar_perfil")}
             </Link>
@@ -279,19 +296,6 @@ function NegocioProfileContenido({
           />
         )}
       </AnimatePresence>
-
-      {whatsappUrl && (
-        <a
-          href={whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Contactar por WhatsApp"
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-950/20 transition hover:bg-[#20ba5a] hover:scale-105 active:scale-95 focus-visible:outline-2 focus-visible:outline-emerald-600"
-        >
-          <MessageCircle className="h-5 w-5 fill-current" aria-hidden="true" />
-          <span className="font-medium">WhatsApp</span>
-        </a>
-      )}
     </main>
   );
 }

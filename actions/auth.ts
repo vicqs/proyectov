@@ -3,8 +3,6 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../lib/supabase/server";
-import { isMockMode } from "../lib/mock/client";
-import { mockUsuarios } from "../lib/mock/usuarios";
 import { obtenerEmpresaAutenticada } from "../lib/empresa";
 import { rutaPanelEmpresa } from "../lib/rutas-empresa";
 import { obtenerPerfil } from "../lib/sesion";
@@ -37,7 +35,7 @@ export async function loginAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data: signInData, error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
     password: parsed.data.password,
   });
@@ -46,9 +44,7 @@ export async function loginAction(
     return { error: "Correo o contraseña incorrectos." };
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = signInData.user;
   const perfil = user ? await obtenerPerfil(user.id) : null;
   if (perfil?.bloqueado) {
     await supabase.auth.signOut();
@@ -73,7 +69,6 @@ export async function logoutAction() {
 export interface RecuperacionState {
   error?: string;
   ok?: boolean;
-  /** Solo en modo simulado y desarrollo: enlace directo en lugar del correo. */
   enlaceDev?: string;
 }
 
@@ -95,17 +90,6 @@ export async function solicitarRecuperacionAction(
     return { error: parsed.error.issues[0]?.message ?? "Correo inválido" };
   }
   const email = parsed.data;
-
-  if (isMockMode) {
-    const existe = mockUsuarios.some((u) => u.email === email);
-    const dev = process.env.NODE_ENV !== "production" && existe;
-    return {
-      ok: true,
-      enlaceDev: dev
-        ? `/auth/callback?mock_recovery=${encodeURIComponent(email)}`
-        : undefined,
-    };
-  }
 
   const base = (
     process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
@@ -157,6 +141,13 @@ export async function actualizarContrasenaAction(
     return {
       error:
         "El enlace venció. Solicita uno nuevo desde «Olvidé mi contraseña».",
+    };
+  }
+  const perfil = await obtenerPerfil(user.id);
+  if (perfil?.bloqueado) {
+    await supabase.auth.signOut();
+    return {
+      error: "Tu cuenta está bloqueada. Contacta a soporte de vuki.",
     };
   }
 

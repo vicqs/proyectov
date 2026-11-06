@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LogOut } from "lucide-react";
 import { requerirAdmin } from "../../lib/admin/auth";
 import { ETIQUETA_ROL, tienePermiso, type Permiso } from "../../lib/roles";
 import { logoutAction } from "../../actions/auth";
@@ -14,78 +15,96 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 const NAV: (AdminNavLink & { permiso: Permiso })[] = [
-  { href: "/admin", label: "Resumen", icon: "dashboard", permiso: "dashboard" },
+  {
+    href: "/admin",
+    label: "Resumen",
+    icon: "dashboard",
+    permiso: "dashboard",
+    grupo: "Operación",
+  },
   {
     href: "/admin/negocios",
     label: "Negocios",
     icon: "negocios",
     permiso: "negocios_ver",
-  },
-  {
-    href: "/admin/suscripciones",
-    label: "Suscripciones",
-    icon: "suscripciones",
-    permiso: "facturacion",
-  },
-  {
-    href: "/admin/finanzas",
-    label: "Finanzas",
-    icon: "finanzas",
-    permiso: "finanzas",
+    grupo: "Operación",
   },
   {
     href: "/admin/reservas",
     label: "Reservas",
     icon: "reservas",
     permiso: "reservas",
+    grupo: "Operación",
   },
   {
     href: "/admin/usuarios",
     label: "Usuarios",
     icon: "usuarios",
     permiso: "usuarios",
+    grupo: "Operación",
+  },
+  {
+    href: "/admin/suscripciones",
+    label: "Suscripciones",
+    icon: "suscripciones",
+    permiso: "facturacion",
+    grupo: "Monetización",
+  },
+  {
+    href: "/admin/finanzas",
+    label: "Finanzas",
+    icon: "finanzas",
+    permiso: "finanzas",
+    grupo: "Monetización",
   },
   {
     href: "/admin/soporte",
     label: "Soporte",
     icon: "soporte",
     permiso: "soporte",
+    grupo: "Atención",
   },
   {
     href: "/admin/moderacion",
     label: "Moderación",
     icon: "moderacion",
     permiso: "moderacion",
+    grupo: "Atención",
   },
   {
     href: "/admin/comunicacion",
     label: "Comunicación",
     icon: "comunicacion",
     permiso: "comunicacion",
+    grupo: "Atención",
   },
   {
     href: "/admin/configuracion",
     label: "Configuración",
     icon: "configuracion",
     permiso: "configuracion",
+    grupo: "Plataforma",
   },
   {
     href: "/admin/sistema",
     label: "Sistema",
     icon: "sistema",
     permiso: "sistema",
+    grupo: "Plataforma",
   },
   {
     href: "/admin/auditoria",
     label: "Auditoría",
     icon: "auditoria",
     permiso: "auditoria",
+    grupo: "Plataforma",
   },
   {
     href: "/admin/equipo",
     label: "Equipo",
     icon: "equipo",
     permiso: "equipo",
+    grupo: "Plataforma",
   },
 ];
 
@@ -108,9 +127,13 @@ export default async function AdminLayout({
         <form action={logoutAction}>
           <button
             type="submit"
-            className="vuki-focus min-h-11 w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-sky-50"
+            className="vuki-focus flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-sky-50 hover:text-slate-900 cursor-pointer"
           >
-            Cerrar sesión
+            <LogOut
+              className="h-4 w-4 shrink-0 text-slate-500"
+              aria-hidden="true"
+            />
+            <span>Cerrar sesión</span>
           </button>
         </form>
       }

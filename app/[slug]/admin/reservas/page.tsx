@@ -1,13 +1,15 @@
 import { requerirEmpresa, type EmpresaPageProps } from "@/lib/empresa";
-import type { Horario, ReservaConServicio, Servicio } from "@/types/database";
+import type { BloqueoExcepcion, Horario, Servicio } from "@/types/database";
 import { construirHorarios, etiquetaHorario } from "@/lib/horarios";
+import { montoEfectivoReserva } from "@/lib/pagos";
+import { hoyClaveCR } from "@/lib/zona-horaria";
 import ReservasEmpresaClient from "./ReservasEmpresaClient";
+import { leer } from "@/lib/data/server";
+import { COLUMNAS_RESERVA_PANEL, type ReservaPanel } from "@/lib/data/columnas";
 
-function hoyClaveCR(ahoraMs: number): string {
-  const cr = new Date(ahoraMs - 6 * 3_600_000);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${cr.getUTCFullYear()}-${p(cr.getUTCMonth() + 1)}-${p(cr.getUTCDate())}`;
-}
+type ReservaConServicio = ReservaPanel & {
+  servicio: Pick<Servicio, "nombre" | "precio_usd"> | null;
+};
 
 /**
  * Todas las reservas del negocio, con el nombre y tarifa del servicio traídos
@@ -24,7 +26,7 @@ export default async function ReservasPage({
     params,
     searchParams,
   ]);
-  const { supabase, negocio } = await requerirEmpresa(slug);
+  const { negocio } = await requerirEmpresa(slug);
 
   const ahoraMs = Date.now();
   const ahoraIso = new Date(ahoraMs).toISOString();
@@ -33,28 +35,26 @@ export default async function ReservasPage({
   let reservas: ReservaConServicio[] = [];
   let horarios: Horario[] = [];
   let servicios: Servicio[] = [];
+  let bloqueos: Pick<BloqueoExcepcion, "fecha_inicio" | "fecha_fin">[] = [];
 
   if (negocio) {
-    const [reservasRes, horariosRes, serviciosRes] = await Promise.all([
-      supabase
-        .from("reservas")
-        .select("*, servicio:servicios(nombre, precio_usd)")
-        .eq("negocio_id", negocio.id)
-        .order("fecha_hora", { ascending: false }),
-      supabase
-        .from("horarios")
-        .select("*")
-        .eq("negocio_id", negocio.id)
-        .gte("fecha_hora", ahoraIso)
-        .order("fecha_hora", { ascending: true }),
-      supabase.from("servicios").select("*").eq("negocio_id", negocio.id),
+    const [reservasDb, horariosDb, serviciosDb, bloqueosDb] = await Promise.all([
+      leer("reservas", {
+        eq: { negocio_id: negocio.id },
+        orden: ["fecha_hora", false],
+        columnas: COLUMNAS_RESERVA_PANEL,
+      }),
+      leer("horarios", {
+        eq: { negocio_id: negocio.id }, gte: { fecha_hora: ahoraIso }, orden: ["fecha_hora", true],
+      }),
+      leer("servicios", { eq: { negocio_id: negocio.id } }),
+      leer("bloqueos_excepcion", { eq: { negocio_id: negocio.id }, gte: { fecha_fin: ahoraIso } }),
     ]);
-
-    if (!reservasRes.error) {
-      reservas = (reservasRes.data ?? []) as unknown as ReservaConServicio[];
-    }
-    horarios = (horariosRes.data ?? []) as Horario[];
-    servicios = (serviciosRes.data ?? []) as Servicio[];
+    horarios = horariosDb;
+    servicios = serviciosDb;
+    bloqueos = bloqueosDb;
+    const serviciosPorId = new Map(serviciosDb.map((s) => [s.id, s]));
+    reservas = reservasDb.map((r) => ({ ...r, servicio: serviciosPorId.get(r.servicio_id) ?? null }));
   }
 
   const servicioPorId = new Map(servicios.map((s) => [s.id, s]));
@@ -71,7 +71,11 @@ export default async function ReservasPage({
           r.servicio?.precio_usd ??
           servicioPorId.get(r.servicio_id)?.precio_usd;
         const calculado =
-          r.monto_usd ?? (tarifa !== undefined ? tarifa * cupos : undefined);
+          r.monto_usd !== null && r.monto_usd !== undefined
+            ? r.monto_usd
+            : tarifa !== undefined
+              ? montoEfectivoReserva(r, tarifa)
+              : undefined;
 
         return {
           id: r.id,
@@ -90,14 +94,17 @@ export default async function ReservasPage({
           trxId: r.trx_id,
         };
       })}
-      horarios={construirHorarios(horarios, reservas, []).map((h) => {
+      horarios={construirHorarios(horarios, reservas, bloqueos, true).map((h) => {
         const srv = servicioPorId.get(h.servicioId);
         return {
           id: h.id,
           servicio: srv?.nombre ?? "Servicio",
           label: h.label,
           cuposDisponibles: h.cuposDisponibles,
+          cuposTotales: h.cuposTotales,
           precioUsd: srv?.precio_usd,
+          fechaHora: h.fechaHora,
+          duracionMin: srv?.duracion_min ?? 60,
         };
       })}
     />

@@ -1,83 +1,68 @@
-# 🗄️ Estructura de Datos — Esquema Relacional Proyectado
+# Estructura de datos de Supabase
 
-Este documento describe el **esquema relacional** de vuki en Supabase/PostgreSQL, tal como lo modela [types/database.ts](../../types/database.ts) (`negocios`, `servicios`, `reservas`, `horarios`).
+La fuente ejecutable es [schema.sql](../../supabase/schema.sql). [seed.sql](../../supabase/seed.sql) contiene la demostración actual; no implementa los tiers proyectados de $25/$40. El plan operativo de la semilla es **Plan vuki, $15 USD**.
 
-> **Alcance proyectado:** los campos y tiers de $25/$40 se conservan como propuesta, no como migración de BD ni cambio de los planes/precios operativos. Las referencias a TiloPay/OnvoPay son futuras: **no están implementados** y los pagos de reservas siguen simulados. Stripe mantiene su función actual de cobro de suscripciones SaaS, sin cambios por el rebranding.
+## Tablas y compatibilidad
 
-## 1. 🏢 `Company` (Pyme)
+Todas las entidades tienen UUID, marcas temporales y relaciones, excepto el singleton de configuración, identificado por `id = 1`.
 
-Representa a cada negocio turístico suscrito a la plataforma (equivalente a `Negocio` / `negocios` en el modelo actual).
+| Tabla canónica | Vista/modelo de la aplicación | Relación principal |
+| --- | --- | --- |
+| `profiles` | `perfiles` | `auth.users`; rol administrativo nullable |
+| `businesses` | `negocios` | Propietario en Auth |
+| `plans` | `planes` | Planes comerciales y flags |
+| `subscriptions` | Integrada en `negocios` | Una por negocio; plan opcional |
+| `services` | `servicios` | Negocio |
+| `schedules` | `horarios` | Negocio y servicio |
+| `blocks` | `bloqueos_excepcion` | Negocio y rango temporal |
+| `bookings` | `reservas` | Negocio, servicio y horario opcional |
+| `financial_transactions` | `transacciones_financieras` | Reserva, negocio y servicio |
+| `support_tickets` | `tickets` | Negocio |
+| `ticket_messages` | `ticket_mensajes` | Ticket y autor |
+| `internal_notes` | `notas_internas` | Negocio y autor administrativo |
+| `profile_reports` | `reportes_perfil` | Negocio y resolución |
+| `announcements` | `anuncios` | Segmentación y caducidad |
+| `email_broadcasts` | `comunicados` | Segmentación y resultados de envío |
+| `platform_settings` | `configuracion_plataforma` | Configuración singleton |
+| `audit_logs` | `auditoria` | Actor, entidad y negocio |
+| `system_logs` | `registro_sistema` | Webhooks y errores operativos |
+| `refunds` | `reembolsos` | Reserva y negocio |
 
-| Campo                  | Tipo                                          | Descripción                                                                                                                                                                                                                                                                                        |
-| ---------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                   | `uuid` (PK)                                   | Identificador único del negocio                                                                                                                                                                                                                                                                    |
-| `slug`                 | `text` (unique)                               | Identificador legible en la URL pública (ej. `surf-tamarindo`)                                                                                                                                                                                                                                     |
-| `nombre`               | `text`                                        | Nombre comercial del negocio                                                                                                                                                                                                                                                                       |
-| `email_contacto`       | `text`                                        | Correo de contacto/administración                                                                                                                                                                                                                                                                  |
-| `color_tema`           | `text`                                        | Color de marca (hex) usado para personalizar el perfil público                                                                                                                                                                                                                                     |
-| `plan_suscripcion`     | `text` (`"esencial" \| "pro"`)                | Plan propuesto ($25 o $40/mes; no sustituye tarifas operativas — ver [docs/Reglas_Negocio.md](../Reglas_Negocio.md))                                                                                                                                                                               |
-| `estado_suscripcion`   | `text` (`"activa" \| "inactiva" \| "prueba"`) | Estado actual del pago de la suscripción SaaS                                                                                                                                                                                                                                                      |
-| `fecha_proximo_cobro`  | `timestamp`                                   | Próxima fecha de cobro de la suscripción                                                                                                                                                                                                                                                           |
-| `cuenta_bancaria_info` | `jsonb`                                       | Metadatos previstos de la cuenta/pasarela futura (TiloPay/OnvoPay) del negocio — **nunca** número de tarjeta ni datos sensibles; solo referencias/tokens de la pasarela, ya que los fondos nunca pasan por vuki (ver [docs/Reglas_Negocio.md](../Reglas_Negocio.md#3-🏦-flujo-financiero-y-legal)) |
-| `created_at`           | `timestamp`                                   | Fecha de creación del registro                                                                                                                                                                                                                                                                     |
+Las vistas usan `security_invoker`, por lo que no eluden RLS. `negocios` combina los datos comerciales con su suscripción y tiene un trigger de escritura. No utilizar las migraciones históricas que intentan alterar estos nombres como tablas.
 
-## 2. 🏄 `Service` (Servicio, ej. Clase de Surf)
+Los contratos están en [database.ts](../../types/database.ts), y los tipos canónicos de conexión en [supabase.ts](../../types/supabase.ts).
 
-Catálogo de servicios ofrecidos por cada negocio.
+## Reservas, horarios e índices
 
-| Campo          | Tipo                       | Descripción                                                |
-| -------------- | -------------------------- | ---------------------------------------------------------- |
-| `id`           | `uuid` (PK)                | Identificador único del servicio                           |
-| `company_id`   | `uuid` (FK → `Company.id`) | Negocio dueño del servicio                                 |
-| `titulo`       | `text`                     | Nombre del servicio (ej. "Clase Grupal de Surf")           |
-| `descripcion`  | `text`                     | Descripción visible en el perfil público                   |
-| `precio`       | `numeric(10,2)`            | Precio en USD                                              |
-| `duracion_min` | `integer`                  | Duración en minutos                                        |
-| `imagen_url`   | `text`                     | URL de la imagen principal del servicio                    |
-| `activo`       | `boolean`                  | Si el servicio se muestra actualmente en el perfil público |
-| `created_at`   | `timestamp`                | Fecha de creación del registro                             |
+- Fechas en `timestamptz`; etiquetas y horarios de demostración en Costa Rica.
+- Capacidad almacenada en horarios; ocupación derivada de reservas pendientes/pagadas.
+- Bloqueo de horario y validación de capacidad dentro de PostgreSQL.
+- FK compuestas evitan asociar servicios, horarios, pagos o reembolsos de otro negocio.
+- Se conserva la regla actual: un correo no puede tener dos reservas activas para el mismo servicio, aunque cambie de horario.
+- Token de gestión aleatorio independiente del UUID de reserva.
+- Índices por slug, propietario/negocio, estado, fechas de servicio y referencias de pago.
 
-## 3. 🎟️ `Booking` (Reserva)
+## Fiscalidad
 
-Reservas confirmadas y pagadas por turistas.
+Servicios y reservas contienen:
 
-| Campo                     | Tipo                                                             | Descripción                                                      |
-| ------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `id`                      | `uuid` (PK)                                                      | Identificador único de la reserva                                |
-| `service_id`              | `uuid` (FK → `Service.id`)                                       | Servicio reservado                                               |
-| `schedule_id`             | `uuid` (FK → `Schedule.id`)                                      | Horario/cupo específico reservado                                |
-| `fecha`                   | `date`                                                           | Fecha de la reserva                                              |
-| `hora`                    | `time`                                                           | Hora de la reserva                                               |
-| `nombre_turista`          | `text`                                                           | Nombre del cliente final                                         |
-| `email`                   | `text`                                                           | Correo del cliente (para envío de recibo/confirmación)           |
-| `cantidad_cupos`          | `integer`                                                        | Número de cupos reservados (ej. personas)                        |
-| `monto_pagado`            | `numeric(10,2)`                                                  | Monto total cobrado                                              |
-| `estado_pago`             | `text` (`"pendiente" \| "pagado" \| "fallido" \| "reembolsado"`) | Estado de la transacción, actualizado vía webhook de la pasarela |
-| `id_transaccion_pasarela` | `text`                                                           | Referencia externa del pago (TiloPay/OnvoPay/Stripe)             |
-| `created_at`              | `timestamp`                                                      | Fecha de creación de la reserva                                  |
+`cabys_code`, `iva_rate`, `voucher_type`, `client_id_type`, `client_tax_id`,
+`exchange_rate_bccr`, `subtotal_amount`, `iva_amount`, `gross_amount`,
+`gateway_fee_amount`, `net_amount`, `invoice_status`, `invoice_consecutive`.
 
-## 4. 📅 `Schedule` (Horarios/Cupos)
+También se conserva moneda, tasa de comisión, nombre y correo del receptor. CABYS tiene 13 dígitos; el consecutivo, cuando se informa, tiene 20. FE exige los datos del receptor. Los importes incluyen IVA y usan columnas calculadas con redondeo monetario.
 
-Franjas horarias disponibles por servicio, con control de capacidad.
+La reserva captura el precio y la configuración fiscal para no recalcular ventas históricas después de editar el servicio. Los pagos por pasarela generan registros financieros; los pagos con prefijo literal `manual_` permanecen fuera de las liquidaciones por pasarela.
 
-| Campo               | Tipo                       | Descripción                                                                  |
-| ------------------- | -------------------------- | ---------------------------------------------------------------------------- |
-| `id`                | `uuid` (PK)                | Identificador único del horario                                              |
-| `service_id`        | `uuid` (FK → `Service.id`) | Servicio al que pertenece el horario                                         |
-| `dia_semana`        | `integer` (`0`–`6`)        | Día de la semana (para horarios recurrentes) o `null` si es fecha específica |
-| `fecha_hora`        | `timestamp`                | Fecha y hora exacta de la sesión (para instancias puntuales)                 |
-| `horas_disponibles` | `text[]` / `jsonb`         | Lista de horas disponibles cuando el horario es recurrente por día de semana |
-| `max_capacidad`     | `integer`                  | Cupos totales disponibles (equivalente a `cuposTotales`)                     |
-| `cupos_disponibles` | `integer`                  | Cupos aún no reservados (se decrementa con cada `Booking`)                   |
-| `created_at`        | `timestamp`                | Fecha de creación del registro                                               |
+Los cambios de receptor/comprobante se sincronizan entre reserva y registro financiero. Guardar estos datos no equivale a emitir o validar un documento ante Hacienda. El cambio BCCR de 515 y la comisión de 4,25 % de la semilla son referencias demo.
 
-## 🔗 Relaciones
+## Acceso
 
-```
-Company (1) ──< Service (N) ──< Schedule (N) ──< Booking (N)
-```
+- RLS activa en las 19 tablas.
+- Empresa: sesión válida, propiedad del negocio y restricciones para campos administrativos/fiscales protegidos.
+- Público: solo proyecciones limitadas y operaciones RPC; no lectura directa de reservas, IBAN, perfiles o datos de otros clientes.
+- Superadministración: cliente service role protegido por autorización de servidor.
+- Webhooks: cliente privilegiado después de verificar la firma; confirmación de pago transaccional e idempotente.
+- Storage: lectura pública del bucket multimedia y escritura restringida a la carpeta del negocio propio.
 
-- Un `Company` tiene muchos `Service`.
-- Un `Service` tiene muchos `Schedule` (franjas horarias).
-- Un `Schedule` tiene muchas `Booking` (hasta agotar `max_capacidad`).
-- `Booking.service_id` se mantiene como referencia directa además de `schedule_id` para simplificar reportes y queries de finanzas sin necesidad de join adicional.
+Ver [Migracion_Supabase.md](Migracion_Supabase.md) para ejecución, credenciales de API, usuarios demo y comprobaciones.

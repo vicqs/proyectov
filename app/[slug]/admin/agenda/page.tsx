@@ -1,12 +1,9 @@
 import { requerirEmpresa, type EmpresaPageProps } from "@/lib/empresa";
-import type { BloqueoExcepcion, Horario, Reserva } from "@/types/database";
+import { reservaOcupaCupo } from "@/lib/horarios";
+import { hoyClaveCR } from "@/lib/zona-horaria";
+import type { BloqueoExcepcion, Horario, Reserva, Servicio } from "@/types/database";
 import AgendaEmpresaClient from "./AgendaEmpresaClient";
-
-function hoyClaveCR(ahoraMs: number): string {
-  const cr = new Date(ahoraMs - 6 * 3_600_000);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${cr.getUTCFullYear()}-${p(cr.getUTCMonth() + 1)}-${p(cr.getUTCDate())}`;
-}
+import { leer } from "@/lib/data/server";
 
 /**
  * Gestión de la Agenda: lista los bloqueos futuros activos del negocio del
@@ -24,7 +21,7 @@ export default async function AgendaPage({
     params,
     searchParams,
   ]);
-  const { supabase, negocio } = await requerirEmpresa(slug);
+  const { negocio } = await requerirEmpresa(slug);
 
   const ahoraMs = Date.now();
   const ahoraIso = new Date(ahoraMs).toISOString();
@@ -33,37 +30,36 @@ export default async function AgendaPage({
 
   let bloqueos: BloqueoExcepcion[] = [];
   let horarios: Horario[] = [];
-  let reservas: Reserva[] = [];
+  let reservas: Pick<Reserva, "fecha_hora" | "estado" | "trx_id">[] = [];
+  let servicios: Pick<Servicio, "id" | "duracion_min">[] = [];
 
   if (negocio) {
-    const [bloqueosRes, horariosRes, reservasRes] = await Promise.all([
-      supabase
-        .from("bloqueos_excepcion")
-        .select("*")
-        .eq("negocio_id", negocio.id)
-        .gte("fecha_fin", ahoraIso)
-        .order("fecha_inicio", { ascending: true }),
-      supabase
-        .from("horarios")
-        .select("*")
-        .eq("negocio_id", negocio.id)
-        .gte("fecha_hora", ahoraIso),
-      supabase
-        .from("reservas")
-        .select("*")
-        .eq("negocio_id", negocio.id)
-        .gte("fecha_hora", inicioHoyIso),
+    [bloqueos, horarios, reservas, servicios] = await Promise.all([
+      leer("bloqueos_excepcion", {
+        eq: { negocio_id: negocio.id }, gte: { fecha_fin: ahoraIso }, orden: ["fecha_inicio", true],
+      }),
+      leer("horarios", { eq: { negocio_id: negocio.id }, gte: { fecha_hora: ahoraIso } }),
+      leer("reservas", {
+        eq: { negocio_id: negocio.id },
+        gte: { fecha_hora: inicioHoyIso },
+        columnas: ["fecha_hora", "estado", "trx_id"],
+      }),
+      leer("servicios", { eq: { negocio_id: negocio.id }, columnas: ["id", "duracion_min"] }),
     ]);
-
-    if (!bloqueosRes.error) {
-      bloqueos = (bloqueosRes.data ?? []) as BloqueoExcepcion[];
-    }
-    horarios = (horariosRes.data ?? []) as Horario[];
-    reservas = (reservasRes.data ?? []) as Reserva[];
   }
 
+  const duracionPorServicio = new Map(
+    servicios.map((s) => [s.id, s.duracion_min]),
+  );
+
+  const horariosDetallados = horarios.map((h) => ({
+    id: h.id,
+    fechaHora: h.fecha_hora,
+    duracionMin: duracionPorServicio.get(h.servicio_id) ?? 60,
+  }));
+
   const reservasActivasIso = reservas
-    .filter((r) => r.estado !== "cancelada")
+    .filter((r) => reservaOcupaCupo(r, ahoraMs))
     .map((r) => r.fecha_hora);
 
   const fechaSugerida =
@@ -80,6 +76,7 @@ export default async function AgendaPage({
         abrir: nuevo === "1",
         fecha: fechaSugerida,
       }}
+      horarios={horariosDetallados}
       horariosIso={horarios.map((h) => h.fecha_hora)}
       reservasActivasIso={reservasActivasIso}
       bloqueos={bloqueos.map((b) => ({

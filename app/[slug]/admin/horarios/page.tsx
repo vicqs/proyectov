@@ -1,12 +1,9 @@
 import { requerirEmpresa, type EmpresaPageProps } from "@/lib/empresa";
-import { construirHorarios } from "@/lib/horarios";
+import { construirHorarios, sugerirProximoHorario } from "@/lib/horarios";
+import { hoyClaveCR } from "@/lib/zona-horaria";
 import type { Horario, Reserva, Servicio } from "@/types/database";
 import HorariosEmpresaClient from "./HorariosEmpresaClient";
-
-function claveLocal(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
+import { leer } from "@/lib/data/server";
 
 /**
  * Horarios y cupos del negocio autenticado: lista los horarios futuros con
@@ -28,66 +25,44 @@ export default async function HorariosPage({
     params,
     searchParams,
   ]);
-  const { supabase, negocio } = await requerirEmpresa(slug);
-
-  let servicios: Pick<Servicio, "id" | "nombre">[] = [];
-  let horarios: Horario[] = [];
-  let reservas: Reserva[] = [];
-
-  if (negocio) {
-    const [serviciosRes, horariosRes, reservasRes] = await Promise.all([
-      supabase
-        .from("servicios")
-        .select("*")
-        .eq("negocio_id", negocio.id)
-        .order("nombre", { ascending: true }),
-      supabase
-        .from("horarios")
-        .select("*")
-        .eq("negocio_id", negocio.id)
-        .gte("fecha_hora", new Date().toISOString())
-        .order("fecha_hora", { ascending: true }),
-      supabase.from("reservas").select("*").eq("negocio_id", negocio.id),
-    ]);
-    servicios = (serviciosRes.data ?? []) as Servicio[];
-    horarios = (horariosRes.data ?? []) as Horario[];
-    reservas = (reservasRes.data ?? []) as Reserva[];
-  }
+  const { negocio } = await requerirEmpresa(slug);
 
   const ahora = new Date();
-  const hoyClave = claveLocal(ahora);
+  const hoyClave = hoyClaveCR(ahora.getTime());
+  const inicioHoyIso = new Date(`${hoyClave}T00:00:00-06:00`).toISOString();
 
-  const proximo = new Date(ahora);
-  proximo.setMinutes(0, 0, 0);
-  proximo.setHours(proximo.getHours() + 1);
-  if (proximo.getHours() >= 18 || proximo.getHours() < 6) {
-    if (proximo.getHours() >= 18) proximo.setDate(proximo.getDate() + 1);
-    proximo.setHours(9, 0, 0, 0);
+  let servicios: Pick<
+    Servicio,
+    "id" | "nombre" | "duracion_min" | "precio_usd"
+  >[] = [];
+  let horarios: Horario[] = [];
+  let reservas: Pick<
+    Reserva,
+    "servicio_id" | "fecha_hora" | "cupos" | "estado" | "trx_id"
+  >[] = [];
+
+  if (negocio) {
+    [servicios, horarios, reservas] = await Promise.all([
+      leer("servicios", { eq: { negocio_id: negocio.id }, orden: ["nombre", true] }),
+      leer("horarios", {
+        eq: { negocio_id: negocio.id }, gte: { fecha_hora: inicioHoyIso },
+        orden: ["fecha_hora", true],
+      }),
+      // Solo las columnas que usa el cálculo de cupos ocupados.
+      leer("reservas", {
+        eq: { negocio_id: negocio.id },
+        gte: { fecha_hora: inicioHoyIso },
+        neq: { estado: "cancelada" },
+        columnas: ["servicio_id", "fecha_hora", "cupos", "estado", "trx_id"],
+      }),
+    ]);
   }
 
-  let fechaSugerida = claveLocal(proximo);
-  let horaSugerida = `${String(proximo.getHours()).padStart(2, "0")}:00`;
-
-  if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) && fecha >= hoyClave) {
-    if (fecha === hoyClave) {
-      const sigHora = ahora.getHours() + 1;
-      if (sigHora <= 9) {
-        fechaSugerida = fecha;
-        horaSugerida = "09:00";
-      } else if (sigHora <= 22) {
-        fechaSugerida = fecha;
-        horaSugerida = `${String(sigHora).padStart(2, "0")}:00`;
-      } else {
-        const manana = new Date(ahora);
-        manana.setDate(manana.getDate() + 1);
-        fechaSugerida = claveLocal(manana);
-        horaSugerida = "09:00";
-      }
-    } else {
-      fechaSugerida = fecha;
-      horaSugerida = "09:00";
-    }
-  }
+  const { fechaSugerida, horaSugerida } = sugerirProximoHorario(
+    ahora,
+    hoyClave,
+    fecha,
+  );
 
   const servicioSugerido =
     servicio && servicios.some((s) => s.id === servicio)
@@ -104,7 +79,12 @@ export default async function HorariosPage({
         hora: horaSugerida,
         servicioId: servicioSugerido,
       }}
-      servicios={servicios.map((s) => ({ id: s.id, nombre: s.nombre }))}
+      servicios={servicios.map((s) => ({
+        id: s.id,
+        nombre: s.nombre,
+        duracionMin: s.duracion_min,
+        precioUsd: s.precio_usd,
+      }))}
       horarios={construirHorarios(horarios, reservas, []).map((h) => ({
         id: h.id,
         servicioId: h.servicioId,
@@ -112,6 +92,7 @@ export default async function HorariosPage({
         fechaHora: h.fechaHora,
         cuposTotales: h.cuposTotales,
         cuposDisponibles: h.cuposDisponibles,
+        yaPaso: new Date(h.fechaHora).getTime() <= ahora.getTime(),
       }))}
     />
   );

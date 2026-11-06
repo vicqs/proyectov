@@ -23,6 +23,8 @@ import Drawer from "../Drawer";
 import ConfirmDialog from "../ConfirmDialog";
 import { toast } from "../Toast";
 import { esImagenOptimizable } from "../../lib/tipos-publicos";
+import { formatearPrecioUsd } from "@/lib/formato";
+import { mensajeErrorUsuario } from "../../lib/errores";
 
 export interface VistaServicio {
   id: string;
@@ -92,8 +94,7 @@ const DURACIONES_RAPIDAS: { valor: string; etiqueta: string }[] = [
 
 const PRECIOS_RAPIDOS = ["25", "35", "45", "65", "95"];
 
-const INPUT =
-  "vuki-focus min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-500";
+const INPUT = "vuki-input min-h-11";
 
 function formatearDuracion(minutos: number): string {
   if (!Number.isFinite(minutos) || minutos <= 0) return "";
@@ -185,6 +186,7 @@ export default function ServiciosView({
   }
 
   function cerrarDrawer() {
+    if (guardando) return;
     setDrawerAbierto(false);
     onCerrarInicial?.();
   }
@@ -195,6 +197,7 @@ export default function ServiciosView({
 
   async function handleSubmit(evento: React.FormEvent) {
     evento.preventDefault();
+    if (guardando) return;
     const nombreLimpio = form.nombre.trim();
     const precio = Number(form.precioUsd);
     const duracion = Number(form.duracionMin);
@@ -222,37 +225,57 @@ export default function ServiciosView({
     }
 
     setGuardando(true);
-    const error = await onGuardar(editandoId, {
-      nombre: nombreLimpio,
-      descripcion: form.descripcion,
-      precioUsd: precio,
-      duracionMin: duracion,
-      imagenUrl: urlLimpia,
-    });
-    setGuardando(false);
-    if (error) {
-      toast.error(error);
-      return;
+    try {
+      const error = await onGuardar(editandoId, {
+        nombre: nombreLimpio,
+        descripcion: form.descripcion,
+        precioUsd: precio,
+        duracionMin: duracion,
+        imagenUrl: urlLimpia,
+      });
+      if (error) {
+        toast.error(error);
+        return;
+      }
+      toast.success(
+        editandoId
+          ? "Servicio actualizado con éxito"
+          : "Servicio creado con éxito",
+      );
+      setDrawerAbierto(false);
+    } catch (e) {
+      toast.error(
+        mensajeErrorUsuario(
+          e,
+          "No se pudo guardar el servicio. Intenta de nuevo.",
+        ),
+      );
+    } finally {
+      setGuardando(false);
     }
-    toast.success(
-      editandoId
-        ? "Servicio actualizado con éxito"
-        : "Servicio creado con éxito",
-    );
-    setDrawerAbierto(false);
   }
 
   async function handleEliminar() {
     if (!porEliminar || eliminando) return;
     setEliminando(true);
-    const error = await onEliminar(porEliminar.id);
-    setEliminando(false);
-    if (error) {
-      toast.error(error);
-    } else {
-      toast.success(`"${porEliminar.nombre}" eliminado`);
+    try {
+      const error = await onEliminar(porEliminar.id);
+      if (error) {
+        toast.error(error);
+      } else {
+        toast.success(`"${porEliminar.nombre}" eliminado`);
+      }
+      setPorEliminar(null);
+    } catch (e) {
+      toast.error(
+        mensajeErrorUsuario(
+          e,
+          "No se pudo eliminar el servicio. Intenta de nuevo.",
+        ),
+      );
+    } finally {
+      setEliminando(false);
     }
-    setPorEliminar(null);
   }
 
   const urlFormLimpia = form.imagenUrl.trim();
@@ -283,7 +306,7 @@ export default function ServiciosView({
             type="button"
             onClick={abrirNuevo}
             whileTap={{ scale: 0.96 }}
-            className="vuki-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-vuki-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 sm:flex-none"
+            className="vuki-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-vuki-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 sm:flex-none"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Nuevo servicio
@@ -331,7 +354,7 @@ export default function ServiciosView({
                 placeholder="Buscar servicio..."
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                className="vuki-focus min-h-9 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-8 pr-3 text-xs text-slate-800 focus:border-sky-500 focus:bg-white"
+                className="vuki-input-search-sm pr-3"
               />
             </div>
           )}
@@ -414,18 +437,39 @@ export default function ServiciosView({
                         <h2 className="min-w-0 break-words font-display text-base font-bold tracking-tight text-vuki-ink sm:text-lg">
                           {servicio.nombre}
                         </h2>
-                        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-(--marca-2-fondo) px-3 py-1 font-display text-sm font-bold text-(--marca-2-texto) ring-1 ring-(--marca-2-borde)">
-                          <DollarSign className="h-3.5 w-3.5" aria-hidden="true" />
-                          {servicio.precioUsd.toFixed(2)}
+                        <span className="inline-flex shrink-0 items-center rounded-full bg-(--marca-2-fondo) px-3 py-1 font-display text-sm font-bold text-(--marca-2-texto) ring-1 ring-(--marca-2-borde)">
+                          {formatearPrecioUsd(servicio.precioUsd)}
                         </span>
                       </div>
 
-                      {/* Metadatos: duración y estado de horarios/contenido */}
+                      {/* Metadatos: duración, reservas y estado de horarios/contenido */}
                       <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
                         <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
                           <Clock className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
                           {formatearDuracion(servicio.duracionMin)}
                         </span>
+
+                        {hrefReservas && tieneReservas ? (
+                          <Link
+                            href={hrefReservas}
+                            title="Ver reservas de este servicio"
+                            className="vuki-focus inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700 transition hover:bg-slate-200 hover:text-slate-900"
+                          >
+                            <CalendarCheck className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                            {servicio.reservasTotales ?? 0}{" "}
+                            {(servicio.reservasTotales ?? 0) === 1
+                              ? "reserva"
+                              : "reservas"}
+                          </Link>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
+                            <CalendarCheck className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+                            {servicio.reservasTotales ?? 0}{" "}
+                            {(servicio.reservasTotales ?? 0) === 1
+                              ? "reserva"
+                              : "reservas"}
+                          </span>
+                        )}
 
                         {servicio.horariosActivos !== undefined && (
                           <span
@@ -492,38 +536,25 @@ export default function ServiciosView({
                       )}
                     </div>
 
-                    {tieneReservas ? (
-                      hrefReservas ? (
-                        <Link
-                          href={hrefReservas}
-                          title="Este servicio tiene reservas registradas y no puede eliminarse para conservar tu historial"
-                          className="vuki-focus inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
-                        >
-                          <CalendarCheck
-                            className="h-3.5 w-3.5 text-emerald-600"
-                            aria-hidden="true"
-                          />
-                          {servicio.reservasTotales}{" "}
-                          {servicio.reservasTotales === 1
-                            ? "reserva"
-                            : "reservas"}
-                        </Link>
-                      ) : (
-                        <span className="text-xs font-medium text-slate-500">
-                          {servicio.reservasTotales} reserva(s)
-                        </span>
-                      )
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setPorEliminar(servicio)}
-                        aria-label={`Quitar ${servicio.nombre}`}
-                        className="vuki-focus inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                        Quitar
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      disabled={tieneReservas}
+                      onClick={() => !tieneReservas && setPorEliminar(servicio)}
+                      title={
+                        tieneReservas
+                          ? "No se puede eliminar un servicio con reservas registradas"
+                          : undefined
+                      }
+                      aria-label={`Quitar ${servicio.nombre}`}
+                      className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
+                        tieneReservas
+                          ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-60"
+                          : "vuki-focus border-red-200 bg-white text-red-600 hover:bg-red-50"
+                      }`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      Quitar
+                    </button>
                   </div>
                 </div>
               </ItemLista>
@@ -579,7 +610,7 @@ export default function ServiciosView({
                   setForm({ ...form, descripcion: e.target.value })
                 }
                 placeholder="Cuenta qué incluye, nivel requerido o punto de encuentro..."
-                className={INPUT}
+                className="vuki-textarea"
               />
             </div>
           )}
@@ -596,7 +627,7 @@ export default function ServiciosView({
                 <div className="relative">
                   <span
                     aria-hidden="true"
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400"
+                    className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400 select-none"
                   >
                     $
                   </span>
@@ -612,7 +643,7 @@ export default function ServiciosView({
                       setForm({ ...form, precioUsd: e.target.value })
                     }
                     placeholder="35.00"
-                    className={`${INPUT} pl-7`}
+                    className={`${INPUT} vuki-input-currency`}
                   />
                 </div>
               </div>
@@ -654,7 +685,7 @@ export default function ServiciosView({
                       : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
                   }`}
                 >
-                  ${p}
+                  ${p} USD
                 </button>
               ))}
             </div>
@@ -744,7 +775,7 @@ export default function ServiciosView({
             type="submit"
             disabled={guardando}
             whileTap={{ scale: 0.97 }}
-            className="vuki-focus mt-1 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="vuki-focus mt-1 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {guardando ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -766,10 +797,14 @@ export default function ServiciosView({
             ? `"${porEliminar.nombre}" y sus horarios sin reservas dejarán de mostrarse en tu enlace público. Esta acción no se puede deshacer.`
             : ""
         }
+        cargando={eliminando}
+        textoCargando="Eliminando..."
         onConfirmar={() => {
           if (!eliminando) void handleEliminar();
         }}
-        onCancelar={() => setPorEliminar(null)}
+        onCancelar={() => {
+          if (!eliminando) setPorEliminar(null);
+        }}
       />
     </EmpresaPage>
   );

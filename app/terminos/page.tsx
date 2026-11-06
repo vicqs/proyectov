@@ -13,7 +13,9 @@ export const metadata = {
  * cobro en línea. Debe ser revisado por un abogado antes de producción.
  */
 export default async function TerminosPage() {
-  const { terminos_texto } = await obtenerConfiguracion();
+  const { terminos_texto } = await obtenerConfiguracion().catch(() => ({
+    terminos_texto: null,
+  }));
   if (terminos_texto) {
     return (
       <LegalPage tipo="terminos">

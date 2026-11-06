@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requerirAdmin } from "../../../../lib/admin/auth";
@@ -18,22 +19,29 @@ import {
   obtenerConfiguracion,
 } from "../../../../lib/plataforma";
 import { estadoEfectivo } from "../../../../lib/negocio-estado";
+import { cuposOcupados } from "../../../../lib/horarios";
 import { facturasPendientes } from "../../../../lib/facturas-pendientes";
 import { esCobroPasarela } from "../../../../lib/pagos";
+import {
+  Briefcase,
+  CalendarCheck,
+  CreditCard,
+  TrendingUp,
+} from "lucide-react";
 import {
   fechaCorta,
   fechaHora,
   parametro,
+  pluralizar,
   usd,
 } from "../../../../lib/admin/formato";
+import { BotonCopiar } from "../../../../components/admin/BotonCopiar";
+import { TarjetaDatosPublicos } from "../../../../components/admin/TarjetaDatosPublicos";
+import { TarjetaEliminacion } from "../../../../components/admin/TarjetaEliminacion";
 import {
   agregarNotaAction,
-  cambiarSlugAction,
-  editarDatosNegocioAction,
-  eliminarNegocioAction,
   limpiarContenidoAction,
   reactivarNegocioAction,
-  restaurarNegocioAction,
   suspenderNegocioAction,
 } from "../../../../actions/admin/negocios";
 import {
@@ -49,6 +57,7 @@ import { InsigniaNegocio } from "../../../../components/admin/InsigniaNegocio";
 import {
   CLASE_BOTON_NEUTRO,
   CLASE_INPUT,
+  CLASE_SELECT,
   Campo,
   Celda,
   Estadistica,
@@ -56,6 +65,7 @@ import {
   PaginaAdmin,
   Tabla,
   Tarjeta,
+  TextareaConContador,
 } from "../../../../components/admin/ui";
 
 type Props = {
@@ -75,23 +85,32 @@ export default async function NegocioDetallePage({
   params,
   searchParams,
 }: Props) {
-  const admin = await requerirAdmin("negocios_ver");
-  const { id } = await params;
-  const sp = await searchParams;
+  const [{ id }, sp] = await Promise.all([params, searchParams]);
+  const [admin, negocio] = await Promise.all([
+    requerirAdmin("negocios_ver"),
+    leerUno("negocios", { eq: { id } }),
+  ]);
+  if (!negocio) notFound();
+
   const tab = TABS.some((t) => t.clave === parametro(sp.tab))
     ? (parametro(sp.tab) as (typeof TABS)[number]["clave"])
     : "resumen";
 
-  const negocio = await leerUno("negocios", { eq: { id } });
-  if (!negocio) notFound();
-
-  const owner = await authAdmin
-    .getUserById(negocio.user_id)
-    .then((r) => r.data.user)
-    .catch(() => null);
-
   const puedeGestionar = tienePermiso(admin.rol, "negocios_gestionar");
   const puedeFacturar = tienePermiso(admin.rol, "facturacion");
+  const puedeVerFinanzas = tienePermiso(admin.rol, "finanzas");
+  const puedeSoporte = tienePermiso(admin.rol, "soporte");
+  const puedeModeracion = tienePermiso(admin.rol, "moderacion");
+  const puedeAuditoria = tienePermiso(admin.rol, "auditoria");
+  const tabsVisibles = TABS.filter((t) => {
+    if (t.clave === "cuenta") return puedeGestionar;
+    if (t.clave === "facturacion") return puedeFacturar;
+    return true;
+  }).map((t) =>
+    t.clave === "soporte" && !puedeSoporte
+      ? { ...t, etiqueta: "Notas y actividad" }
+      : t,
+  );
   const href = (t: string) => `/admin/negocios/${id}?tab=${t}`;
 
   return (
@@ -108,31 +127,34 @@ export default async function NegocioDetallePage({
         </span>
       }
       accion={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link href="/admin/negocios" className={CLASE_BOTON_NEUTRO}>
-            Volver
+            ← Volver
           </Link>
           {!negocio.eliminado_en && !negocio.suspendido && (
             <Link
               href={`/${negocio.slug}`}
               target="_blank"
               className={CLASE_BOTON_NEUTRO}
+              title="Ver perfil público"
             >
-              Perfil público
+              Perfil público ↗
             </Link>
           )}
         </div>
       }
     >
-      <nav className="flex flex-wrap gap-1 border-b border-slate-200">
-        {TABS.map((t) => (
+      <nav
+        aria-label="Secciones de la ficha del negocio"
+        className="flex flex-wrap gap-1.5 border-b border-sky-100 pb-4"
+      >
+        {tabsVisibles.map((t) => (
           <Link
             key={t.clave}
             href={href(t.clave)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
-              tab === t.clave
-                ? "border-sky-600 text-sky-700"
-                : "border-transparent text-slate-500 hover:text-slate-800"
+            aria-current={tab === t.clave ? "page" : undefined}
+            className={`vuki-focus vuki-tab-pill ${
+              tab === t.clave ? "vuki-tab-pill-active" : ""
             }`}
           >
             {t.etiqueta}
@@ -140,16 +162,54 @@ export default async function NegocioDetallePage({
         ))}
       </nav>
 
-      {tab === "resumen" && (
-        <Resumen negocio={negocio} ownerEmail={owner?.email ?? "—"} />
-      )}
-      {tab === "vista" && <VistaSoporte id={id} admin={admin} />}
-      {tab === "cuenta" &&
-        (puedeGestionar ? <Cuenta negocioId={id} /> : <SinAcceso />)}
-      {tab === "facturacion" &&
-        (puedeFacturar ? <Facturacion negocioId={id} /> : <SinAcceso />)}
-      {tab === "soporte" && <Notas negocioId={id} />}
+      <Suspense key={tab} fallback={<EsqueletoSeccionNegocio />}>
+        {tab === "resumen" && (
+          <Resumen
+            negocio={negocio}
+            puedeVerFinanzas={puedeVerFinanzas}
+            puedeFacturar={puedeFacturar}
+          />
+        )}
+        {tab === "vista" && <VistaSoporte id={id} admin={admin} />}
+        {tab === "cuenta" &&
+          (puedeGestionar ? <Cuenta negocio={negocio} /> : <SinAcceso />)}
+        {tab === "facturacion" &&
+          (puedeFacturar ? <Facturacion negocio={negocio} /> : <SinAcceso />)}
+        {tab === "soporte" && (
+          <Notas
+            negocioId={id}
+            negocioNombre={negocio.nombre}
+            puedeSoporte={puedeSoporte}
+            puedeModeracion={puedeModeracion}
+            puedeAuditoria={puedeAuditoria}
+          />
+        )}
+      </Suspense>
     </PaginaAdmin>
+  );
+}
+
+function EsqueletoSeccionNegocio() {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Cargando sección del negocio"
+      className="space-y-6"
+    >
+      <div className="h-44 rounded-3xl border border-sky-100 bg-white p-6 shadow-sm">
+        <div className="vuki-skeleton h-5 w-48 rounded-lg" />
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <div className="vuki-skeleton h-20 rounded-2xl" />
+          <div className="vuki-skeleton h-20 rounded-2xl" />
+          <div className="vuki-skeleton h-20 rounded-2xl" />
+        </div>
+      </div>
+      <div className="h-64 rounded-3xl border border-sky-100 bg-white p-6 shadow-sm">
+        <div className="vuki-skeleton h-5 w-56 rounded-lg" />
+        <div className="vuki-skeleton mt-4 h-40 w-full rounded-2xl" />
+      </div>
+    </div>
   );
 }
 
@@ -165,81 +225,215 @@ function SinAcceso() {
 
 type NegocioFila = FilaDe<"negocios">;
 
+function formatearIban(iban: string): string {
+  if (!iban) return "—";
+  const limpio = iban.replace(/\s+/g, "").toUpperCase();
+  return limpio.match(/.{1,4}/g)?.join(" ") ?? limpio;
+}
+
+function formatearDuracionServicio(minutos: number): string {
+  if (!Number.isFinite(minutos) || minutos <= 0) return "—";
+  if (minutos < 60) return `${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+  if (resto === 0) {
+    return `${horas}h (${minutos} min)`;
+  }
+  return `${horas}h ${resto}m (${minutos} min)`;
+}
+
+async function resolverEmailOwner(negocio: NegocioFila): Promise<string> {
+  if (negocio.email_contacto) return negocio.email_contacto;
+  const [perfilOwner, authUser] = await Promise.all([
+    leerUno("perfiles", { eq: { user_id: negocio.user_id } }),
+    authAdmin
+      .getUserById(negocio.user_id)
+      .then((r) => r.data.user?.email ?? null)
+      .catch(() => null),
+  ]);
+  return perfilOwner?.email || authUser || "—";
+}
+
 async function Resumen({
   negocio,
-  ownerEmail,
+  puedeVerFinanzas,
+  puedeFacturar,
 }: {
   negocio: NegocioFila;
-  ownerEmail: string;
+  puedeVerFinanzas: boolean;
+  puedeFacturar: boolean;
 }) {
-  const [servicios, reservas, planes] = await Promise.all([
+  const [servicios, reservas, planes, ownerEmail] = await Promise.all([
     leer("servicios", { eq: { negocio_id: negocio.id } }),
     leer("reservas", { eq: { negocio_id: negocio.id } }),
-    listarPlanes(),
+    puedeFacturar ? listarPlanes() : Promise.resolve([]),
+    resolverEmailOwner(negocio),
   ]);
   const idx = indexar(servicios);
   const pagadas = reservas.filter((r) => r.estado === "pagada");
-  const ingresos = reservas
-    .filter(esCobroPasarela)
-    .reduce((a, r) => a + montoReserva(r, idx), 0);
-  const precio = calcularPrecio(negocio, planes);
+  const ingresos = puedeVerFinanzas
+    ? reservas
+        .filter(esCobroPasarela)
+        .reduce((a, r) => a + montoReserva(r, idx), 0)
+    : 0;
+  const precio = puedeFacturar ? calcularPrecio(negocio, planes) : null;
+  const estado = estadoEfectivo(negocio);
+  const etiquetaSuscripcion =
+    estado === "prueba"
+      ? "En prueba"
+      : estado === "activa"
+        ? "Activa"
+        : "Inactiva";
 
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Estadistica titulo="Servicios" valor={String(servicios.length)} />
+        <Estadistica
+          titulo="Servicios"
+          icono={<Briefcase className="h-4 w-4" />}
+          valor={String(servicios.length)}
+          nota={pluralizar(servicios.length, "servicio", "servicios")}
+        />
         <Estadistica
           titulo="Reservas"
+          icono={<CalendarCheck className="h-4 w-4" />}
           valor={String(reservas.length)}
-          nota={`${pagadas.length} pagadas`}
+          nota={pluralizar(pagadas.length, "pagada", "pagadas")}
+          href={`/admin/reservas?negocio=${negocio.id}`}
         />
-        <Estadistica
-          titulo="Volumen cobrado"
-          valor={usd(ingresos)}
-          tono="bueno"
-        />
-        <Estadistica
-          titulo="Cuota mensual"
-          valor={usd(precio.precio)}
-          nota={`${precio.plan.nombre}${precio.descuentoPct ? ` · -${precio.descuentoPct}%` : ""}`}
-        />
+        {puedeVerFinanzas && (
+          <Estadistica
+            titulo="Volumen cobrado"
+            icono={<TrendingUp className="h-4 w-4" />}
+            valor={usd(ingresos)}
+            tono="bueno"
+            href="/admin/finanzas"
+          />
+        )}
+        {puedeFacturar && precio && (
+          <Estadistica
+            titulo="Cuota mensual"
+            icono={<CreditCard className="h-4 w-4" />}
+            valor={usd(precio.precio)}
+            nota={`${precio.plan.nombre}${precio.descuentoPct ? ` · -${precio.descuentoPct}%` : ""}`}
+          />
+        )}
       </div>
       <Tarjeta titulo="Datos del negocio">
-        <dl className="grid gap-3 text-sm sm:grid-cols-2">
-          <Dato t="Dueño" v={ownerEmail} />
+        <dl className="grid gap-3.5 sm:grid-cols-2">
+          <Dato t="Dueño" v={ownerEmail || "—"} />
           <Dato t="Alta" v={fechaCorta(negocio.creado_en)} />
-          <Dato t="Suscripción" v={estadoEfectivo(negocio)} />
+          <Dato
+            t="Suscripción"
+            v={
+              <div className="flex flex-wrap items-center gap-2">
+                <Insignia
+                  tono={
+                    estado === "activa"
+                      ? "verde"
+                      : estado === "prueba"
+                        ? "azul"
+                        : "ambar"
+                  }
+                >
+                  {etiquetaSuscripcion}
+                </Insignia>
+                {negocio.suspendido && (
+                  <Insignia tono="rojo">Suspendido</Insignia>
+                )}
+              </div>
+            }
+          />
           {negocio.estado_suscripcion === "prueba" ? (
             <Dato t="Prueba hasta" v={fechaCorta(negocio.prueba_hasta)} />
           ) : negocio.estado_suscripcion === "activa" ? (
             <Dato t="Próximo cobro" v={fechaCorta(negocio.proximo_cobro)} />
-          ) : null}
-          <Dato t="Cliente Stripe" v={negocio.stripe_customer_id ?? "—"} />
-          <Dato t="Cuenta IBAN" v={negocio.cuenta_iban || "—"} />
-          <div className="sm:col-span-2">
-            <dt className="text-xs uppercase tracking-wider text-slate-400">
-              Descripción
-            </dt>
-            <dd className="mt-0.5 text-slate-700">
-              {negocio.descripcion || "—"}
-            </dd>
-          </div>
+          ) : (
+            <Dato t="Ciclo de cobro" v="Sin cobro programado" />
+          )}
+          {puedeFacturar && (
+            <Dato
+              t="Cliente Stripe"
+              v={
+                negocio.stripe_customer_id ? (
+                  <span className="font-mono text-xs text-slate-700">
+                    {negocio.stripe_customer_id}
+                  </span>
+                ) : (
+                  <span className="text-slate-400">—</span>
+                )
+              }
+            />
+          )}
+          {puedeVerFinanzas && (
+            <Dato
+              t="Cuenta IBAN"
+              v={
+                negocio.cuenta_iban ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-semibold tracking-wider text-slate-900">
+                      {formatearIban(negocio.cuenta_iban)}
+                    </span>
+                    <BotonCopiar
+                      texto={negocio.cuenta_iban}
+                      etiqueta="Copiar cuenta IBAN"
+                      mensajeExito="Cuenta IBAN copiada"
+                    />
+                  </div>
+                ) : (
+                  <span className="text-slate-400">No registrada</span>
+                )
+              }
+            />
+          )}
+          <Dato
+            t="Descripción"
+            v={
+              negocio.descripcion ? (
+                <span className="text-slate-700 leading-relaxed">
+                  {negocio.descripcion}
+                </span>
+              ) : (
+                <span className="text-slate-400 italic">
+                  Sin descripción registrada
+                </span>
+              )
+            }
+            className="sm:col-span-2"
+          />
         </dl>
       </Tarjeta>
     </>
   );
 }
 
-function Dato({ t, v }: { t: string; v: string }) {
+function Dato({
+  t,
+  v,
+  className = "",
+}: {
+  t: string;
+  v: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div>
-      <dt className="text-xs uppercase tracking-wider text-slate-400">{t}</dt>
-      <dd className="mt-0.5 break-all text-slate-700">{v}</dd>
+    <div
+      className={`rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 transition-colors hover:border-slate-200/80 ${className}`}
+    >
+      <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+        {t}
+      </dt>
+      <dd className="mt-1 text-sm font-medium text-slate-800 break-words">
+        {v}
+      </dd>
     </div>
   );
 }
 
-/** Vista de solo lectura de lo que ve el dueño; cada consulta queda auditada. */
+// Caché en memoria para evitar auditorías duplicadas en el mismo minuto por StrictMode o cambio de pestañas
+const cacheSoporteVista = new Map<string, number>();
+
+/** Vista de solo lectura de lo que ve el dueño; cada consulta queda auditada una vez por minuto. */
 async function VistaSoporte({
   id,
   admin,
@@ -247,17 +441,42 @@ async function VistaSoporte({
   id: string;
   admin: Awaited<ReturnType<typeof requerirAdmin>>;
 }) {
-  await registrarAuditoria(admin, {
-    accion: "soporte.vista",
-    entidad: "negocio",
-    entidad_id: id,
-    negocio_id: id,
-  });
+  const ahora = Date.now();
+  const cacheKey = `${admin.user.id}:${id}`;
+  const ultimoTimestamp = cacheSoporteVista.get(cacheKey) ?? 0;
+
+  // Evita duplicados por doble montaje (StrictMode) o cambio rápido de pestañas (ventana de 60 segundos)
+  const auditoriaPromise = (async () => {
+    if (ahora - ultimoTimestamp <= 60_000) return;
+    cacheSoporteVista.set(cacheKey, ahora);
+
+    // Verificación en BD por si se ejecuta en diferentes workers o instancias
+    const unMinutoAtras = new Date(ahora - 60_000).toISOString();
+    const reciente = await leerUno("auditoria", {
+      eq: {
+        negocio_id: id,
+        accion: "soporte.vista",
+        actor_id: admin.user.id,
+      },
+      gte: { creado_en: unMinutoAtras },
+    });
+
+    if (!reciente) {
+      await registrarAuditoria(admin, {
+        accion: "soporte.vista",
+        entidad: "negocio",
+        entidad_id: id,
+        negocio_id: id,
+      });
+    }
+  })();
+
   const [servicios, horarios, bloqueos, reservas] = await Promise.all([
     leer("servicios", { eq: { negocio_id: id } }),
     leer("horarios", { eq: { negocio_id: id }, orden: ["fecha_hora", true] }),
     leer("bloqueos_excepcion", { eq: { negocio_id: id } }),
     leer("reservas", { eq: { negocio_id: id }, orden: ["fecha_hora", false] }),
+    auditoriaPromise,
   ]);
   const idx = indexar(servicios);
   const proximos = horarios.filter(
@@ -278,7 +497,7 @@ async function VistaSoporte({
             <tr key={s.id}>
               <Celda>{s.nombre}</Celda>
               <Celda>{usd(s.precio_usd)}</Celda>
-              <Celda>{s.duracion_min} min</Celda>
+              <Celda>{formatearDuracionServicio(s.duracion_min)}</Celda>
             </tr>
           ))}
         </Tabla>
@@ -288,13 +507,30 @@ async function VistaSoporte({
           columnas={["Servicio", "Fecha", "Cupos"]}
           vacia={proximos.length === 0}
         >
-          {proximos.slice(0, 30).map((h) => (
-            <tr key={h.id}>
-              <Celda>{idx.get(h.servicio_id)?.nombre ?? "—"}</Celda>
-              <Celda>{fechaHora(h.fecha_hora)}</Celda>
-              <Celda>{h.cupos_totales}</Celda>
-            </tr>
-          ))}
+          {proximos.slice(0, 30).map((h) => {
+            const ocupados = cuposOcupados(
+              reservas,
+              h.servicio_id,
+              h.fecha_hora,
+            );
+            const disponibles = Math.max(0, h.cupos_totales - ocupados);
+            return (
+              <tr key={h.id}>
+                <Celda>{idx.get(h.servicio_id)?.nombre ?? "—"}</Celda>
+                <Celda>{fechaHora(h.fecha_hora)}</Celda>
+                <Celda>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-medium text-slate-900">
+                      {ocupados}/{h.cupos_totales} ocupados
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      ({disponibles} {disponibles === 1 ? "disponible" : "disponibles"})
+                    </span>
+                  </div>
+                </Celda>
+              </tr>
+            );
+          })}
         </Tabla>
       </Tarjeta>
       <Tarjeta titulo={`Bloqueos (${bloqueos.length})`}>
@@ -331,7 +567,11 @@ async function VistaSoporte({
                         : "ambar"
                   }
                 >
-                  {r.estado}
+                  {r.estado === "pagada"
+                    ? "Pagada"
+                    : r.estado === "cancelada"
+                      ? "Cancelada"
+                      : "Pendiente"}
                 </Insignia>
               </Celda>
               <Celda>{usd(montoReserva(r, idx))}</Celda>
@@ -343,346 +583,483 @@ async function VistaSoporte({
   );
 }
 
-async function Cuenta({ negocioId }: { negocioId: string }) {
-  const negocio = await leerUno("negocios", { eq: { id: negocioId } });
-  if (!negocio) notFound();
+function Cuenta({ negocio }: { negocio: NegocioFila }) {
+  const negocioId = negocio.id;
   return (
-    <>
-      <Tarjeta titulo="Datos públicos">
-        <AccionForm
-          accion={editarDatosNegocioAction.bind(null, negocioId)}
-          boton="Guardar datos"
-        >
-          <Campo etiqueta="Nombre">
-            <input
-              name="nombre"
-              defaultValue={negocio.nombre}
-              required
-              maxLength={80}
-              className={CLASE_INPUT}
-            />
-          </Campo>
-          <Campo etiqueta="Descripción">
-            <textarea
-              name="descripcion"
-              defaultValue={negocio.descripcion ?? ""}
-              maxLength={600}
-              rows={3}
-              className={CLASE_INPUT}
-            />
-          </Campo>
-        </AccionForm>
-      </Tarjeta>
+    <div className="space-y-6">
+      {/* Tarjeta superior: Datos públicos (Nombre y Slug en 2 columnas, Descripción debajo) */}
+      <TarjetaDatosPublicos
+        negocioId={negocioId}
+        nombre={negocio.nombre}
+        slug={negocio.slug}
+        descripcion={negocio.descripcion ?? ""}
+      />
 
-      <Tarjeta
-        titulo="Slug"
-        descripcion="Cambiarlo rompe los enlaces públicos existentes."
-      >
-        <AccionForm
-          accion={cambiarSlugAction.bind(null, negocioId)}
-          boton="Cambiar slug"
-          variante="neutro"
-          confirmar="¿Cambiar el slug? El enlace anterior dejará de funcionar."
-          enLinea
-        >
-          <input
-            name="slug"
-            defaultValue={negocio.slug}
-            required
-            className={`${CLASE_INPUT} sm:w-64`}
-            aria-label="Slug"
-          />
-        </AccionForm>
-      </Tarjeta>
-
-      <Tarjeta
-        titulo="Moderación de contenido"
-        descripcion="Retira contenido inapropiado del perfil público."
-      >
-        <AccionForm
-          accion={limpiarContenidoAction.bind(null, negocioId)}
-          boton="Retirar contenido"
-          variante="peligro"
-          confirmar="¿Retirar este contenido del perfil?"
-          enLinea
-        >
-          <select
-            name="que"
-            className={`${CLASE_INPUT} sm:w-56`}
-            aria-label="Contenido"
+      {/* Grid de 2 columnas para tarjetas de control */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Columna izquierda: Moderación de contenido y Suspensión */}
+        <div className="space-y-6">
+          <Tarjeta
+            titulo="Moderación de contenido"
+            descripcion="Retira contenido inapropiado del perfil público."
           >
-            <option value="descripcion">Descripción</option>
-            <option value="logo">Logo</option>
-            <option value="portada">Imagen de portada</option>
-            <option value="todo">Todo lo anterior</option>
-          </select>
-        </AccionForm>
-      </Tarjeta>
+            <AccionForm
+              accion={limpiarContenidoAction.bind(null, negocioId)}
+              boton="Retirar contenido"
+              variante="peligro"
+              confirmar="¿Retirar este contenido del perfil?"
+              enLinea
+              className="w-full flex-col sm:flex-row items-stretch sm:items-center gap-2"
+            >
+              <select
+                name="que"
+                className={`${CLASE_SELECT} flex-1 min-w-0`}
+                aria-label="Contenido"
+              >
+                <option value="descripcion">Descripción</option>
+                <option value="logo">Logo</option>
+                <option value="portada">Imagen de portada</option>
+                <option value="todo">Todo lo anterior</option>
+              </select>
+            </AccionForm>
+          </Tarjeta>
 
-      <Tarjeta titulo="Suspensión">
-        {negocio.suspendido ? (
-          <AccionForm
-            accion={reactivarNegocioAction.bind(null, negocioId)}
-            boton="Reactivar negocio"
-          />
-        ) : (
-          <AccionForm
-            accion={suspenderNegocioAction.bind(null, negocioId)}
-            boton="Suspender negocio"
-            variante="peligro"
-            confirmar="Se ocultará el perfil público y se bloqueará el panel. ¿Continuar?"
-            enLinea
+          <Tarjeta
+            titulo="Suspensión"
+            descripcion={
+              negocio.suspendido
+                ? "El negocio está actualmente suspendido para el público y panel."
+                : "Oculta el perfil público y bloquea el panel del negocio."
+            }
           >
-            <input
-              name="motivo"
-              required
-              minLength={3}
-              maxLength={300}
-              placeholder="Motivo (lo verá la empresa)"
-              className={`${CLASE_INPUT} sm:w-80`}
-              aria-label="Motivo"
-            />
-          </AccionForm>
-        )}
-      </Tarjeta>
+            {negocio.suspendido ? (
+              <div className="space-y-3">
+                {negocio.motivo_suspension && (
+                  <p className="rounded-lg border border-red-100 bg-red-50 p-2.5 text-xs text-red-600">
+                    <b>Motivo de suspensión:</b> {negocio.motivo_suspension}
+                  </p>
+                )}
+                <AccionForm
+                  accion={reactivarNegocioAction.bind(null, negocioId)}
+                  boton="Reactivar negocio"
+                />
+              </div>
+            ) : (
+              <AccionForm
+                accion={suspenderNegocioAction.bind(null, negocioId)}
+                boton="Suspender negocio"
+                variante="peligro"
+                confirmar="Se ocultará el perfil público y se bloqueará el panel. ¿Continuar?"
+                enLinea
+                className="w-full flex-col sm:flex-row items-stretch sm:items-center gap-2"
+              >
+                <input
+                  name="motivo"
+                  required
+                  minLength={3}
+                  maxLength={300}
+                  placeholder="Motivo (lo verá la empresa)"
+                  className={`${CLASE_INPUT} flex-1 min-w-0`}
+                  aria-label="Motivo"
+                />
+              </AccionForm>
+            )}
+          </Tarjeta>
+        </div>
 
-      <Tarjeta titulo="Eliminación">
-        {negocio.eliminado_en ? (
-          <AccionForm
-            accion={restaurarNegocioAction.bind(null, negocioId)}
-            boton="Restaurar negocio"
+        {/* Columna derecha: Eliminación (zona de peligro) */}
+        <div>
+          <TarjetaEliminacion
+            negocioId={negocioId}
+            slug={negocio.slug}
+            eliminadoEn={negocio.eliminado_en}
           />
-        ) : (
-          <AccionForm
-            accion={eliminarNegocioAction.bind(null, negocioId)}
-            boton="Eliminar negocio"
-            variante="peligro"
-            confirmar="El negocio dejará de existir para empresa y público (se puede restaurar). ¿Continuar?"
-            enLinea
-          >
-            <input
-              name="confirmar"
-              required
-              placeholder={`Escribe «${negocio.slug}» para confirmar`}
-              className={`${CLASE_INPUT} sm:w-72`}
-              aria-label="Confirmación"
-            />
-          </AccionForm>
-        )}
-      </Tarjeta>
-    </>
+        </div>
+      </div>
+    </div>
   );
 }
 
-async function Facturacion({ negocioId }: { negocioId: string }) {
-  const [negocio, planes, config] = await Promise.all([
-    leerUno("negocios", { eq: { id: negocioId } }),
+async function Facturacion({ negocio }: { negocio: NegocioFila }) {
+  const negocioId = negocio.id;
+  const [planes, config, pendientes] = await Promise.all([
     listarPlanes(),
     obtenerConfiguracion(),
+    facturasPendientes(negocio.stripe_customer_id),
   ]);
-  if (!negocio) notFound();
-  const pendientes = await facturasPendientes(negocio.stripe_customer_id);
   const precio = calcularPrecio(negocio, planes);
   return (
-    <>
+    <div className="space-y-6">
+      {/* Barra de resumen compacta superior */}
       <Tarjeta titulo="Estado actual">
-        <p className="text-sm text-slate-600">
-          Suscripción: <b>{estadoEfectivo(negocio)}</b> · Plan:{" "}
-          <b>{precio.plan.nombre}</b> · Cuota: <b>{usd(precio.precio)}</b>
-          {negocio.estado_suscripcion === "prueba" &&
-            ` · Prueba hasta: ${fechaCorta(negocio.prueba_hasta)}`}
-          {negocio.estado_suscripcion === "activa" &&
-            ` · Próximo cobro: ${fechaCorta(negocio.proximo_cobro)}`}
-        </p>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-600">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Suscripción:
+            </span>
+            <Insignia
+              tono={
+                negocio.estado_suscripcion === "activa"
+                  ? "verde"
+                  : negocio.estado_suscripcion === "prueba"
+                    ? "azul"
+                    : "ambar"
+              }
+            >
+              <span className="capitalize">{estadoEfectivo(negocio)}</span>
+            </Insignia>
+          </div>
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Plan:
+            </span>{" "}
+            <b className="font-semibold text-slate-900">{precio.plan.nombre}</b>
+          </div>
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Cuota:
+            </span>{" "}
+            <b className="font-semibold text-slate-900">{usd(precio.precio)}</b>
+          </div>
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              {negocio.estado_suscripcion === "prueba"
+                ? "Fin de prueba:"
+                : negocio.estado_suscripcion === "activa"
+                  ? "Próximo cobro:"
+                  : "Ciclo:"}
+            </span>{" "}
+            <span className="font-medium text-slate-800">
+              {negocio.estado_suscripcion === "prueba"
+                ? fechaCorta(negocio.prueba_hasta)
+                : negocio.estado_suscripcion === "activa"
+                  ? fechaCorta(negocio.proximo_cobro)
+                  : "Sin cobro programado"}
+            </span>
+          </div>
+        </div>
       </Tarjeta>
-      <Tarjeta
-        titulo="Estado manual"
-        descripcion="Activa: perfil público y panel funcionan, próximo cobro en 30 días. En prueba: igual que activa hasta su fecha de fin (14 días si estaba vencida). Inactiva: el panel funciona pero el enlace público no recibe reservas. Para suspender o eliminar usa las pestañas de cuenta."
-      >
-        <AccionForm
-          accion={cambiarEstadoManualAction.bind(null, negocioId)}
-          boton="Aplicar estado"
-          variante="neutro"
-          confirmar="¿Cambiar el estado de la suscripción manualmente?"
-          enLinea
+
+      {/* Grid de 2 columnas para tarjetas operativas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        {/* Fila 1 (Columna izquierda): Estado manual */}
+        <Tarjeta
+          titulo="Estado manual"
+          descripcion="Activo: perfil público y panel funcionan. En prueba: periodo de prueba vigente. Inactivo: panel funciona pero sin reservas públicas."
         >
-          <select
-            name="estado"
-            defaultValue={negocio.estado_suscripcion}
-            className={`${CLASE_INPUT} sm:w-44`}
-            aria-label="Estado"
+          <AccionForm
+            accion={cambiarEstadoManualAction.bind(null, negocioId)}
+            boton="Aplicar estado"
+            variante="neutro"
+            confirmar="¿Cambiar el estado de la suscripción manualmente?"
+            enLinea
+            className="flex items-center gap-3 w-full"
           >
-            <option value="activa">Activa</option>
-            <option value="prueba">En prueba</option>
-            <option value="inactiva">Inactiva</option>
-          </select>
-        </AccionForm>
-      </Tarjeta>
-      <Tarjeta titulo="Plan">
-        <AccionForm
-          accion={asignarPlanAction.bind(null, negocioId)}
-          boton="Asignar plan"
-          variante="neutro"
-          enLinea
+            <select
+              name="estado"
+              defaultValue={negocio.estado_suscripcion}
+              className={`${CLASE_SELECT} flex-1 min-w-0`}
+              aria-label="Estado"
+            >
+              <option value="activa">Activo</option>
+              <option value="prueba">En prueba</option>
+              <option value="inactiva">Inactivo</option>
+            </select>
+          </AccionForm>
+        </Tarjeta>
+
+        {/* Fila 1 (Columna derecha): Plan */}
+        <Tarjeta
+          titulo="Plan"
+          descripcion="Asigna o cambia el plan contratado para este negocio."
         >
-          <select
-            name="plan_id"
-            defaultValue={negocio.plan_id ?? ""}
-            className={`${CLASE_INPUT} sm:w-64`}
-            aria-label="Plan"
+          <AccionForm
+            accion={asignarPlanAction.bind(null, negocioId)}
+            boton="Asignar plan"
+            variante="neutro"
+            enLinea
+            className="flex items-center gap-3 w-full"
           >
-            <option value="">Plan por defecto</option>
-            {planes
-              .filter((p) => p.activo)
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre} · {usd(p.precio_usd)}
-                </option>
-              ))}
-          </select>
-        </AccionForm>
-      </Tarjeta>
-      <Tarjeta
-        titulo="Funciones"
-        descripcion="Heredar usa lo que incluye el plan. Una función apagada globalmente no se puede forzar aquí."
-      >
-        <AccionForm
-          accion={actualizarFuncionesNegocioAction.bind(null, negocioId)}
-          boton="Guardar funciones"
-          variante="neutro"
-          enLinea
-        >
-          {FLAGS_POR_NEGOCIO.map((f) => {
-            const actual = negocio.flags_override?.[f.clave];
-            return (
-              <Campo key={f.clave} etiqueta={f.etiqueta}>
-                <select
-                  name={`flag_${f.clave}`}
-                  defaultValue={
-                    actual === undefined ? "" : actual ? "on" : "off"
-                  }
-                  className={`${CLASE_INPUT} sm:w-56`}
-                >
-                  <option value="">
-                    Heredar del plan (
-                    {funcionActiva(
-                      config,
-                      { ...negocio, flags_override: {} },
-                      planes,
-                      f.clave,
-                    )
-                      ? "activa"
-                      : "inactiva"}
-                    )
+            <select
+              name="plan_id"
+              defaultValue={negocio.plan_id ?? ""}
+              className={`${CLASE_SELECT} flex-1 min-w-0`}
+              aria-label="Plan"
+            >
+              <option value="">Plan por defecto</option>
+              {planes
+                .filter((p) => p.activo)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre} · {usd(p.precio_usd)}
                   </option>
-                  <option value="on">Activada</option>
-                  <option value="off">Desactivada</option>
-                </select>
-              </Campo>
-            );
-          })}
-        </AccionForm>
-      </Tarjeta>
-      <Tarjeta titulo="Descuento">
-        <AccionForm
-          accion={aplicarDescuentoAction.bind(null, negocioId)}
-          boton="Aplicar descuento"
-          variante="neutro"
-          enLinea
+                ))}
+            </select>
+          </AccionForm>
+        </Tarjeta>
+
+        {/* Fila 2 (Columna izquierda): Descuento */}
+        <Tarjeta
+          titulo="Descuento (%)"
+          descripcion="Aplica un porcentaje de descuento sobre la cuota mensual."
         >
-          <input
-            name="descuento_pct"
-            type="number"
-            min={0}
-            max={100}
-            step="1"
-            defaultValue={negocio.descuento_pct ?? 0}
-            className={`${CLASE_INPUT} sm:w-28`}
-            aria-label="Descuento %"
-          />
-          <span className="pb-2 text-sm text-slate-500">%</span>
-        </AccionForm>
-      </Tarjeta>
-      <Tarjeta titulo="Extender prueba">
-        <AccionForm
-          accion={extenderPruebaAction.bind(null, negocioId)}
-          boton="Extender"
-          variante="neutro"
-          enLinea
+          <AccionForm
+            accion={aplicarDescuentoAction.bind(null, negocioId)}
+            boton="Aplicar descuento"
+            variante="neutro"
+            enLinea
+            className="flex items-center gap-3 w-full"
+          >
+            <div className="relative w-32 sm:w-36 shrink-0">
+              <input
+                name="descuento_pct"
+                type="number"
+                min={0}
+                max={100}
+                step="1"
+                defaultValue={negocio.descuento_pct ?? 0}
+                className={`${CLASE_INPUT} vuki-input-sin-spinner pr-9 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                aria-label="Descuento (%)"
+              />
+              <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 select-none">
+                %
+              </span>
+            </div>
+          </AccionForm>
+        </Tarjeta>
+
+        {/* Fila 2 (Columna derecha): Extender prueba */}
+        <Tarjeta
+          titulo="Días a extender"
+          descripcion="Suma días adicionales al periodo de prueba gratuito."
         >
-          <input
-            name="dias"
-            type="number"
-            min={1}
-            max={365}
-            defaultValue={7}
-            className={`${CLASE_INPUT} sm:w-28`}
-            aria-label="Días"
+          <AccionForm
+            accion={extenderPruebaAction.bind(null, negocioId)}
+            boton="Extender"
+            variante="neutro"
+            enLinea
+            className="flex items-center gap-3 w-full"
+          >
+            <div className="relative w-32 sm:w-36 shrink-0">
+              <input
+                name="dias"
+                type="number"
+                min={1}
+                max={365}
+                defaultValue={7}
+                className={`${CLASE_INPUT} vuki-input-sin-spinner pr-14 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                aria-label="Días a extender"
+              />
+              <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 select-none">
+                días
+              </span>
+            </div>
+          </AccionForm>
+        </Tarjeta>
+
+        {/* Fila 3 (Columna izquierda): Funciones */}
+        <Tarjeta
+          titulo="Funciones"
+          descripcion="Heredar usa lo que incluye el plan. Una función apagada globalmente no se puede forzar aquí."
+        >
+          <AccionForm
+            accion={actualizarFuncionesNegocioAction.bind(null, negocioId)}
+            boton="Guardar funciones"
+            variante="neutro"
+          >
+            <div className="space-y-3">
+              {FLAGS_POR_NEGOCIO.map((f) => {
+                const actual = negocio.flags_override?.[f.clave];
+                return (
+                  <Campo key={f.clave} etiqueta={f.etiqueta}>
+                    <select
+                      name={`flag_${f.clave}`}
+                      defaultValue={
+                        actual === undefined ? "" : actual ? "on" : "off"
+                      }
+                      className={`${CLASE_SELECT} w-full`}
+                    >
+                      <option value="">
+                        Heredar del plan (
+                        {funcionActiva(
+                          config,
+                          { ...negocio, flags_override: {} },
+                          planes,
+                          f.clave,
+                        )
+                          ? "activa"
+                          : "inactiva"}
+                        )
+                      </option>
+                      <option value="on">Activada</option>
+                      <option value="off">Desactivada</option>
+                    </select>
+                  </Campo>
+                );
+              })}
+            </div>
+          </AccionForm>
+        </Tarjeta>
+
+        {/* Fila 3 (Columna derecha): Reintentar cobro */}
+        <Tarjeta
+          titulo="Reintentar cobro"
+          descripcion="Cobra las facturas abiertas del cliente en Stripe. Solo se habilita si hay cobros pendientes."
+        >
+          {pendientes.facturas.length > 0 ? (
+            <ul className="mb-4 divide-y divide-slate-100 text-sm">
+              {pendientes.facturas.map((f) => (
+                <li
+                  key={f.id}
+                  className="flex flex-wrap items-center justify-between gap-2 py-2"
+                >
+                  <span className="text-slate-700">
+                    Factura <b>{f.numero}</b> · emitida el {fechaCorta(f.creada)}
+                  </span>
+                  <span className="text-slate-600">
+                    <b>{usd(f.monto)}</b> · {f.intentos}{" "}
+                    {f.intentos === 1 ? "intento" : "intentos"} de cobro
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mb-4 text-sm text-slate-500">
+              {pendientes.aviso ?? "No hay cobros pendientes."}
+            </p>
+          )}
+          <AccionForm
+            accion={reintentarCobroAction.bind(null, negocioId)}
+            boton="Reintentar cobro"
+            variante="neutro"
+            confirmar="¿Reintentar el cobro ahora?"
+            deshabilitado={pendientes.facturas.length === 0}
           />
-          <span className="pb-2 text-sm text-slate-500">días</span>
-        </AccionForm>
-      </Tarjeta>
-      <Tarjeta
-        titulo="Reintentar cobro"
-        descripcion="Cobra las facturas abiertas del cliente en Stripe. Solo se habilita si hay cobros pendientes."
-      >
-        {pendientes.facturas.length > 0 ? (
-          <ul className="mb-4 divide-y divide-slate-100 text-sm">
-            {pendientes.facturas.map((f) => (
-              <li
-                key={f.id}
-                className="flex flex-wrap items-center justify-between gap-2 py-2"
-              >
-                <span className="text-slate-700">
-                  Factura <b>{f.numero}</b> · emitida el {fechaCorta(f.creada)}
-                </span>
-                <span className="text-slate-600">
-                  <b>
-                    {f.monto.toFixed(2)} {f.moneda}
-                  </b>{" "}
-                  · {f.intentos} {f.intentos === 1 ? "intento" : "intentos"} de
-                  cobro
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mb-4 text-sm text-slate-500">
-            {pendientes.aviso ?? "No hay cobros pendientes."}
-          </p>
-        )}
-        <AccionForm
-          accion={reintentarCobroAction.bind(null, negocioId)}
-          boton="Reintentar cobro"
-          variante="neutro"
-          confirmar="¿Reintentar el cobro ahora?"
-          deshabilitado={pendientes.facturas.length === 0}
-        />
-      </Tarjeta>
-    </>
+        </Tarjeta>
+      </div>
+    </div>
   );
 }
 
-async function Notas({ negocioId }: { negocioId: string }) {
+const ETIQUETAS_ACCIONES: Record<string, string> = {
+  "soporte.vista": "Consulta de soporte",
+  "negocio.nota": "Nota interna",
+  "negocio.crear": "Creación de negocio",
+  "negocio.editar": "Edición de negocio",
+  "negocio.suspender": "Suspensión de negocio",
+  "negocio.reactivar": "Reactivación de negocio",
+  "negocio.eliminar": "Eliminación de negocio",
+  "negocio.restaurar": "Restauración de negocio",
+  "negocio.cambiar_slug": "Cambio de slug",
+  "negocio.cambiar_estado": "Cambio de estado",
+  "negocio.limpiar_contenido": "Limpieza de contenido",
+  "negocio.transferir": "Transferencia de negocio",
+  "negocio.funciones": "Actualización de funciones",
+  "negocio.aplicar_plan": "Aplicación de plan",
+  "negocio.cancelar_plan": "Cancelación de plan",
+  "suscripcion.plan": "Cambio de plan",
+  "suscripcion.descuento": "Aplicación de descuento",
+  "suscripcion.extender_prueba": "Extensión de prueba",
+  "suscripcion.estado_manual": "Estado de suscripción",
+  "suscripcion.reintentar_cobro": "Reintento de cobro",
+  "ticket.crear": "Creación de ticket",
+  "ticket.responder": "Respuesta a ticket",
+  "ticket.actualizar": "Actualización de ticket",
+  "factura.actualizar": "Actualización de comprobante fiscal",
+  "reserva.cancelar": "Cancelación de reserva",
+  "reembolso.registrar": "Registro de reembolso",
+  "reembolso.completar": "Reembolso completado",
+  "usuario.cerrar_sesiones": "Cierre de sesiones",
+  "usuario.restablecer_contrasena": "Restablecimiento de contraseña",
+  "configuracion.general": "Configuración general",
+  "configuracion.plantillas": "Configuración de plantillas",
+  "configuracion.legal": "Configuración legal",
+  "equipo.asignar_rol": "Asignación de rol",
+  "equipo.quitar_rol": "Remoción de rol",
+  "anuncio.crear": "Creación de anuncio",
+  "anuncio.eliminar": "Eliminación de anuncio",
+  "comunicado.enviar": "Envío de comunicado",
+  "sistema.resolver": "Resolución de error",
+  "sistema.reprocesar_webhook": "Reprocesamiento de webhook",
+};
+
+function formatoAccion(accion: string) {
+  const etiqueta = ETIQUETAS_ACCIONES[accion];
+  if (etiqueta) {
+    return (
+      <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5">
+        <span className="font-medium text-slate-800">{etiqueta}</span>
+        <span className="font-mono text-[11px] text-slate-400">({accion})</span>
+      </div>
+    );
+  }
+  return <span className="font-mono text-xs text-slate-700">{accion}</span>;
+}
+
+async function Notas({
+  negocioId,
+  negocioNombre,
+  puedeSoporte,
+  puedeModeracion,
+  puedeAuditoria,
+}: {
+  negocioId: string;
+  negocioNombre?: string;
+  puedeSoporte: boolean;
+  puedeModeracion: boolean;
+  puedeAuditoria: boolean;
+}) {
   const [notas, tickets, reportes, auditoria] = await Promise.all([
     leer("notas_internas", {
       eq: { negocio_id: negocioId },
       orden: ["creado_en", false],
     }),
-    leer("tickets", {
-      eq: { negocio_id: negocioId },
-      orden: ["creado_en", false],
-    }),
-    leer("reportes_perfil", {
-      eq: { negocio_id: negocioId },
-      orden: ["creado_en", false],
-    }),
-    leer("auditoria", {
-      eq: { negocio_id: negocioId },
-      orden: ["creado_en", false],
-      limite: 25,
-    }),
+    puedeSoporte
+      ? leer("tickets", {
+          eq: { negocio_id: negocioId },
+          orden: ["creado_en", false],
+        })
+      : Promise.resolve([]),
+    puedeModeracion
+      ? leer("reportes_perfil", {
+          eq: { negocio_id: negocioId },
+          orden: ["creado_en", false],
+        })
+      : Promise.resolve([]),
+    puedeAuditoria
+      ? leer("auditoria", {
+          eq: { negocio_id: negocioId },
+          orden: ["creado_en", false],
+          limite: 25,
+        })
+      : Promise.resolve([]),
   ]);
+
+  // Deduplicación en la visualización:
+  // Evita mostrar eventos idénticos consecutivos en el mismo minuto o consultas duplicadas consecutivas
+  const auditoriaDeduplicada = auditoria.filter((item, index) => {
+    if (index === 0) return true;
+    const previo = auditoria[index - 1];
+    const esMismoEvento =
+      item.accion === previo.accion &&
+      item.actor_email === previo.actor_email &&
+      item.negocio_id === previo.negocio_id;
+
+    if (!esMismoEvento) return true;
+
+    // Deduplica soporte.vista consecutivos
+    if (item.accion === "soporte.vista") return false;
+
+    // Deduplica eventos idénticos consecutivos ocurridos en menos de 60 segundos
+    const diffMs = Math.abs(
+      new Date(previo.creado_en).getTime() - new Date(item.creado_en).getTime(),
+    );
+    return diffMs > 60_000;
+  });
+
+  const eventosVisibles = auditoriaDeduplicada.slice(0, 8);
+  const busquedaAuditoria = encodeURIComponent(negocioNombre || negocioId);
+
   return (
     <>
       <Tarjeta
@@ -694,14 +1071,14 @@ async function Notas({ negocioId }: { negocioId: string }) {
           boton="Agregar nota"
           limpiarAlOk
         >
-          <textarea
+          <TextareaConContador
             name="texto"
             required
             minLength={2}
             maxLength={1000}
             rows={3}
-            className={CLASE_INPUT}
             aria-label="Nota"
+            placeholder="Escribe una nota interna sobre este negocio..."
           />
         </AccionForm>
         <ul className="mt-4 space-y-2 text-sm">
@@ -716,55 +1093,94 @@ async function Notas({ negocioId }: { negocioId: string }) {
           ))}
         </ul>
       </Tarjeta>
-      <Tarjeta titulo="Tickets">
-        <Tabla
-          columnas={["Asunto", "Estado", "Creado"]}
-          vacia={tickets.length === 0}
+      {(puedeSoporte || puedeModeracion) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {puedeSoporte && (
+            <Tarjeta titulo="Tickets">
+              <Tabla
+                columnas={["Asunto", "Estado", "Creado"]}
+                vacia={tickets.length === 0}
+              >
+                {tickets.map((t) => (
+                  <tr key={t.id}>
+                    <Celda>
+                      <Link
+                        href={`/admin/soporte/${t.id}`}
+                        className="text-sky-700 hover:underline"
+                      >
+                        {t.asunto}
+                      </Link>
+                    </Celda>
+                    <Celda>{t.estado}</Celda>
+                    <Celda>{fechaHora(t.creado_en)}</Celda>
+                  </tr>
+                ))}
+              </Tabla>
+            </Tarjeta>
+          )}
+          {puedeModeracion && (
+            <Tarjeta titulo="Reportes del perfil">
+              <Tabla
+                columnas={["Motivo", "Estado", "Fecha"]}
+                vacia={reportes.length === 0}
+              >
+                {reportes.map((r) => (
+                  <tr key={r.id}>
+                    <Celda>{r.motivo}</Celda>
+                    <Celda>{r.estado}</Celda>
+                    <Celda>{fechaHora(r.creado_en)}</Celda>
+                  </tr>
+                ))}
+              </Tabla>
+            </Tarjeta>
+          )}
+        </div>
+      )}
+      {puedeAuditoria && (
+        <Tarjeta
+          titulo="Actividad reciente"
+          descripcion="Historial de acciones y eventos registrados para este negocio."
+          accion={
+            <Link
+              href={`/admin/auditoria?q=${busquedaAuditoria}`}
+              className="text-xs font-semibold text-sky-700 hover:text-sky-800 hover:underline"
+            >
+              Ver en Auditoría &rarr;
+            </Link>
+          }
         >
-          {tickets.map((t) => (
-            <tr key={t.id}>
-              <Celda>
-                <Link
-                  href={`/admin/soporte/${t.id}`}
-                  className="text-sky-700 hover:underline"
-                >
-                  {t.asunto}
-                </Link>
-              </Celda>
-              <Celda>{t.estado}</Celda>
-              <Celda>{fechaHora(t.creado_en)}</Celda>
-            </tr>
-          ))}
-        </Tabla>
-      </Tarjeta>
-      <Tarjeta titulo="Reportes del perfil">
-        <Tabla
-          columnas={["Motivo", "Estado", "Fecha"]}
-          vacia={reportes.length === 0}
-        >
-          {reportes.map((r) => (
-            <tr key={r.id}>
-              <Celda>{r.motivo}</Celda>
-              <Celda>{r.estado}</Celda>
-              <Celda>{fechaHora(r.creado_en)}</Celda>
-            </tr>
-          ))}
-        </Tabla>
-      </Tarjeta>
-      <Tarjeta titulo="Actividad reciente">
-        <Tabla
-          columnas={["Fecha", "Actor", "Acción"]}
-          vacia={auditoria.length === 0}
-        >
-          {auditoria.map((a) => (
-            <tr key={a.id}>
-              <Celda>{fechaHora(a.creado_en)}</Celda>
-              <Celda>{a.actor_email}</Celda>
-              <Celda>{a.accion}</Celda>
-            </tr>
-          ))}
-        </Tabla>
-      </Tarjeta>
+          <Tabla
+            columnas={["Fecha", "Actor", "Acción"]}
+            vacia={eventosVisibles.length === 0}
+          >
+            {eventosVisibles.map((a) => (
+              <tr key={a.id}>
+                <Celda className="whitespace-nowrap text-slate-500">
+                  {fechaHora(a.creado_en)}
+                </Celda>
+                <Celda className="text-slate-700 font-medium">
+                  {a.actor_email}
+                </Celda>
+                <Celda>{formatoAccion(a.accion)}</Celda>
+              </tr>
+            ))}
+          </Tabla>
+          {auditoriaDeduplicada.length > 8 && (
+            <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
+              <span>
+                Mostrando los 8 eventos más recientes de{" "}
+                {auditoriaDeduplicada.length} registrados.
+              </span>
+              <Link
+                href={`/admin/auditoria?q=${busquedaAuditoria}`}
+                className="font-medium text-sky-700 hover:underline"
+              >
+                Ver todos en Auditoría &rarr;
+              </Link>
+            </div>
+          )}
+        </Tarjeta>
+      )}
     </>
   );
 }

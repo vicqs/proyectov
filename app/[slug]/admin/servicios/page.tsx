@@ -1,6 +1,7 @@
 import { requerirEmpresa, type EmpresaPageProps } from "@/lib/empresa";
 import type { Horario, Reserva, Servicio } from "@/types/database";
 import ServiciosEmpresaClient from "./ServiciosEmpresaClient";
+import { leer } from "@/lib/data/server";
 
 /**
  * Lista los servicios del negocio del usuario autenticado junto con el conteo
@@ -14,32 +15,27 @@ export default async function ServiciosPage({
   searchParams: Promise<{ nuevo?: string }>;
 }) {
   const [{ slug }, { nuevo }] = await Promise.all([params, searchParams]);
-  const { supabase, negocio } = await requerirEmpresa(slug);
+  const { negocio } = await requerirEmpresa(slug);
 
   let servicios: Servicio[] = [];
-  let horarios: Horario[] = [];
-  let reservas: Reserva[] = [];
+  let horarios: Pick<Horario, "servicio_id">[] = [];
+  let reservas: Pick<Reserva, "servicio_id">[] = [];
+
+  const ahora = new Date();
+  const inicioHoy = new Date(ahora);
+  inicioHoy.setHours(0, 0, 0, 0);
 
   if (negocio) {
-    const [serviciosRes, horariosRes, reservasRes] = await Promise.all([
-      supabase
-        .from("servicios")
-        .select("*")
-        .eq("negocio_id", negocio.id)
-        .order("nombre", { ascending: true }),
-      supabase
-        .from("horarios")
-        .select("*")
-        .eq("negocio_id", negocio.id)
-        .gte("fecha_hora", new Date().toISOString()),
-      supabase.from("reservas").select("*").eq("negocio_id", negocio.id),
+    // Horarios y reservas solo se cuentan por servicio: una columna basta.
+    [servicios, horarios, reservas] = await Promise.all([
+      leer("servicios", { eq: { negocio_id: negocio.id }, orden: ["nombre", true] }),
+      leer("horarios", {
+        eq: { negocio_id: negocio.id },
+        gte: { fecha_hora: inicioHoy.toISOString() },
+        columnas: ["servicio_id"],
+      }),
+      leer("reservas", { eq: { negocio_id: negocio.id }, columnas: ["servicio_id"] }),
     ]);
-
-    if (!serviciosRes.error) {
-      servicios = (serviciosRes.data ?? []) as Servicio[];
-    }
-    horarios = (horariosRes.data ?? []) as Horario[];
-    reservas = (reservasRes.data ?? []) as Reserva[];
   }
 
   const horariosPorServicio = new Map<string, number>();

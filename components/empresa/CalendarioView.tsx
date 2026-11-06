@@ -91,6 +91,15 @@ const ESTADO_RESERVA_TEXTO: Record<"pendiente" | "pagada", string> = {
   pendiente: "Pendiente",
 };
 
+function formatoDuracionLegible(minutos: number): string {
+  if (!minutos || minutos <= 0) return "";
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+  if (horas > 0 && resto === 0) return `(${horas}h)`;
+  if (horas > 0 && resto > 0) return `(${horas}h ${resto}m)`;
+  return `(${resto}m)`;
+}
+
 /**
  * Vista semanal interactiva del calendario operativo de la empresa:
  * destaca el día de hoy, resume ocupación/reservas/bloqueos de la semana,
@@ -403,10 +412,13 @@ export default function CalendarioView({
 
                 {d.esHoy ? (
                   <span
-                    className="mt-1 rounded-full bg-black/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                    className="mt-1 max-w-full truncate rounded-full bg-black/15 px-1 py-0.5 text-[10px] font-bold uppercase tracking-wide sm:px-1.5"
                     style={{ color: textoMarca }}
                   >
-                    Hoy{totalItems > 0 ? ` · ${totalItems}` : ""}
+                    Hoy
+                    {totalItems > 0 ? (
+                      <span className="hidden sm:inline">{` · ${totalItems}`}</span>
+                    ) : null}
                   </span>
                 ) : (
                   <span
@@ -496,7 +508,7 @@ export default function CalendarioView({
                 aria-label="Filtrar por servicio"
                 value={servicioFiltro}
                 onChange={(e) => setServicioFiltro(e.target.value)}
-                className="vuki-focus min-h-9 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700"
+                className="vuki-select-sm"
               >
                 <option value="">Todos los servicios</option>
                 {servicios.map((s) => (
@@ -869,7 +881,7 @@ export default function CalendarioView({
                               </span>
                               {s.duracionMin && (
                                 <span className="text-xs text-slate-500">
-                                  ({s.duracionMin} min)
+                                  {formatoDuracionLegible(s.duracionMin)}
                                 </span>
                               )}
                             </div>
@@ -889,7 +901,7 @@ export default function CalendarioView({
                             >
                               <div
                                 style={{ width: `${pct}%` }}
-                                className={`h-full rounded-full transition-all ${barraClase}`}
+                                className={`h-full rounded-full transition-[width] duration-300 ease-out ${barraClase}`}
                               />
                             </div>
                           )}

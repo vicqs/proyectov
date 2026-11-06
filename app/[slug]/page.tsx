@@ -1,19 +1,20 @@
 import { notFound } from "next/navigation";
-import { cache } from "react";
 import type { Metadata } from "next";
-import { supabaseAdmin } from "../../lib/supabase";
-import { construirHorarios } from "../../lib/horarios";
+import {
+  obtenerNegocioPublico,
+  listarServiciosPublicos,
+  listarHorariosPublicos,
+} from "../../lib/data/public";
 import {
   LOGO_POR_DEFECTO,
   PORTADA_POR_DEFECTO,
 } from "../../lib/tipos-publicos";
 import type { ServicioPublico } from "../../lib/tipos-publicos";
-import type { Negocio, Reserva, Servicio } from "../../types/database";
-import type { BloqueoExcepcion, Horario } from "../../types/database";
 import NegocioProfileClient from "./NegocioProfileClient";
 import { motivoNoOperativo } from "../../lib/negocio-estado";
 import {
-  funcionActivaNegocio,
+  funcionActiva,
+  listarPlanes,
   obtenerConfiguracion,
   flagActiva,
 } from "../../lib/plataforma";
@@ -32,22 +33,12 @@ const DESCRIPCION_DEFAULT =
 const IMAGEN_SERVICIO_DEFAULT =
   "https://images.unsplash.com/photo-1502933691298-84fc14542831?q=80&w=1200&auto=format&fit=crop";
 
-/** Un solo viaje a la BD por petición (lo comparten metadatos y página). */
-const obtenerNegocioPorSlug = cache(async (slug: string) => {
-  const { data, error } = await supabaseAdmin
-    .from("negocios")
-    .select("*")
-    .eq("slug", slug.toLowerCase())
-    .single();
-  return error || !data ? null : (data as Negocio);
-});
-
 /** Metadatos dinámicos (título, descripción y Open Graph) por negocio. */
 export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const data = await obtenerNegocioPorSlug(slug);
+  const data = await obtenerNegocioPublico(slug);
 
   if (!data || data.eliminado_en || data.suspendido) {
     return {
@@ -96,9 +87,26 @@ export default async function NegocioPublicPage({
   const { slug } = await params;
   const { pago } = await searchParams;
 
-  const negocio = await obtenerNegocioPorSlug(slug);
+  const negocioConDatosPromise = obtenerNegocioPublico(slug).then(
+    async (negocio) => {
+      if (!negocio || negocio.eliminado_en || negocio.suspendido) {
+        return { negocio, serviciosDb: [], horarios: [] };
+      }
+      const [serviciosDb, horarios] = await Promise.all([
+        listarServiciosPublicos(negocio.id),
+        listarHorariosPublicos(negocio.id),
+      ]);
+      return { negocio, serviciosDb, horarios };
+    },
+  );
+
+  const [{ negocio, serviciosDb, horarios }, config, planes] =
+    await Promise.all([
+      negocioConDatosPromise,
+      obtenerConfiguracion(),
+      listarPlanes(),
+    ]);
   if (!negocio || negocio.eliminado_en) notFound();
-  const config = await obtenerConfiguracion();
 
   if (negocio.suspendido) {
     return (
@@ -113,29 +121,6 @@ export default async function NegocioPublicPage({
     );
   }
 
-  const [serviciosRes, reservasRes, bloqueosRes, horariosRes] =
-    await Promise.all([
-      supabaseAdmin.from("servicios").select("*").eq("negocio_id", negocio.id),
-      supabaseAdmin.from("reservas").select("*").eq("negocio_id", negocio.id),
-      supabaseAdmin
-        .from("bloqueos_excepcion")
-        .select("*")
-        .eq("negocio_id", negocio.id),
-      supabaseAdmin.from("horarios").select("*").eq("negocio_id", negocio.id),
-    ]);
-
-  if (serviciosRes.error) {
-    console.error(
-      `Error al cargar los servicios del negocio "${slug}":`,
-      serviciosRes.error,
-    );
-    throw new Error("Ocurrió un error al cargar la información del negocio.");
-  }
-
-  const serviciosDb = (serviciosRes.data ?? []) as Servicio[];
-  const reservas = (reservasRes.data ?? []) as Reserva[];
-  const bloqueos = (bloqueosRes.data ?? []) as BloqueoExcepcion[];
-
   const servicios: ServicioPublico[] = serviciosDb.map((s) => ({
     id: s.id,
     nombre: s.nombre,
@@ -144,13 +129,6 @@ export default async function NegocioPublicPage({
     duracionMin: s.duracion_min,
     imagenUrl: s.imagen_url ?? negocio.logo_url ?? IMAGEN_SERVICIO_DEFAULT,
   }));
-
-  const horarios = construirHorarios(
-    (horariosRes.data ?? []) as Horario[],
-    reservas,
-    bloqueos,
-    true,
-  );
 
   return (
     <>
@@ -182,7 +160,7 @@ export default async function NegocioPublicPage({
         }
         pago={pago}
         hrefReportar={
-          (await funcionActivaNegocio(negocio, "reportes_publicos"))
+          funcionActiva(config, negocio, planes, "reportes_publicos")
             ? `/${encodeURIComponent(slug)}/reportar`
             : undefined
         }

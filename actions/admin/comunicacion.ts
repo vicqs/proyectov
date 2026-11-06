@@ -11,12 +11,16 @@ import {
   insertar,
   leer,
 } from "../../lib/admin/db";
-import { campo, revalidarAdmin } from "../../lib/admin/util";
+import { campo, esUuid, revalidarAdmin } from "../../lib/admin/util";
 import { enviarCorreoTexto } from "../../lib/email";
 import { estadoEfectivo } from "../../lib/negocio-estado";
 
 const SEGMENTOS = ["todas", "prueba", "activa", "inactiva"] as const;
 const MAX_DESTINATARIOS = 200;
+/** UUIDs por consulta `IN` (cada uno ocupa ~40 caracteres de URL). */
+const TAMANO_LOTE_IN = 50;
+/** Correos enviados en paralelo por tanda. */
+const CONCURRENCIA_ENVIO = 5;
 
 function refrescar() {
   revalidarAdmin();
@@ -72,6 +76,9 @@ export async function alternarAnuncioAction(
   _datos: FormData,
 ): Promise<ResultadoAccion> {
   return accionAdmin("comunicacion", async (admin) => {
+    if (!esUuid(id) || !z.boolean().safeParse(activo).success) {
+      return { error: "Parámetros de anuncio inválidos." };
+    }
     await actualizar("anuncios", { activo }, { id });
     await registrarAuditoria(admin, {
       accion: activo ? "anuncio.activar" : "anuncio.desactivar",
@@ -89,6 +96,7 @@ export async function eliminarAnuncioAction(
   _datos: FormData,
 ): Promise<ResultadoAccion> {
   return accionAdmin("comunicacion", async (admin) => {
+    if (!esUuid(id)) return { error: "Identificador de anuncio inválido." };
     await eliminar("anuncios", { id });
     await registrarAuditoria(admin, {
       accion: "anuncio.eliminar",
@@ -118,7 +126,14 @@ export async function enviarComunicadoAction(
       });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-    const negocios = (await leer("negocios")).filter(
+    // Solo las columnas necesarias para segmentar y resolver el destinatario.
+    const negocios = (
+      await leer("negocios", {
+        columnas: [
+          "id", "user_id", "email_contacto", "estado_suscripcion", "prueba_hasta", "eliminado_en",
+        ],
+      })
+    ).filter(
       (n) =>
         !n.eliminado_en &&
         (parsed.data.segmento === "todas" ||
@@ -132,22 +147,53 @@ export async function enviarComunicadoAction(
       };
     }
 
+    // El filtro IN va en la URL: se parte en lotes para no superar su límite de longitud.
+    const userIds = negocios.map((n) => n.user_id);
+    const lotes: string[][] = [];
+    for (let i = 0; i < userIds.length; i += TAMANO_LOTE_IN) {
+      lotes.push(userIds.slice(i, i + TAMANO_LOTE_IN));
+    }
+    const perfiles = (
+      await Promise.all(
+        lotes.map((lote) =>
+          leer("perfiles", {
+            en: { user_id: lote },
+            columnas: ["user_id", "email"],
+          }),
+        ),
+      )
+    ).flat();
+    const emailPorUser = new Map(perfiles.map((p) => [p.user_id, p.email]));
+
+    // Solo se consulta Auth para quienes no tienen correo conocido (en paralelo, sin N+1 secuencial).
+    const sinCorreo = negocios.filter(
+      (n) => !(n.email_contacto || emailPorUser.get(n.user_id)),
+    );
+    await Promise.all(
+      sinCorreo.map(async (n) => {
+        const { data } = await authAdmin.getUserById(n.user_id);
+        if (data.user?.email) emailPorUser.set(n.user_id, data.user.email);
+      }),
+    );
+
     let enviados = 0;
     let fallidos = 0;
-    for (const n of negocios) {
-      const { data } = await authAdmin.getUserById(n.user_id);
-      const to = data.user?.email;
-      if (!to) {
-        fallidos++;
-        continue;
-      }
-      (await enviarCorreoTexto({
-        to,
-        asunto: parsed.data.asunto,
-        texto: parsed.data.mensaje,
-      }))
-        ? enviados++
-        : fallidos++;
+    const destinatarios = negocios.map(
+      (n) => n.email_contacto || emailPorUser.get(n.user_id),
+    );
+    // Envío con concurrencia acotada: mucho más rápido que uno a uno sin saturar al proveedor.
+    for (let i = 0; i < destinatarios.length; i += CONCURRENCIA_ENVIO) {
+      const resultados = await Promise.all(
+        destinatarios.slice(i, i + CONCURRENCIA_ENVIO).map(async (to) => {
+          if (!to) return false;
+          return enviarCorreoTexto({
+            to,
+            asunto: parsed.data.asunto,
+            texto: parsed.data.mensaje,
+          });
+        }),
+      );
+      for (const ok of resultados) ok ? enviados++ : fallidos++;
     }
     const comunicado = await insertar("comunicados", {
       ...parsed.data,

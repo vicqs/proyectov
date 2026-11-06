@@ -22,7 +22,12 @@ export default function HorariosEmpresaClient({
 }: {
   slug: string;
   horarios: VistaHorario[];
-  servicios: { id: string; nombre: string }[];
+  servicios: {
+    id: string;
+    nombre: string;
+    duracionMin?: number;
+    precioUsd?: number;
+  }[];
   hoyClave?: string;
   sugerenciaInicial?: SugerenciaHorarioInicial;
 }) {
@@ -46,8 +51,6 @@ export default function HorariosEmpresaClient({
   function sincronizarCambios() {
     if (tieneQueryInicial()) {
       router.replace(pathname, { scroll: false });
-    } else {
-      router.refresh();
     }
   }
 

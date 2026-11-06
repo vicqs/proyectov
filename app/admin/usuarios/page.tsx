@@ -1,3 +1,4 @@
+import { Ban, KeyRound, LogOut, ShieldCheck } from "lucide-react";
 import { requerirAdmin, rolEfectivo } from "../../../lib/admin/auth";
 import { leer, listarUsuariosAuth } from "../../../lib/admin/db";
 import { ETIQUETA_ROL, tienePermiso } from "../../../lib/roles";
@@ -10,7 +11,8 @@ import {
 import { AccionForm } from "../../../components/admin/AccionForm";
 import {
   CLASE_BOTON_NEUTRO,
-  CLASE_INPUT,
+  CLASE_SELECT,
+  CampoBusqueda,
   Celda,
   FiltrosGet,
   Insignia,
@@ -27,6 +29,8 @@ export default async function UsuariosPage({
   const admin = await requerirAdmin("usuarios");
   const sp = await searchParams;
   const q = (parametro(sp.q) ?? "").trim().toLowerCase();
+  const rolFiltro = parametro(sp.rol) ?? "";
+  const estadoFiltro = parametro(sp.estado) ?? "";
 
   const [usuarios, perfiles, negocios] = await Promise.all([
     listarUsuariosAuth(),
@@ -38,8 +42,29 @@ export default async function UsuariosPage({
   const esSuper = tienePermiso(admin.rol, "equipo");
 
   const filas = usuarios
-    .filter((u) => !q || (u.email ?? "").toLowerCase().includes(q))
-    .sort((a, b) => (a.email ?? "").localeCompare(b.email ?? ""));
+    .filter((u) => {
+      if (!q) return true;
+      const nom = negocioDe.get(u.id)?.nombre?.toLowerCase() ?? "";
+      return (u.email ?? "").toLowerCase().includes(q) || nom.includes(q);
+    })
+    .filter((u) => {
+      if (!rolFiltro) return true;
+      const p = perfil.get(u.id);
+      const rol = rolEfectivo(u.email ?? "", p?.rol_admin ?? null);
+      if (rolFiltro === "empresa") return !rol;
+      if (rolFiltro === "equipo") return !!rol;
+      return rol === rolFiltro;
+    })
+    .filter((u) => {
+      if (!estadoFiltro) return true;
+      const p = perfil.get(u.id);
+      const bloqueado = !!p?.bloqueado;
+      if (estadoFiltro === "bloqueado") return bloqueado;
+      if (estadoFiltro === "activo") return !bloqueado;
+      return true;
+    })
+    .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+
   const pag = paginar(filas, parametro(sp.pagina));
 
   return (
@@ -53,13 +78,37 @@ export default async function UsuariosPage({
       }
     >
       <FiltrosGet>
-        <input
-          name="q"
+        <CampoBusqueda
           defaultValue={q}
-          aria-label="Correo" placeholder="Correo"
-          className={`${CLASE_INPUT} sm:w-64`}
+          placeholder="Buscar por correo o negocio..."
+          ariaLabel="Buscar por correo o negocio"
+          className="sm:w-72"
         />
+        <select
+          name="rol"
+          defaultValue={rolFiltro}
+          aria-label="Filtrar por rol"
+          className={CLASE_SELECT}
+        >
+          <option value="">Todos los roles</option>
+          <option value="empresa">Empresas</option>
+          <option value="equipo">Todo el equipo</option>
+          <option value="superadmin">Superadministrador</option>
+          <option value="finanzas">Finanzas</option>
+          <option value="soporte">Soporte</option>
+        </select>
+        <select
+          name="estado"
+          defaultValue={estadoFiltro}
+          aria-label="Filtrar por estado"
+          className={CLASE_SELECT}
+        >
+          <option value="">Todos los estados</option>
+          <option value="activo">Activos</option>
+          <option value="bloqueado">Bloqueados</option>
+        </select>
       </FiltrosGet>
+
       <Tabla
         columnas={[
           "Correo",
@@ -73,7 +122,7 @@ export default async function UsuariosPage({
       >
         {pag.filas.map((u) => {
           const p = perfil.get(u.id);
-          const rol = rolEfectivo(u.email, p?.rol_admin ?? null);
+          const rol = rolEfectivo(u.email ?? "", p?.rol_admin ?? null);
           const propio = u.id === admin.user.id;
           const protegido = !!rol && !esSuper;
           return (
@@ -84,7 +133,7 @@ export default async function UsuariosPage({
                 {rol ? (
                   <Insignia tono="azul">{ETIQUETA_ROL[rol]}</Insignia>
                 ) : (
-                  "Empresa"
+                  <Insignia tono="gris">Empresa</Insignia>
                 )}
               </Celda>
               <Celda>
@@ -95,7 +144,7 @@ export default async function UsuariosPage({
                 )}
               </Celda>
               <Celda className="whitespace-nowrap">{fechaHora(u.last_sign_in_at)}</Celda>
-              <Celda>
+              <Celda className="whitespace-nowrap">
                 {propio ? (
                   <span className="text-xs text-slate-400">Tu cuenta</span>
                 ) : protegido ? (
@@ -103,7 +152,7 @@ export default async function UsuariosPage({
                     Solo superadmin
                   </span>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <AccionForm
                       accion={bloquearUsuarioAction.bind(
                         null,
@@ -111,7 +160,19 @@ export default async function UsuariosPage({
                         !p?.bloqueado,
                       )}
                       boton={p?.bloqueado ? "Desbloquear" : "Bloquear"}
-                      variante={p?.bloqueado ? "neutro" : "peligro"}
+                      variante={p?.bloqueado ? "neutro_sm" : "peligro_sutil"}
+                      tamano="xs"
+                      claseBoton="text-xs px-2.5 py-1 whitespace-nowrap"
+                      icono={
+                        p?.bloqueado ? (
+                          <ShieldCheck
+                            className="h-3.5 w-3.5 text-emerald-600"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <Ban className="h-3.5 w-3.5" aria-hidden="true" />
+                        )
+                      }
                       confirmar={
                         p?.bloqueado
                           ? undefined
@@ -121,13 +182,29 @@ export default async function UsuariosPage({
                     <AccionForm
                       accion={cerrarSesionesAction.bind(null, u.id)}
                       boton="Cerrar sesiones"
-                      variante="neutro"
+                      variante="neutro_sm"
+                      tamano="xs"
+                      claseBoton="text-xs px-2.5 py-1 whitespace-nowrap"
+                      icono={
+                        <LogOut
+                          className="h-3.5 w-3.5 text-slate-500"
+                          aria-hidden="true"
+                        />
+                      }
                     />
                     {esSuper && (
                       <AccionForm
                         accion={restablecerContrasenaAction.bind(null, u.id)}
                         boton="Contraseña temporal"
-                        variante="neutro"
+                        variante="neutro_sm"
+                        tamano="xs"
+                        claseBoton="text-xs px-2.5 py-1 whitespace-nowrap"
+                        icono={
+                          <KeyRound
+                            className="h-3.5 w-3.5 text-slate-500"
+                            aria-hidden="true"
+                          />
+                        }
                         confirmar="Se generará una contraseña nueva y se cerrarán sus sesiones."
                       />
                     )}
@@ -143,7 +220,7 @@ export default async function UsuariosPage({
         paginas={pag.paginas}
         total={pag.total}
         base="/admin/usuarios"
-        params={{ q }}
+        params={{ q, rol: rolFiltro, estado: estadoFiltro }}
       />
     </PaginaAdmin>
   );

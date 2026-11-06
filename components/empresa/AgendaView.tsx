@@ -19,13 +19,32 @@ import EmpresaPage, { ItemLista, Lista } from "../EmpresaPage";
 import Drawer from "../Drawer";
 import ConfirmDialog from "../ConfirmDialog";
 import { toast } from "../Toast";
-import { localCRaIso } from "../../lib/zona-horaria";
+import {
+  CR_OFFSET_MS,
+  DIA_MS,
+  DIAS_CORTOS,
+  DIAS_LARGOS,
+  formatoHora12,
+  localCRaIso,
+  MESES_CORTOS,
+  MESES_LARGOS,
+  normalizarIsoCR,
+  partesCR,
+} from "../../lib/zona-horaria";
+import { mensajeErrorUsuario } from "../../lib/errores";
 
 export interface VistaBloqueo {
   id: string;
   inicioIso: string;
   finIso: string;
   motivo: string;
+}
+
+export interface HorarioAfectadoItem {
+  id?: string;
+  fechaHora: string;
+  duracionMin?: number;
+  servicioId?: string;
 }
 
 export interface SugerenciaBloqueoInicial {
@@ -44,6 +63,8 @@ interface AgendaViewProps {
     motivo: string;
   }) => Resultado;
   onEliminar: (id: string) => Resultado;
+  /** Horarios futuros detallados o timestamps ISO (para informar cuántos se pausan). */
+  horarios?: (string | HorarioAfectadoItem)[];
   /** Timestamps ISO de horarios futuros (para informar cuántos se pausan). */
   horariosIso?: string[];
   /** Timestamps ISO de reservas activas (para detectar conflictos antes de guardar). */
@@ -56,48 +77,6 @@ interface AgendaViewProps {
   hrefReservas?: string;
   onCerrarInicial?: () => void;
 }
-
-const CR_OFFSET_MS = -6 * 3_600_000;
-const DIA_MS = 86_400_000;
-
-const DIAS_CORTOS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const DIAS_LARGOS = [
-  "Domingo",
-  "Lunes",
-  "Martes",
-  "Miércoles",
-  "Jueves",
-  "Viernes",
-  "Sábado",
-];
-const MESES_CORTOS = [
-  "ene",
-  "feb",
-  "mar",
-  "abr",
-  "may",
-  "jun",
-  "jul",
-  "ago",
-  "sep",
-  "oct",
-  "nov",
-  "dic",
-];
-const MESES_LARGOS = [
-  "enero",
-  "febrero",
-  "marzo",
-  "abril",
-  "mayo",
-  "junio",
-  "julio",
-  "agosto",
-  "septiembre",
-  "octubre",
-  "noviembre",
-  "diciembre",
-];
 
 const MOTIVOS_RAPIDOS = [
   "Mantenimiento",
@@ -117,25 +96,12 @@ const FRANJAS_RAPIDAS: {
   { etiqueta: "Jornada (8 a.m. – 5 p.m.)", desde: "08:00", hasta: "17:00" },
 ];
 
-const INPUT =
-  "vuki-focus min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-500";
+const INPUT = "vuki-input min-h-11";
 
-function partesCR(iso: string) {
-  const cr = new Date(new Date(iso).getTime() + CR_OFFSET_MS);
-  return {
-    anio: cr.getUTCFullYear(),
-    mes: cr.getUTCMonth(),
-    dia: cr.getUTCDate(),
-    diaSemana: cr.getUTCDay(),
-    hora: cr.getUTCHours(),
-    minuto: cr.getUTCMinutes(),
-  };
-}
-
-function formatoHora12(hora: number, minuto: number): string {
-  const h = hora % 12 === 0 ? 12 : hora % 12;
-  const m = String(minuto).padStart(2, "0");
-  return `${h}:${m} ${hora < 12 ? "a.m." : "p.m."}`;
+function parsearMinutos(horaStr: string): number {
+  if (!horaStr) return 0;
+  const [h, m] = horaStr.split(":").map(Number);
+  return (Number.isNaN(h) ? 0 : h) * 60 + (Number.isNaN(m) ? 0 : m);
 }
 
 function describirBloqueo(inicioIso: string, finIso: string): {
@@ -210,6 +176,7 @@ export default function AgendaView({
   bloqueos,
   onCrear,
   onEliminar,
+  horarios,
   horariosIso = [],
   reservasActivasIso = [],
   hoyClave,
@@ -238,31 +205,58 @@ export default function AgendaView({
   const [eliminando, setEliminando] = useState(false);
 
   const mananaClave = hoyClave ? sumarDiasClave(hoyClave, 1) : "";
+  const sabadoClave = hoyClave ? proximoSabadoClave(hoyClave) : "";
+
+  const listaHorariosNormalizados = useMemo(() => {
+    const origen: (string | HorarioAfectadoItem)[] =
+      horarios && horarios.length > 0 ? horarios : horariosIso;
+    return origen
+      .map((item) => {
+        const fechaHora = typeof item === "string" ? item : item.fechaHora;
+        const duracionMin =
+          typeof item === "object" && typeof item.duracionMin === "number"
+            ? item.duracionMin
+            : 60;
+        if (!fechaHora) return null;
+        const p = partesCR(fechaHora);
+        if (Number.isNaN(p.anio)) return null;
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const claveFecha = `${p.anio}-${pad(p.mes + 1)}-${pad(p.dia)}`;
+        const inicioMinutos = p.hora * 60 + p.minuto;
+        const dur = duracionMin > 0 ? duracionMin : 60;
+        return {
+          fechaHora,
+          claveFecha,
+          inicioMinutos,
+          duracionMin: dur,
+          finMinutos: inicioMinutos + dur,
+        };
+      })
+      .filter((h): h is NonNullable<typeof h> => h !== null);
+  }, [horarios, horariosIso]);
 
   const rangoActual = useMemo(() => {
-    const inicioLocal =
-      modo === "dias"
-        ? fechaDesde
-          ? `${fechaDesde}T00:00`
-          : ""
-        : fechaDesde && horaDesde
-          ? `${fechaDesde}T${horaDesde.slice(0, 5)}`
-          : "";
-    const finLocal =
-      modo === "dias"
-        ? fechaHasta
-          ? `${fechaHasta}T23:59`
-          : ""
-        : fechaDesde && horaHasta
-          ? `${fechaDesde}T${horaHasta.slice(0, 5)}`
-          : "";
+    let valido = false;
+    let inicioLocal = "";
+    let finLocal = "";
+
+    if (modo === "dias") {
+      valido = Boolean(fechaDesde && fechaHasta && fechaHasta >= fechaDesde);
+      inicioLocal = fechaDesde ? `${fechaDesde}T00:00` : "";
+      finLocal = fechaHasta ? `${fechaHasta}T23:59` : "";
+    } else {
+      const horaIniValida = Boolean(fechaDesde && horaDesde && horaHasta);
+      const minIni = parsearMinutos(horaDesde);
+      const minFin = parsearMinutos(horaHasta);
+      valido = horaIniValida && minFin >= minIni;
+      inicioLocal =
+        fechaDesde && horaDesde ? `${fechaDesde}T${horaDesde.slice(0, 5)}` : "";
+      finLocal =
+        fechaDesde && horaHasta ? `${fechaDesde}T${horaHasta.slice(0, 5)}` : "";
+    }
 
     const inicioIso = inicioLocal ? localCRaIso(inicioLocal) : "";
     const finIso = finLocal ? localCRaIso(finLocal) : "";
-    const iniMs = inicioIso ? new Date(inicioIso).getTime() : NaN;
-    const finMs = finIso ? new Date(finIso).getTime() : NaN;
-    const valido =
-      !Number.isNaN(iniMs) && !Number.isNaN(finMs) && finMs >= iniMs;
 
     if (!valido) {
       return {
@@ -276,14 +270,35 @@ export default function AgendaView({
       };
     }
 
-    const reservasConflicto = reservasActivasIso.filter((iso) => {
-      const t = new Date(iso).getTime();
-      return t >= iniMs && t <= finMs;
+    // Filtro exacto de horarios afectados según fecha y franja de horas
+    const horariosPausados = listaHorariosNormalizados.filter((h) => {
+      if (modo === "dias") {
+        return h.claveFecha >= fechaDesde && h.claveFecha <= fechaHasta;
+      }
+      if (h.claveFecha !== fechaDesde) return false;
+      const bIni = parsearMinutos(horaDesde);
+      const bFin = parsearMinutos(horaHasta);
+      if (bFin === bIni) {
+        return h.inicioMinutos <= bIni && h.finMinutos > bIni;
+      }
+      return h.inicioMinutos < bFin && h.finMinutos > bIni;
     }).length;
 
-    const horariosPausados = horariosIso.filter((iso) => {
-      const t = new Date(iso).getTime();
-      return t >= iniMs && t <= finMs;
+    // Conflicto con reservas activas dentro del período
+    const reservasConflicto = reservasActivasIso.filter((iso) => {
+      const p = partesCR(iso);
+      if (Number.isNaN(p.anio)) return false;
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const clave = `${p.anio}-${pad(p.mes + 1)}-${pad(p.dia)}`;
+      if (modo === "dias") {
+        return clave >= fechaDesde && clave <= fechaHasta;
+      }
+      if (clave !== fechaDesde) return false;
+      const bIni = parsearMinutos(horaDesde);
+      const bFin = parsearMinutos(horaHasta);
+      const resMin = p.hora * 60 + p.minuto;
+      if (bFin === bIni) return resMin === bIni;
+      return resMin >= bIni && resMin < bFin;
     }).length;
 
     return {
@@ -301,8 +316,8 @@ export default function AgendaView({
     fechaHasta,
     horaDesde,
     horaHasta,
+    listaHorariosNormalizados,
     reservasActivasIso,
-    horariosIso,
   ]);
 
   const resumen = useMemo(() => {
@@ -315,16 +330,17 @@ export default function AgendaView({
         ).length
       : 0;
     const horariosAfectados = new Set<string>();
-    for (const hIso of horariosIso) {
-      const t = new Date(hIso).getTime();
+    for (const h of listaHorariosNormalizados) {
+      const tIni = new Date(h.fechaHora).getTime();
+      const tFin = tIni + h.duracionMin * 60_000;
       if (
-        bloqueos.some(
-          (b) =>
-            t >= new Date(b.inicioIso).getTime() &&
-            t <= new Date(b.finIso).getTime(),
-        )
+        bloqueos.some((b) => {
+          const bIni = new Date(b.inicioIso).getTime();
+          const bFin = new Date(b.finIso).getTime();
+          return tIni < bFin && tFin > bIni;
+        })
       ) {
-        horariosAfectados.add(hIso);
+        horariosAfectados.add(h.fechaHora);
       }
     }
     return {
@@ -332,7 +348,7 @@ export default function AgendaView({
       enCurso,
       horariosPausados: horariosAfectados.size,
     };
-  }, [bloqueos, horariosIso, ahoraMs]);
+  }, [bloqueos, listaHorariosNormalizados, ahoraMs]);
 
   function abrirNuevo(opciones?: {
     modoInicial?: "dias" | "horas";
@@ -353,6 +369,7 @@ export default function AgendaView({
   }
 
   function cerrarDrawer() {
+    if (guardando) return;
     setAbierto(false);
     onCerrarInicial?.();
   }
@@ -366,6 +383,7 @@ export default function AgendaView({
 
   async function handleSubmit(evento: React.FormEvent) {
     evento.preventDefault();
+    if (guardando) return;
     if (!rangoActual.valido) {
       toast.error("La fecha u hora de fin no puede ser anterior a la de inicio.");
       return;
@@ -375,28 +393,48 @@ export default function AgendaView({
       return;
     }
     setGuardando(true);
-    const error = await onCrear({
-      inicio: rangoActual.inicioLocal,
-      fin: rangoActual.finLocal,
-      motivo: motivo.trim(),
-    });
-    setGuardando(false);
-    if (error) {
-      toast.error(error);
-      return;
+    try {
+      const error = await onCrear({
+        inicio: rangoActual.inicioLocal,
+        fin: rangoActual.finLocal,
+        motivo: motivo.trim(),
+      });
+      if (error) {
+        toast.error(error);
+        return;
+      }
+      toast.success("Bloqueo guardado con éxito");
+      setAbierto(false);
+    } catch (e) {
+      toast.error(
+        mensajeErrorUsuario(
+          e,
+          "No se pudo guardar el bloqueo. Intenta de nuevo.",
+        ),
+      );
+    } finally {
+      setGuardando(false);
     }
-    toast.success("Bloqueo guardado con éxito");
-    setAbierto(false);
   }
 
   async function handleEliminar() {
     if (!porEliminar || eliminando) return;
     setEliminando(true);
-    const error = await onEliminar(porEliminar.id);
-    setEliminando(false);
-    if (error) toast.error(error);
-    else toast.success("Bloqueo eliminado. Las fechas volvieron a abrirse.");
-    setPorEliminar(null);
+    try {
+      const error = await onEliminar(porEliminar.id);
+      if (error) toast.error(error);
+      else toast.success("Bloqueo eliminado. Las fechas volvieron a abrirse.");
+      setPorEliminar(null);
+    } catch (e) {
+      toast.error(
+        mensajeErrorUsuario(
+          e,
+          "No se pudo eliminar el bloqueo. Intenta de nuevo.",
+        ),
+      );
+    } finally {
+      setEliminando(false);
+    }
   }
 
   return (
@@ -418,7 +456,7 @@ export default function AgendaView({
             type="button"
             onClick={() => abrirNuevo()}
             whileTap={{ scale: 0.96 }}
-            className="vuki-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-vuki-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 sm:flex-none"
+            className="vuki-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-vuki-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 sm:flex-none"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Nuevo bloqueo
@@ -538,9 +576,10 @@ export default function AgendaView({
                 const enCurso = Boolean(
                   ahoraMs && iniMs <= ahoraMs && finMs >= ahoraMs,
                 );
-                const pausados = horariosIso.filter((iso) => {
-                  const t = new Date(iso).getTime();
-                  return t >= iniMs && t <= finMs;
+                const pausados = listaHorariosNormalizados.filter((h) => {
+                  const tIni = new Date(h.fechaHora).getTime();
+                  const tFin = tIni + h.duracionMin * 60_000;
+                  return tIni < finMs && tFin > iniMs;
                 }).length;
 
                 return (
@@ -756,6 +795,33 @@ export default function AgendaView({
                   onChange={(e) => cambiarFechaDesde(e.target.value)}
                   className={INPUT}
                 />
+                {hoyClave && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="mr-1 text-xs text-slate-500">Fecha rápida:</span>
+                    {[
+                      { etiqueta: "Hoy", valor: hoyClave },
+                      { etiqueta: "Mañana", valor: mananaClave },
+                      ...(sabadoClave &&
+                      sabadoClave !== hoyClave &&
+                      sabadoClave !== mananaClave
+                        ? [{ etiqueta: "Próx. sábado", valor: sabadoClave }]
+                        : []),
+                    ].map((op) => (
+                      <button
+                        key={op.etiqueta}
+                        type="button"
+                        onClick={() => cambiarFechaDesde(op.valor)}
+                        className={`vuki-focus rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                          fechaDesde === op.valor
+                            ? "border-(--marca) bg-(--marca-fondo) font-semibold text-(--marca-texto)"
+                            : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        {op.etiqueta}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -937,7 +1003,7 @@ export default function AgendaView({
               rangoActual.reservasConflicto > 0
             }
             whileTap={{ scale: 0.97 }}
-            className="vuki-focus flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="vuki-focus flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {guardando ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -953,8 +1019,12 @@ export default function AgendaView({
         abierto={porEliminar !== null}
         titulo="¿Quitar este bloqueo?"
         descripcion="Las fechas y horarios dentro de ese período volverán a estar disponibles en tu enlace público."
+        cargando={eliminando}
+        textoCargando="Quitando..."
         onConfirmar={() => void handleEliminar()}
-        onCancelar={() => setPorEliminar(null)}
+        onCancelar={() => {
+          if (!eliminando) setPorEliminar(null);
+        }}
       />
     </EmpresaPage>
   );

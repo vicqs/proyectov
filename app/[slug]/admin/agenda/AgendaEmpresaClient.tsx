@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { crearBloqueoAction, eliminarBloqueoAction } from "@/actions/agenda";
 import { rutaPanelEmpresa } from "@/lib/rutas-empresa";
 import AgendaView, {
+  type HorarioAfectadoItem,
   type SugerenciaBloqueoInicial,
   type VistaBloqueo,
 } from "@/components/empresa/AgendaView";
@@ -12,6 +13,7 @@ import AgendaView, {
 export default function AgendaEmpresaClient({
   slug,
   bloqueos,
+  horarios,
   horariosIso = [],
   reservasActivasIso = [],
   hoyClave,
@@ -20,6 +22,7 @@ export default function AgendaEmpresaClient({
 }: {
   slug: string;
   bloqueos: VistaBloqueo[];
+  horarios?: (string | HorarioAfectadoItem)[];
   horariosIso?: string[];
   reservasActivasIso?: string[];
   hoyClave?: string;
@@ -44,14 +47,13 @@ export default function AgendaEmpresaClient({
   function sincronizarCambios() {
     if (tieneQueryInicial()) {
       router.replace(pathname, { scroll: false });
-    } else {
-      router.refresh();
     }
   }
 
   return (
     <AgendaView
       bloqueos={bloqueos}
+      horarios={horarios}
       horariosIso={horariosIso}
       reservasActivasIso={reservasActivasIso}
       hoyClave={hoyClave}

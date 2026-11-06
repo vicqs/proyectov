@@ -2,12 +2,12 @@ import Link from "next/link";
 import { requerirEmpresa } from "@/lib/empresa";
 import { rutaPanelEmpresa } from "@/lib/rutas-empresa";
 import { estadoEfectivo } from "@/lib/negocio-estado";
-import { funcionActivaNegocio, obtenerConfiguracion } from "@/lib/plataforma";
-import { leer } from "@/lib/admin/db";
+import { funcionActiva, listarPlanes, obtenerConfiguracion } from "@/lib/plataforma";
+import { leer } from "@/lib/data/server";
 import { logoutAction } from "@/actions/auth";
 import EmpresaShell, { type EmpresaNavLink } from "@/components/EmpresaShell";
 import PaginaPublica from "@/components/PaginaPublica";
-import { ShieldAlert } from "lucide-react";
+import { LogOut, ShieldAlert } from "lucide-react";
 
 const NAV_LINKS: EmpresaNavLink[] = [
   { href: "", label: "Inicio", icon: "home" },
@@ -74,8 +74,12 @@ export default async function EmpresaLayout({
   children: React.ReactNode;
 }) {
   const { slug } = await params;
-  const { negocio } = await requerirEmpresa(slug);
-  const config = await obtenerConfiguracion();
+  const [{ negocio }, config, planes, anunciosActivos] = await Promise.all([
+    requerirEmpresa(slug),
+    obtenerConfiguracion(),
+    listarPlanes(),
+    leer("anuncios", { eq: { activo: true } }).catch(() => []),
+  ]);
 
   if (negocio.suspendido) {
     return (
@@ -99,16 +103,15 @@ export default async function EmpresaLayout({
 
   const efectivo = estadoEfectivo(negocio);
   const ahora = Date.now();
-  const anuncios = (await leer("anuncios").catch(() => []))
+  const anuncios = anunciosActivos
     .filter(
       (a) =>
-        a.activo &&
         (!a.expira_en || new Date(a.expira_en).getTime() > ahora) &&
         (a.segmento === "todas" || a.segmento === efectivo),
     )
     .sort((a, b) => b.creado_en.localeCompare(a.creado_en));
 
-  const links = (await funcionActivaNegocio(negocio, "soporte_empresas"))
+  const links = funcionActiva(config, negocio, planes, "soporte_empresas")
     ? NAV_LINKS
     : NAV_LINKS.filter((l) => l.href !== "soporte");
 
@@ -128,15 +131,16 @@ export default async function EmpresaLayout({
         <form action={logoutAction}>
           <button
             type="submit"
-            className="vuki-focus min-h-11 w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-sky-50"
+            className="vuki-focus flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-sky-50 hover:text-slate-900"
           >
-            Cerrar sesión
+            <LogOut className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+            <span>Cerrar sesión</span>
           </button>
         </form>
       }
     >
       {efectivo === "inactiva" && (
-        <div className="mx-auto max-w-6xl px-6 pt-6 sm:px-10 2xl:max-w-7xl">
+        <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-8 lg:px-10">
           <div
             role="status"
             className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 sm:flex-row sm:items-center sm:justify-between"
@@ -158,7 +162,7 @@ export default async function EmpresaLayout({
         </div>
       )}
       {anuncios.length > 0 && (
-        <div className="mx-auto max-w-6xl space-y-2 px-6 pt-6 sm:px-10 2xl:max-w-7xl">
+        <div className="mx-auto max-w-7xl space-y-2 px-4 pt-6 sm:px-8 lg:px-10">
           {anuncios.map((a) => (
             <div
               key={a.id}

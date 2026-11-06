@@ -6,32 +6,25 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Check,
-  CheckCircle2,
   Copy,
   CreditCard,
   ExternalLink,
   Globe2,
-  ImageIcon,
   Loader2,
-  Lock,
-  Mail,
   Palette,
   RotateCcw,
   Save,
-  Trash2,
-  UploadCloud,
   X,
 } from "lucide-react";
 import {
   actualizarPersonalizacionAction,
-  cambiarContrasenaEmpresaAction,
-  type CambiarContrasenaEmpresaState,
   type PersonalizacionActionState,
 } from "@/actions/personalizacion";
 import type { Negocio } from "@/types/database";
 import { toast } from "@/components/Toast";
 import ParColoresMarca from "@/components/empresa/ParColoresMarca";
-import { COLOR_PRIMARIO_DEFECTO, esHex, textoSobre } from "@/lib/color";
+import { COLOR_PRIMARIO_DEFECTO, esHex } from "@/lib/color";
+import { conResilienciaRed } from "@/lib/errores";
 import { LOGO_POR_DEFECTO, PORTADA_POR_DEFECTO } from "@/lib/tipos-publicos";
 import {
   PAISES_TELEFONO,
@@ -41,12 +34,14 @@ import {
   obtenerPaisPorIso,
   totalDigitosPais,
 } from "@/lib/telefono";
+import CambiarContrasenaCard from "./CambiarContrasenaCard";
+import VistaPreviaPerfilPublico, {
+  ImagePicker,
+} from "./VistaPreviaPerfilPublico";
 
 const initialState: PersonalizacionActionState = {};
-const initialPassState: CambiarContrasenaEmpresaState = {};
 
-const INPUT =
-  "vuki-focus min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-sky-500";
+const INPUT = "vuki-input min-h-11";
 
 function limpiarIban(valor: string): string {
   return valor
@@ -114,341 +109,26 @@ function SubmitButton({
   );
 }
 
-interface ImagePickerProps {
-  label: string;
-  description: string;
-  name: "logo" | "portada";
-  aspect?: "square" | "wide";
-  maxImagenMb: number;
-  previewUrl: string;
-  tienePersonalizadaGuardada: boolean;
-  selectedFile: File | null;
-  markedForRemoval: boolean;
-  onSelectFile: (file: File | null) => void;
-  onToggleRemoval: (remove: boolean) => void;
-}
-
-/**
- * Selector de imagen con validación inmediata de peso, vista previa y opción
- * para restaurar la imagen por defecto del enlace público.
- */
-function ImagePicker({
-  label,
-  description,
-  name,
-  aspect = "square",
-  maxImagenMb,
-  previewUrl,
-  tienePersonalizadaGuardada,
-  selectedFile,
-  markedForRemoval,
-  onSelectFile,
-  onToggleRemoval,
-}: ImagePickerProps) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  const mostrandoNueva = Boolean(selectedFile);
-  const mostrandoPersonalizada =
-    !mostrandoNueva && tienePersonalizadaGuardada && !markedForRemoval;
-  const usandoDefecto = !mostrandoNueva && !mostrandoPersonalizada;
-
-  function limpiarInputArchivo() {
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
-  }
-
-  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] ?? null;
-    if (!file) return;
-    if (file.size > maxImagenMb * 1024 * 1024) {
-      toast.error(
-        `El archivo supera el tamaño máximo permitido (${maxImagenMb} MB).`,
-      );
-      limpiarInputArchivo();
-      return;
-    }
-    onToggleRemoval(false);
-    onSelectFile(file);
-  }
-
-  function handleDescartarSeleccion() {
-    limpiarInputArchivo();
-    onSelectFile(null);
-  }
-
-  function handleQuitarPersonalizada() {
-    limpiarInputArchivo();
-    onSelectFile(null);
-    onToggleRemoval(true);
-  }
-
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium text-slate-800">{label}</p>
-          <p className="mt-0.5 text-xs text-slate-500">{description}</p>
-        </div>
-
-        {mostrandoNueva ? (
-          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-            Nueva imagen (sin guardar)
-          </span>
-        ) : markedForRemoval ? (
-          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-            Se restaurará por defecto
-          </span>
-        ) : mostrandoPersonalizada ? (
-          <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
-            Personalizada
-          </span>
-        ) : (
-          <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-600">
-            Por defecto
-          </span>
-        )}
-      </div>
-
-      <input
-        type="hidden"
-        name={`eliminar_${name}`}
-        value={markedForRemoval ? "true" : "false"}
-      />
-
-      <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center">
-        <div
-          className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ${
-            aspect === "wide" ? "h-24 w-40" : "h-24 w-24"
-          }`}
-        >
-          {previewUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={previewUrl}
-              alt={label}
-              className={`h-full w-full object-cover transition ${
-                usandoDefecto ? "opacity-80" : ""
-              }`}
-            />
-          ) : (
-            <ImageIcon className="h-6 w-6 text-slate-300" aria-hidden="true" />
-          )}
-        </div>
-
-        <div className="flex flex-1 flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="vuki-focus inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-xs transition hover:bg-slate-50">
-              <UploadCloud
-                className="h-4 w-4 text-sky-600"
-                aria-hidden="true"
-              />
-              {mostrandoNueva || mostrandoPersonalizada
-                ? "Cambiar imagen"
-                : "Subir imagen"}
-              <input
-                ref={inputRef}
-                type="file"
-                name={name}
-                accept="image/png,image/jpeg,image/webp"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </label>
-
-            {mostrandoNueva && (
-              <button
-                type="button"
-                onClick={handleDescartarSeleccion}
-                className="vuki-focus inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
-              >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-                Quitar selección
-              </button>
-            )}
-
-            {mostrandoPersonalizada && (
-              <button
-                type="button"
-                onClick={handleQuitarPersonalizada}
-                className="vuki-focus inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-600 transition hover:bg-red-50"
-              >
-                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                Usar por defecto
-              </button>
-            )}
-
-            {markedForRemoval && tienePersonalizadaGuardada && (
-              <button
-                type="button"
-                onClick={() => onToggleRemoval(false)}
-                className="vuki-focus inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
-              >
-                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                Mantener actual
-              </button>
-            )}
-          </div>
-
-          {mostrandoNueva && selectedFile ? (
-            <p className="text-xs text-slate-600">
-              Seleccionado:{" "}
-              <strong className="font-medium text-slate-800">
-                {selectedFile.name}
-              </strong>{" "}
-              ({(selectedFile.size / 1024).toFixed(0)} KB). Pulsa{" "}
-              <strong>Guardar cambios</strong> para aplicarlo.
-            </p>
-          ) : markedForRemoval ? (
-            <p className="text-xs text-amber-700">
-              Al guardar se volverá a mostrar la fotografía por defecto.
-            </p>
-          ) : (
-            <p className="text-xs text-slate-500">
-              Formatos: PNG, JPG o WEBP · Tamaño máximo: {maxImagenMb} MB.
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SeccionCuentaAcceso({
-  slug,
-  emailCuenta,
-}: {
-  slug: string;
-  emailCuenta: string;
-}) {
-  const [abierto, setAbierto] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
-  const [state, action, pending] = useActionState(
-    cambiarContrasenaEmpresaAction.bind(null, slug),
-    initialPassState,
-  );
-
-  useEffect(() => {
-    if (state.success && state.savedAt) {
-      toast.success("Contraseña actualizada correctamente.");
-      formRef.current?.reset();
-      setAbierto(false);
-    } else if (state.error) {
-      toast.error(state.error);
-    }
-  }, [state]);
-
-  return (
-    <section
-      id="acceso"
-      className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-2 font-display text-sm font-bold text-vuki-ink">
-            <Lock className="h-4 w-4 text-slate-500" aria-hidden="true" />
-            Cuenta y seguridad
-          </h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Credenciales con las que administras este panel.
-          </p>
-        </div>
-        <button
-          type="button"
-          aria-expanded={abierto}
-          onClick={() => setAbierto((prev) => !prev)}
-          className="vuki-focus rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-        >
-          {abierto ? "Cancelar" : "Cambiar contraseña"}
-        </button>
-      </div>
-
-      {emailCuenta && (
-        <div className="mt-3 flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-700">
-          <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-          <span className="text-slate-500">Sesión:</span>
-          <strong className="truncate font-semibold text-slate-800">
-            {emailCuenta}
-          </strong>
-        </div>
-      )}
-
-      {abierto && (
-        <form ref={formRef} action={action} className="mt-4 space-y-3 border-t border-slate-100 pt-4">
-          <div>
-            <label
-              htmlFor="pass_actual"
-              className="mb-1 block text-xs font-medium text-slate-700"
-            >
-              Contraseña actual
-            </label>
-            <input
-              id="pass_actual"
-              name="actual"
-              type="password"
-              required
-              autoComplete="current-password"
-              className={INPUT}
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="pass_nueva"
-              className="mb-1 block text-xs font-medium text-slate-700"
-            >
-              Nueva contraseña (mínimo 8 caracteres)
-            </label>
-            <input
-              id="pass_nueva"
-              name="nueva"
-              type="password"
-              required
-              minLength={8}
-              maxLength={72}
-              autoComplete="new-password"
-              className={INPUT}
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="pass_confirmar"
-              className="mb-1 block text-xs font-medium text-slate-700"
-            >
-              Confirmar nueva contraseña
-            </label>
-            <input
-              id="pass_confirmar"
-              name="confirmar"
-              type="password"
-              required
-              minLength={8}
-              maxLength={72}
-              autoComplete="new-password"
-              className={INPUT}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={pending}
-            className="vuki-focus flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {pending && (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-            )}
-            {pending ? "Actualizando..." : "Actualizar contraseña"}
-          </button>
-        </form>
-      )}
-    </section>
-  );
-}
+export type NegocioPersonalizacion = Pick<
+  Negocio,
+  | "slug"
+  | "nombre"
+  | "descripcion"
+  | "cuenta_iban"
+  | "whatsapp"
+  | "color_tema"
+  | "color_secundario"
+  | "logo_url"
+  | "imagen_portada_url"
+  | "email_contacto"
+>;
 
 export default function PersonalizacionForm({
   negocio,
   emailCuenta = "",
   maxImagenMb = 2,
 }: {
-  negocio: Negocio;
+  negocio: NegocioPersonalizacion;
   emailCuenta?: string;
   maxImagenMb?: number;
 }) {
@@ -530,30 +210,36 @@ export default function PersonalizacionForm({
   });
   const ultimoEnvioRef = useRef(baseGuardada);
 
-  const [state, formAction] = useActionState(
-    async (prevState: PersonalizacionActionState, formData: FormData) => {
-      if (logoFile) {
-        formData.set("logo", logoFile);
-      }
-      if (portadaFile) {
-        formData.set("portada", portadaFile);
-      }
-      formData.set("eliminar_logo", eliminarLogo ? "true" : "false");
-      formData.set("eliminar_portada", eliminarPortada ? "true" : "false");
+  const [state, formAction, isPending] = useActionState(
+    conResilienciaRed(
+      async (prevState: PersonalizacionActionState, formData: FormData) => {
+        if (logoFile) {
+          formData.set("logo", logoFile);
+        }
+        if (portadaFile) {
+          formData.set("portada", portadaFile);
+        }
+        formData.set("eliminar_logo", eliminarLogo ? "true" : "false");
+        formData.set("eliminar_portada", eliminarPortada ? "true" : "false");
 
-      ultimoEnvioRef.current = {
-        nombre: String(formData.get("nombre") ?? "").trim() || nombre,
-        descripcion: String(formData.get("descripcion") ?? "").trim(),
-        iban: limpiarIban(String(formData.get("cuenta_iban") ?? "")),
-        whatsapp: String(formData.get("whatsapp") ?? "").trim(),
-        primario: String(formData.get("color_tema") ?? colores.primario),
-        secundario: String(
-          formData.get("color_secundario") ?? colores.secundario,
-        ),
-      };
+        ultimoEnvioRef.current = {
+          nombre: String(formData.get("nombre") ?? "").trim() || nombre,
+          descripcion: String(formData.get("descripcion") ?? "").trim(),
+          iban: limpiarIban(String(formData.get("cuenta_iban") ?? "")),
+          whatsapp: String(formData.get("whatsapp") ?? "").trim(),
+          primario: String(formData.get("color_tema") ?? colores.primario),
+          secundario: String(
+            formData.get("color_secundario") ?? colores.secundario,
+          ),
+        };
 
-      return actualizarPersonalizacionAction(negocio.slug, prevState, formData);
-    },
+        return actualizarPersonalizacionAction(
+          negocio.slug,
+          prevState,
+          formData,
+        );
+      },
+    ),
     initialState,
   );
 
@@ -651,7 +337,7 @@ export default function PersonalizacionForm({
   ].filter(Boolean).length;
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${hayCambios ? "pb-24" : ""}`}>
       {/* Barra superior del enlace público del negocio */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-(--marca-borde) bg-white px-4 py-3.5 shadow-sm">
         <div className="flex min-w-0 items-center gap-2.5 text-sm">
@@ -669,6 +355,24 @@ export default function PersonalizacionForm({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {hayCambios && (
+            <button
+              type="submit"
+              form="form-personalizacion"
+              disabled={isPending}
+              className="vuki-focus inline-flex min-h-10 items-center gap-2 rounded-xl bg-vuki-ink px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isPending ? (
+                <Loader2
+                  className="h-3.5 w-3.5 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Save className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+              {isPending ? "Guardando..." : "Guardar cambios"}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void copiarEnlacePublico()}
@@ -703,7 +407,11 @@ export default function PersonalizacionForm({
 
       <div className="grid items-start gap-6 lg:grid-cols-[1.45fr_1fr]">
         {/* Columna izquierda: formulario principal del negocio */}
-        <form action={formAction} className="space-y-6">
+        <form
+          id="form-personalizacion"
+          action={formAction}
+          className="space-y-6"
+        >
           {/* Bloque 1: Identidad y contacto */}
           <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
             <div>
@@ -755,7 +463,7 @@ export default function PersonalizacionForm({
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
                 placeholder="Cuenta dónde están ubicados, qué hace especial su experiencia y qué deben saber los visitantes..."
-                className={INPUT}
+                className="vuki-textarea"
               />
             </div>
 
@@ -796,7 +504,7 @@ export default function PersonalizacionForm({
                       prev.slice(0, totalDigitosPais(nuevoPais)),
                     );
                   }}
-                  className="vuki-focus min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 sm:w-56"
+                  className="vuki-select min-h-11 w-full sm:w-64 sm:shrink-0"
                 >
                   {PAISES_TELEFONO.map((pais) => (
                     <option key={pais.iso} value={pais.iso}>
@@ -804,7 +512,7 @@ export default function PersonalizacionForm({
                     </option>
                   ))}
                 </select>
-                <div className="relative flex-1">
+                <div className="relative min-w-0 flex-1">
                   <input
                     id="whatsapp_local"
                     type="tel"
@@ -842,7 +550,10 @@ export default function PersonalizacionForm({
           <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
             <div>
               <h2 className="flex items-center gap-2 font-display text-base font-bold text-vuki-ink">
-                <Palette className="h-4 w-4 text-slate-500" aria-hidden="true" />
+                <Palette
+                  className="h-4 w-4 text-slate-500"
+                  aria-hidden="true"
+                />
                 Apariencia visual
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">
@@ -923,8 +634,9 @@ export default function PersonalizacionForm({
                 className={`${INPUT} font-mono uppercase tracking-wider`}
               />
               <p className="mt-1.5 text-xs text-slate-500">
-                En Costa Rica consta de <code className="rounded bg-slate-100 px-1">CR</code>{" "}
-                seguido de 20 dígitos (22 caracteres en total).
+                En Costa Rica consta de{" "}
+                <code className="rounded bg-slate-100 px-1">CR</code> seguido de
+                20 dígitos (22 caracteres en total).
               </p>
             </div>
           </section>
@@ -934,83 +646,76 @@ export default function PersonalizacionForm({
 
         {/* Columna derecha: vista previa en vivo + seguridad de cuenta */}
         <div className="space-y-5 lg:sticky lg:top-6">
-          <section
-            aria-label="Vista previa en vivo de tu perfil público"
-            className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-          >
-            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-2.5 text-xs">
-              <span className="font-semibold text-slate-700">
-                Vista previa en vivo
-              </span>
-              <span className="inline-flex items-center gap-1 text-emerald-700">
-                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                {pasosCompletos}/4 completados
-              </span>
-            </div>
+          <VistaPreviaPerfilPublico
+            pasosCompletos={pasosCompletos}
+            portadaPreview={portadaPreview}
+            logoPreview={logoPreview}
+            degradadoPreview={degradadoPreview}
+            colorPrimario={colores.primario}
+            nombre={nombre}
+            descripcion={descripcion}
+            tieneWhatsApp={digitosWhatsApp.length > 0}
+            codigoPaisWhatsApp={paisActual.codigo}
+          />
 
-            <div className="relative h-28 w-full bg-slate-200">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={portadaPreview}
-                alt="Vista previa de portada"
-                className="h-full w-full object-cover"
-              />
-              <div
-                aria-hidden="true"
-                className="absolute inset-0 opacity-35"
-                style={{ background: degradadoPreview }}
-              />
-            </div>
-
-            <div className="px-5 pb-5">
-              <div className="-mt-8 flex items-end justify-between gap-3">
-                <div className="relative h-16 w-16 overflow-hidden rounded-2xl border-4 border-white bg-white shadow-md">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={logoPreview}
-                    alt="Vista previa de logotipo"
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-
-                {digitosWhatsApp.length > 0 && (
-                  <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
-                    WhatsApp +{paisActual.codigo}
-                  </span>
-                )}
-              </div>
-
-              <h3 className="mt-3 break-words font-display text-base font-bold text-vuki-ink">
-                {nombre.trim() || "Nombre de tu negocio"}
-              </h3>
-              <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-slate-600">
-                {descripcion.trim() ||
-                  "Agrega una biografía breve para contarles a tus visitantes de qué trata tu experiencia."}
-              </p>
-
-              <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-                <div>
-                  <p className="text-xs font-semibold text-slate-800">
-                    Experiencia destacada
-                  </p>
-                  <p className="text-[11px] text-slate-500">2 horas · $35.00</p>
-                </div>
-                <span
-                  className="rounded-xl px-3 py-1.5 text-xs font-semibold shadow-sm"
-                  style={{
-                    background: degradadoPreview,
-                    color: textoSobre(colores.primario),
-                  }}
-                >
-                  Reservar
-                </span>
-              </div>
-            </div>
-          </section>
-
-          <SeccionCuentaAcceso slug={negocio.slug} emailCuenta={emailCuenta} />
+          <CambiarContrasenaCard
+            slug={negocio.slug}
+            emailCuenta={emailCuenta}
+          />
         </div>
       </div>
+
+      {/* Barra inferior fija (sticky) para guardar cambios */}
+      {hayCambios && (
+        <aside
+          aria-label="Barra de guardado de cambios"
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/90 bg-white/95 px-4 py-3 shadow-[0_-4px_16px_rgba(15,23,42,0.08)] backdrop-blur-md sm:px-6"
+        >
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs sm:text-sm">
+              <span
+                aria-hidden="true"
+                className="h-2 w-2 animate-pulse rounded-full bg-amber-500"
+              />
+              <span className="font-semibold text-slate-800">
+                Tienes cambios sin guardar
+              </span>
+              <span className="hidden text-slate-500 md:inline">
+                · Se reflejarán de inmediato en tu enlace público al guardar
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={descartarCambios}
+                disabled={isPending}
+                className="vuki-focus inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                Descartar
+              </button>
+
+              <button
+                type="submit"
+                form="form-personalizacion"
+                disabled={isPending}
+                className="vuki-focus inline-flex min-h-10 items-center gap-2 rounded-xl bg-vuki-ink px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
+              >
+                {isPending ? (
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Save className="h-4 w-4" aria-hidden="true" />
+                )}
+                {isPending ? "Guardando..." : "Guardar cambios"}
+              </button>
+            </div>
+          </div>
+        </aside>
+      )}
     </div>
   );
 }

@@ -11,6 +11,9 @@ export default function PaginaPublica({
   children,
   pie,
   accion,
+  mostrarLogo = true,
+  centrado = false,
+  className,
 }: {
   titulo: string;
   descripcion?: ReactNode;
@@ -20,24 +23,41 @@ export default function PaginaPublica({
   pie?: ReactNode;
   /** Elemento a la derecha del logo (p. ej. selector de idioma). */
   accion?: ReactNode;
+  /** Permite ocultar el logo cuando ya se muestra en el layout superior (ej. admin). */
+  mostrarLogo?: boolean;
+  /** Centra verticalmente la tarjeta dentro de la vista disponible. */
+  centrado?: boolean;
+  className?: string;
 }) {
   return (
-    <main className="relative isolate min-h-[85svh] overflow-hidden bg-vuki-surface px-4 py-10 sm:py-14">
+    <main
+      className={`relative isolate overflow-hidden bg-vuki-surface px-4 ${
+        centrado
+          ? "flex min-h-full flex-1 flex-col justify-center py-8 sm:py-12"
+          : "min-h-[85svh] py-10 sm:py-14"
+      } ${className ?? ""}`}
+    >
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-80 bg-linear-to-br from-sky-100/70 via-white to-emerald-100/50"
       />
-      <div className="mx-auto w-full max-w-lg">
-        <div className="mb-7 flex items-center justify-between gap-3">
-          <Link
-            href="/"
-            aria-label="vuki · inicio"
-            className="vuki-focus inline-flex min-h-11 items-center rounded-xl"
-          >
-            <VLogo showText className="h-9 w-9" />
-          </Link>
-          {accion}
-        </div>
+      <div className={`mx-auto w-full max-w-lg ${centrado ? "my-auto" : ""}`}>
+        {(mostrarLogo || accion) && (
+          <div className="mb-7 flex items-center justify-between gap-3">
+            {mostrarLogo ? (
+              <Link
+                href="/"
+                aria-label="vuki · inicio"
+                className="vuki-focus inline-flex min-h-11 items-center rounded-xl"
+              >
+                <VLogo showText className="h-9 w-9" />
+              </Link>
+            ) : (
+              <div />
+            )}
+            {accion}
+          </div>
+        )}
         <section className="overflow-hidden rounded-3xl border border-sky-100 bg-white shadow-xl shadow-sky-950/[0.05]">
           <header className="relative border-b border-sky-100 bg-linear-to-br from-sky-50 via-white to-emerald-50/70 px-6 py-7 sm:px-8">
             <div

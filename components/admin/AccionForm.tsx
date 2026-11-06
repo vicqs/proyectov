@@ -1,7 +1,15 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import ConfirmDialog from "../ConfirmDialog";
+import { toast } from "../Toast";
+import {
+  extraerContrasenaTemporal,
+  mostrarContrasenaTemporal,
+} from "./ContrasenaTemporalModal";
+import { cn } from "../../lib/cn";
+import { conResilienciaRed } from "../../lib/errores";
 import type { ResultadoAccion } from "../../lib/admin/auth";
 
 type Accion = (
@@ -10,18 +18,25 @@ type Accion = (
 ) => Promise<ResultadoAccion>;
 
 const VARIANTES = {
-  primario: "bg-vuki-ink text-white hover:bg-slate-800",
-  peligro: "bg-red-600 text-white hover:bg-red-700",
-  neutro: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+  primario: "vuki-btn-primary",
+  peligro: "vuki-btn-danger",
+  peligro_sutil: "vuki-btn-danger-outline",
+  neutro: "vuki-btn-secondary",
+  neutro_sm: "vuki-btn-secondary-sm",
+  acento_sm: "vuki-btn-accent-sm",
 } as const;
 
 interface Props {
+  id?: string;
   accion: Accion;
   /** Campos del formulario (inputs ocultos o visibles). */
   children?: React.ReactNode;
   boton: string;
   variante?: keyof typeof VARIANTES;
-  /** Pide confirmación nativa antes de enviar. */
+  tamano?: "normal" | "sm" | "xs";
+  claseBoton?: string;
+  icono?: React.ReactNode;
+  /** Pide confirmación antes de enviar (usa ConfirmDialog). */
   confirmar?: string;
   /** Limpia los campos cuando la acción termina bien. */
   limpiarAlOk?: boolean;
@@ -30,59 +45,118 @@ interface Props {
   /** Deshabilita el botón (p. ej. cuando no hay nada que procesar). */
   deshabilitado?: boolean;
   className?: string;
+  /** Elementos a colocar en la fila inferior junto al botón (a la izquierda del botón). */
+  pie?: React.ReactNode;
 }
 
 const ESTADO_INICIAL: ResultadoAccion = {};
 
-/** Formulario genérico para Server Actions de administración con feedback. */
+/** Formulario genérico para Server Actions de administración con feedback vía Toast estándar. */
 export function AccionForm({
+  id,
   accion,
   children,
   boton,
   variante = "primario",
+  tamano = "normal",
+  claseBoton = "",
+  icono,
   confirmar,
   limpiarAlOk = false,
   enLinea = false,
   deshabilitado = false,
   className = "",
+  pie,
 }: Props) {
-  const [estado, enviar, pendiente] = useActionState(accion, ESTADO_INICIAL);
+  const accionResiliente = useMemo(() => conResilienciaRed(accion), [accion]);
+  const [estado, enviar, pendiente] = useActionState(
+    accionResiliente,
+    ESTADO_INICIAL,
+  );
+  const [dialogoAbierto, setDialogoAbierto] = useState(false);
   const ref = useRef<HTMLFormElement>(null);
+  const confirmadoRef = useRef(false);
 
   useEffect(() => {
-    if (limpiarAlOk && estado.ok) ref.current?.reset();
+    if (estado.ok || estado.contrasenaTemporal) {
+      if (limpiarAlOk) ref.current?.reset();
+      const temporalInfo = extraerContrasenaTemporal(estado);
+      if (temporalInfo) {
+        mostrarContrasenaTemporal(temporalInfo);
+      } else if (estado.ok) {
+        toast.success(estado.ok);
+      }
+    } else if (estado.error) {
+      toast.error(estado.error);
+    }
   }, [estado, limpiarAlOk]);
 
-  return (
-    <form
-      ref={ref}
-      action={enviar}
-      onSubmit={(e) => {
-        if (confirmar && !window.confirm(confirmar)) e.preventDefault();
-      }}
-      className={`${enLinea ? "flex flex-wrap items-end gap-2" : "space-y-3"} ${className}`}
+  function alEnviar(e: React.FormEvent<HTMLFormElement>) {
+    if (confirmar && !confirmadoRef.current) {
+      e.preventDefault();
+      setDialogoAbierto(true);
+      return;
+    }
+    confirmadoRef.current = false;
+  }
+
+  function ejecutarConfirmado() {
+    setDialogoAbierto(false);
+    confirmadoRef.current = true;
+    ref.current?.requestSubmit();
+  }
+
+  const botonElemento = (
+    <button
+      type="submit"
+      disabled={pendiente || deshabilitado}
+      className={`whitespace-nowrap ${VARIANTES[variante]} ${tamano === "xs" ? "!min-h-0 text-xs !px-2.5 !py-1" : ""} ${claseBoton}`}
     >
-      {children}
-      <button
-        type="submit"
-        disabled={pendiente || deshabilitado}
-        className={`vuki-focus inline-flex min-h-11 items-center whitespace-nowrap justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${VARIANTES[variante]}`}
-      >
-        {pendiente && (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      {pendiente ? (
+        <Loader2
+          className={`${tamano === "xs" ? "h-3 w-3" : tamano === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} animate-spin shrink-0`}
+          aria-hidden="true"
+        />
+      ) : (
+        icono && <span className="shrink-0">{icono}</span>
+      )}
+      <span>{boton}</span>
+    </button>
+  );
+
+  return (
+    <>
+      <form
+        id={id}
+        ref={ref}
+        action={enviar}
+        onSubmit={alEnviar}
+        className={cn(
+          enLinea ? "flex flex-wrap items-center gap-2" : "space-y-4",
+          className,
         )}
-        {boton}
-      </button>
-      {estado.error && (
-        <p role="alert" className="w-full text-sm text-red-600">
-          {estado.error}
-        </p>
+      >
+        {children}
+        {pie ? (
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between border-t border-slate-100">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">{pie}</div>
+            <div className="flex shrink-0 items-center justify-end">{botonElemento}</div>
+          </div>
+        ) : (
+          botonElemento
+        )}
+      </form>
+
+      {confirmar && (
+        <ConfirmDialog
+          abierto={dialogoAbierto}
+          titulo="¿Confirmar acción?"
+          descripcion={confirmar}
+          textoConfirmar={variante === "peligro" ? "Continuar" : "Confirmar"}
+          onConfirmar={ejecutarConfirmado}
+          onCancelar={() => setDialogoAbierto(false)}
+        />
       )}
-      {estado.ok && !estado.error && (
-        <p role="status" className="w-full text-sm text-emerald-700">
-          {estado.ok}
-        </p>
-      )}
-    </form>
+    </>
   );
 }

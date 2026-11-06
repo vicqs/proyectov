@@ -15,9 +15,9 @@ import {
   leerUno,
   listarUsuariosAuth,
 } from "../../lib/admin/db";
-import { campo, generarContrasena, revalidarAdmin } from "../../lib/admin/util";
+import { campo, esUuid, generarContrasena, revalidarAdmin } from "../../lib/admin/util";
 
-const ROLES = ["superadmin", "finanzas", "soporte"] as const;
+const ROLES_ASIGNABLES = ["finanzas", "soporte"] as const;
 
 export async function asignarRolAction(
   _previo: ResultadoAccion,
@@ -27,7 +27,7 @@ export async function asignarRolAction(
     const parsed = z
       .object({
         email: z.string().email("Correo no válido."),
-        rol: z.enum(ROLES),
+        rol: z.enum(ROLES_ASIGNABLES),
       })
       .safeParse({
         email: campo(datos, "email").toLowerCase(),
@@ -35,10 +35,14 @@ export async function asignarRolAction(
       });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-    const existente = (await listarUsuariosAuth()).find(
-      (u) => (u.email ?? "").toLowerCase() === parsed.data.email,
-    );
-    let userId = existente?.id;
+    const perfilExistente = await leerUno("perfiles", {
+      eq: { email: parsed.data.email },
+    });
+    let userId =
+      perfilExistente?.user_id ??
+      (await listarUsuariosAuth()).find(
+        (u) => (u.email ?? "").toLowerCase() === parsed.data.email,
+      )?.id;
     let temporal: string | null = null;
     if (!userId) {
       temporal = generarContrasena();
@@ -81,8 +85,17 @@ export async function asignarRolAction(
     revalidarAdmin();
     return {
       ok: temporal
-        ? `Cuenta creada para ${parsed.data.email}. Contraseña temporal: ${temporal} (no se volverá a mostrar).`
+        ? `Cuenta creada y rol «${parsed.data.rol}» asignado a ${parsed.data.email}.`
         : `Rol «${parsed.data.rol}» asignado a ${parsed.data.email}.`,
+      ...(temporal
+        ? {
+            contrasenaTemporal: {
+              email: parsed.data.email,
+              password: temporal,
+              contexto: `Se creó una cuenta nueva con el rol «${parsed.data.rol}». Compártele esta contraseña de forma segura; no se volverá a mostrar al cerrar esta ventana.`,
+            },
+          }
+        : {}),
     };
   });
 }
@@ -93,6 +106,7 @@ export async function quitarRolAction(
   _datos: FormData,
 ): Promise<ResultadoAccion> {
   return accionAdmin("equipo", async (admin) => {
+    if (!esUuid(userId)) return { error: "Identificador de usuario inválido." };
     if (userId === admin.user.id)
       return { error: "No puedes quitarte el rol a ti mismo." };
     const perfil = await leerUno("perfiles", { eq: { user_id: userId } });

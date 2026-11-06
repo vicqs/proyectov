@@ -153,7 +153,7 @@ export default function LegalPage({
                             href={enlace.href}
                             aria-current={esActual ? "page" : undefined}
                             className={cn(
-                              "vuki-focus group flex min-h-12 items-center gap-2 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all sm:gap-3",
+                              "vuki-focus group flex min-h-12 items-center gap-2 rounded-2xl px-3.5 py-3 text-sm font-medium transition-colors sm:gap-3",
                               esActual
                                 ? "bg-sky-50/90 text-slate-900 shadow-xs ring-1 ring-inset ring-sky-200/80"
                                 : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",

@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { Flag } from "lucide-react";
 import { AccionForm } from "@/components/admin/AccionForm";
+import { TextareaConContador } from "@/components/TextareaConContador";
 import PaginaPublica from "@/components/PaginaPublica";
 import SelectorIdioma from "@/components/SelectorIdioma";
 import { reportarPerfilAction } from "@/actions/reportar";
 import { LocaleProvider, useTranslations } from "@/lib/i18n";
 
-const INPUT =
-  "min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus-visible:border-vuki-ocean focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vuki-ocean/20";
+const INPUT = "vuki-input min-h-11";
 
 interface Props {
   slug: string;
@@ -61,7 +61,7 @@ function Contenido({ slug, nombre }: Props) {
             id="reporte-motivo"
             name="motivo"
             required
-            className={INPUT}
+            className="vuki-select w-full"
             defaultValue="contenido"
           >
             <option value="contenido">{t("rep_m_contenido")}</option>
@@ -75,13 +75,12 @@ function Contenido({ slug, nombre }: Props) {
           >
             {t("rep_detalles")}
           </label>
-          <textarea
+          <TextareaConContador
             id="reporte-detalle"
             name="detalle"
             rows={4}
             maxLength={1000}
             placeholder={t("rep_detalles")}
-            className={INPUT}
           />
           <label
             htmlFor="reporte-email"

@@ -1,75 +1,98 @@
-# Migración del modo simulado a Supabase
+# Migración de los mocks a Supabase
 
-Guía para pasar de la capa mock (`lib/mock/*`) a un proyecto real de Supabase. Hoy todo corre en memoria; **nada de lo descrito aquí se ha ejecutado aún contra Supabase real**, así que se debe validar cada paso.
+El esquema ejecutable está en [schema.sql](../../supabase/schema.sql) y la demostración actual en [seed.sql](../../supabase/seed.sql). Los modelos de la aplicación mantienen sus nombres españoles mediante vistas compatibles sobre tablas relacionales en inglés.
 
-## 1. Cómo se elige el modo
+## 1. Preparar la base de datos
 
-- `isMockMode` (`lib/mock/client.ts`) activa el mock si `USE_MOCK_DB=true` o si `NEXT_PUBLIC_SUPABASE_URL` falta o es un placeholder.
-- `createSupabaseServerClient` (`lib/supabase/server.ts`) devuelve el cliente real o el mock con la misma interfaz.
-- Por eso el código de negocio no cambia: solo cambian las variables de entorno.
-- Los datos mock viven en `lib/mock/data.ts` y se reinician al reiniciar el servidor.
+En un proyecto nuevo de Supabase, ejecutar en el SQL Editor:
 
-## 2. Preparar el proyecto
+1. [schema.sql](../../supabase/schema.sql), completo.
+2. [seed.sql](../../supabase/seed.sql), únicamente si se quieren los datos de demostración.
 
-1. Crear el proyecto en Supabase.
-2. Aplicar el esquema base descrito en [Estructura_Datos.md](Estructura_Datos.md) (negocios, servicios, reservas, horarios, bloqueos).
-3. Ejecutar en el SQL Editor, en este orden:
-   - [migracion_horarios_cupos.sql](migracion_horarios_cupos.sql)
-   - [migracion_admin_global.sql](migracion_admin_global.sql): añade columnas a `negocios` (suspensión, plan, descuento, prueba, soft-delete) y crea `perfiles`, `planes`, `auditoria`, `configuracion_plataforma`, `anuncios`, `comunicados`, `tickets`, `ticket_mensajes`, `notas_internas`, `reportes_perfil`, `registro_sistema` y `reembolsos`.
-4. Crear el bucket de Storage para las imágenes de personalización (ver [creacion/fase4_personalizacion_storage.md](../creacion/fase4_personalizacion_storage.md)).
-5. Revisar que `types/database.ts` coincida con el esquema final.
+El esquema incluye tablas, relaciones, índices, RLS, funciones públicas limitadas, sincronización fiscal y el bucket `negocios-media`. Requiere PostgreSQL 15 o superior para las vistas `security_invoker`; Supabase proporciona los esquemas Auth y Storage.
 
-## 3. Variables de entorno
+**No ejecutar después las migraciones históricas de esta carpeta.** Sus nombres españoles ahora corresponden a vistas, no a las tablas antiguas. Estos archivos nuevos son una inicialización, no una conversión automática de una base previamente poblada con el esquema legado.
 
-| Variable                                                    | Uso                                                         |
-| ----------------------------------------------------------- | ----------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Cliente y middleware                                        |
-| `SUPABASE_SERVICE_ROLE_KEY`                                 | Solo servidor: operaciones del admin global (bypass de RLS) |
-| `ADMIN_GLOBAL_EMAILS`                                       | Correos (separados por coma) que se tratan como superadmin  |
-| `NEXT_PUBLIC_APP_URL`                                       | Base de los enlaces de recuperación de contraseña           |
-| `RESEND_API_KEY`, `EMAIL_FROM`                              | Correos transaccionales y comunicados                       |
-| `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, webhook secret      | Suscripciones                                               |
-| `PAGO_WEBHOOK_SECRET`                                       | Webhook de la pasarela                                      |
-| `USE_MOCK_DB`                                               | Dejar sin definir o en `false` en producción                |
+La semilla reproduce:
 
-Detalle completo en [Variables_y_despliegue.md](../Variables_y_despliegue.md).
+- Escuela de Surf Pura Vida, Kayak Manglar Tours y Tour de Café Monteverde.
+- Plan vuki de **$15 USD**, 4 servicios, 9 horarios y 3 reservas.
+- 2 registros financieros, 1 ticket con su mensaje y 1 reporte público.
+- Configuración actual; anuncios, bloqueos, comunicados y demás colecciones inicialmente vacías.
 
-## 4. Autenticación
+Los horarios se generan con `America/Costa_Rica`. Volver a ejecutar la semilla no duplica registros, cambia contraseñas ni desplaza los horarios existentes. No se transfieren automáticamente las modificaciones realizadas posteriormente en los mocks: su almacenamiento es temporal.
 
-- Crear en Supabase Auth los usuarios de empresa y de equipo. En el mock estaban `demo@`, `admin@`, etc.; **esas credenciales no existen en Supabase**.
-- El primer superadmin se define con `ADMIN_GLOBAL_EMAILS`. Los demás roles (finanzas, soporte) se asignan desde `/admin/equipo` y se guardan en `perfiles.rol_admin`.
-- Recuperación de contraseña:
-  - En Authentication > URL Configuration añadir `<APP_URL>/auth/callback` como Redirect URL.
-  - Configurar la plantilla de correo "Reset Password" (o un SMTP propio) para que el enlace apunte al flujo con `code`.
-  - Flujo: `/recuperar` → correo → `/auth/callback` (canjea el `code`) → `/restablecer`.
-- Las contraseñas temporales del admin (crear negocio, asignar rol, restablecer) usan `auth.admin`; con Supabase real conviene reemplazarlas por invitación o enlace por correo.
+## 2. Configurar la conexión
 
-## 5. Seguridad (RLS)
+Copiar los valores de API del proyecto en el entorno privado:
 
-- El panel global usa la service role en el servidor; nunca exponerla al cliente.
-- Activar RLS en todas las tablas y definir políticas:
-  - Empresa: solo filas de su `negocio_id` / `user_id`.
-  - Público: lectura de `negocios` (no suspendidos ni eliminados), `servicios` y `horarios` activos; inserción de reservas mediante la acción del servidor.
-  - Tablas del admin (`auditoria`, `configuracion_plataforma`, `tickets`, etc.): sin acceso desde anon/authenticated, solo service role.
-- Las políticas finales **no están escritas en el repo**: hay que redactarlas y probarlas.
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+```
 
-## 6. Servicios externos
+Las variables están preparadas en [.env.example](../../.env.example). La base de datos opera exclusivamente con Supabase (el emulador mock en memoria fue retirado). Si falta la configuración pública en cualquier entorno, la aplicación falla explícitamente sin fallbacks silenciosos.
 
-- **Stripe:** hoy el checkout usa `STRIPE_PRICE_ID`. El precio por plan (`planes.stripe_price_id`, `precioDelNegocio`) aún no está conectado. Configurar el webhook en `/api/webhooks/stripe`.
-- **Resend:** verificar el dominio de `EMAIL_FROM`. Los comunicados masivos están limitados a 200 negocios.
-- **Webhook de pago:** configurar `PAGO_WEBHOOK_SECRET`. Reprocesar un webhook desde el admin no reenvía correos.
+**La contraseña de PostgreSQL no sustituye las claves de API anónima y service role.** Ninguna contraseña local ni clave secreta se incluye en los SQL o en archivos versionados.
 
-## 7. Orden recomendado de verificación
+## 3. Usuarios de demostración
 
-1. Con `USE_MOCK_DB=false` y variables reales, arrancar y comprobar que `/login` autentica.
-2. Iniciar sesión como superadmin y revisar que cada página de `/admin/*` carga (algunas tablas estarán vacías).
-3. Crear un negocio desde `/admin/negocios/nuevo` y entrar a su panel.
-4. Probar: reserva pública, bloqueo de usuario, suspensión, anuncio visible en el panel de empresa, mantenimiento, reembolso, exportación CSV, auditoría.
-5. Probar la recuperación de contraseña de punta a punta.
-6. Revisar los logs de `registro_sistema` y de Supabase por errores de columnas o de RLS.
+La semilla crea seis usuarios confirmados de Auth y sus identidades de correo, con contraseñas aleatorias desconocidas. Sus UUID son estables y sustituyen únicamente en PostgreSQL los identificadores del mock.
 
-## 8. Riesgos conocidos
+| Correo | UUID | Uso |
+| --- | --- | --- |
+| `demo@vuki.cr` | `00000000-0000-4000-8000-000000000001` | Surf |
+| `kayak@vuki.cr` | `00000000-0000-4000-8000-000000000002` | Kayak |
+| `cafe@vuki.cr` | `00000000-0000-4000-8000-000000000003` | Café |
+| `admin@vuki.cr` | `00000000-0000-4000-8000-000000000101` | Superadministración |
+| `finanzas@vuki.cr` | `00000000-0000-4000-8000-000000000102` | Finanzas |
+| `soporte@vuki.cr` | `00000000-0000-4000-8000-000000000103` | Soporte |
 
-- Consultas del admin (`lib/admin/db.ts`) validadas contra los tipos, no contra una base real: pueden aparecer diferencias en nombres de columnas o permisos.
-- Filtros, ordenamientos y agregados que el mock resuelve en memoria deben comprobarse con el volumen real de datos.
-- El mock se comporta como un solo proceso; en Vercel (serverless) cada función es independiente, por lo que la persistencia debe ser siempre la base de datos.
+Las contraseñas de demostración locales documentadas en `CREDENCIALES_LOCALES.md` fueron establecidas mediante Auth Admin `updateUserById` desde el entorno local seguro, conservando sus UUID, perfiles, identidades y roles. La recuperación por correo solo es útil si se controla la dirección de destino. No guardar contraseñas ni claves secretas en el repositorio ni en archivos versionados.
+
+Si alguno de los correos ya existe con otro UUID, la semilla aborta explícitamente: no sobrescribe esa cuenta. Los perfiles se sincronizan desde Auth y los roles demo se asignan solo al crear sus cuentas.
+
+Para recuperación habitual, configurar `<APP_URL>/auth/callback` en Authentication > URL Configuration y el envío de correos de Supabase. `ADMIN_GLOBAL_EMAILS` permite el bootstrap del administrador; los roles del equipo se administran en el panel global.
+
+## 4. Clientes y datos
+
+- [client.ts](../../lib/supabase/client.ts): cliente real del navegador con clave pública. No importa mocks ni service role.
+- [server.ts](../../lib/supabase/server.ts): cliente SSR asociado a las cookies de la sesión. Empresa y acciones ordinarias respetan RLS.
+- [admin.ts](../../lib/supabase/admin.ts): service role exclusivamente después de validar una sesión administrativa o una firma de webhook.
+- [db.ts](../../lib/data/db.ts) y [server.ts](../../lib/data/server.ts): consultas tipadas, filtros y paginación; errores explícitos.
+- [public.ts](../../lib/data/public.ts): catálogo, disponibilidad, reservas por token y operaciones públicas mediante RPC.
+- [db.ts](../../lib/admin/db.ts): acceso global protegido y API administrativa de Auth.
+
+Los upserts de configuración apuntan a `platform_settings`: PostgreSQL no admite `ON CONFLICT` sobre una vista. El adaptador conserva el nombre español de la aplicación.
+
+La empresa solo accede a sus filas. Anon no puede consultar reservas, perfiles o datos bancarios directamente. Los enlaces de gestión y checkout requieren un token privado: conocer el UUID de una reserva no da acceso.
+
+## 5. Pagos y fiscalidad
+
+`platform_settings.simulated_payments_enabled` empieza en `false`; la primera carga demo lo activa. Puede cambiarse en la configuración global como **Pagos de demostración**. Desactivarlo bloquea los RPC de cobro y suscripción simulados sin dejar nuevas reservas pendientes.
+
+Los pagos de turistas siguen siendo una demostración: no hay una integración implementada con TiloPay/OnvoPay. El checkout lo indica expresamente y pide usar solo datos de tarjeta ficticios. El recibo no afirma un envío por correo en modo mock o cuando falla la notificación. El checkout pendiente también exige este flag mientras no exista una pasarela real.
+
+El webhook genérico verifica HMAC-SHA256 antes de obtener un cliente privilegiado. Una confirmación pagada requiere `trx_id`, no acepta el prefijo reservado `manual_`, no revive cancelaciones, conserva el precio histórico y no degrada pagos ya confirmados. La confirmación y el registro financiero son transaccionales; los reintentos no duplican notificaciones. Si falla el procesamiento, solo se conserva el payload validado (`reserva_id`, `estado`, `trx_id`) para reprocesarlo desde el panel global, nunca el cuerpo sin validar ni la firma.
+
+Stripe conserva `metadata.negocio_id`. Su customer se persiste únicamente al recibir un checkout firmado; los cambios de suscripción no usan service role desde acciones ordinarias de empresa.
+
+Servicios y reservas incluyen los campos fiscales solicitados. Los precios incluyen IVA; subtotal, impuesto, comisión y neto se redondean en PostgreSQL. Las reservas conservan la configuración fiscal y el precio del momento de creación.
+
+**515 CRC/USD y 4,25 % de comisión son referencias de demostración, no una consulta BCCR ni una liquidación bancaria real.** Registrar un consecutivo o marcar una factura como emitida solo guarda trazabilidad externa/demo; no envía documentos a Hacienda. El botón que genera consecutivos de prueba solo aparece con pagos demo habilitados.
+
+Resend es independiente de la conexión: si faltan sus variables, las notificaciones fallan explícitamente y se registran, sin impedir importar el cliente de base de datos ni simular entregas reales.
+
+## 6. Verificación de despliegue
+
+El SQL se valida localmente con PostgreSQL, incluyendo semilla, RLS, tokens, cupos y sincronización fiscal. **La preparación del repositorio no ejecuta cambios en el proyecto remoto.**
+
+Después de aplicar los SQL y configurar Auth:
+
+1. Ingresar con empresa y equipo; comprobar catálogo y las páginas de ambos paneles.
+2. Intentar acceder a otro negocio: debe rechazarse.
+3. Reservar el último cupo y comprobar que otra petición no excede la capacidad.
+4. Guardar un comprobante y recargar: datos fiscales y reserva deben conservarse.
+5. Probar firmas inválidas, reintentos de pago y desactivación del modo demo.
+6. Configurar URLs de Auth, Resend y Stripe si se utilizarán esos servicios.

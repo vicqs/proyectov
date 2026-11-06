@@ -1,10 +1,25 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requerirEmpresa, revalidarEmpresa } from "../lib/empresa";
+import { revalidarAdmin } from "../lib/admin/util";
+import {
+  obtenerEmpresaOperativa,
+  requerirEmpresa,
+  revalidarEmpresa,
+} from "../lib/empresa";
+import { obtenerConfiguracion, precioDelNegocio } from "../lib/plataforma";
 import { rutaPanelEmpresa } from "../lib/rutas-empresa";
-import { supabaseAdmin } from "../lib/supabase";
+import { cambiarSuscripcionSimulada } from "../lib/data/public";
 import { stripe, isStripeMockMode } from "../lib/stripe";
+
+async function requerirEmpresaParaFacturacion(slug: string) {
+  const ctx = await obtenerEmpresaOperativa(slug);
+  if ("error" in ctx) {
+    if (ctx.sinSesion) redirect("/login");
+    redirect(`${rutaPanelEmpresa(slug, "suscripcion")}?estado=error`);
+  }
+  return ctx;
+}
 
 function obtenerAppUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(
@@ -26,9 +41,15 @@ function obtenerAppUrl(): string {
 export async function crearCheckoutSuscripcionAction(
   slug: string,
 ): Promise<never> {
-  const { user, negocio } = await requerirEmpresa(slug);
+  const [{ user, negocio }, config] = await Promise.all([
+    requerirEmpresaParaFacturacion(slug),
+    obtenerConfiguracion(),
+  ]);
 
   if (isStripeMockMode || !stripe) {
+    if (!config.pagos_simulados) {
+      redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=error`);
+    }
     redirect(
       rutaPanelEmpresa(
         negocio.slug,
@@ -37,9 +58,10 @@ export async function crearCheckoutSuscripcionAction(
     );
   }
 
-  const priceId = process.env.STRIPE_PRICE_ID;
+  const { plan } = await precioDelNegocio(negocio);
+  const priceId = plan.stripe_price_id || process.env.STRIPE_PRICE_ID;
   if (!priceId) {
-    console.error("Falta la variable de entorno STRIPE_PRICE_ID.");
+    console.error("Falta el Stripe Price ID del plan o la variable STRIPE_PRICE_ID.");
     redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=error`);
   }
 
@@ -55,10 +77,7 @@ export async function crearCheckoutSuscripcionAction(
     });
     stripeCustomerId = customer.id;
 
-    await supabaseAdmin
-      .from("negocios")
-      .update({ stripe_customer_id: stripeCustomerId })
-      .eq("id", negocio.id);
+    // El customer se persiste solo al recibir el evento firmado de Stripe.
   }
 
   const appUrl = obtenerAppUrl();
@@ -89,26 +108,22 @@ export async function crearCheckoutSuscripcionAction(
 export async function confirmarSuscripcionSimuladaAction(
   slug: string,
 ): Promise<never> {
-  const { negocio, user } = await requerirEmpresa(slug);
-  if (!isStripeMockMode) {
+  const [{ negocio }, config] = await Promise.all([
+    requerirEmpresaParaFacturacion(slug),
+    obtenerConfiguracion(),
+  ]);
+  if (!isStripeMockMode || !config.pagos_simulados) {
     redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=error`);
   }
-  const { error } = await supabaseAdmin
-    .from("negocios")
-    .update({
-      estado_suscripcion: "activa",
-      proximo_cobro: new Date(Date.now() + 30 * 86_400_000).toISOString(),
-      stripe_customer_id: `mock_cus_${negocio.id}`,
-    })
-    .eq("id", negocio.id)
-    .eq("user_id", user.id);
-
-  if (error) {
-    console.error("No se pudo activar la suscripción simulada:", error.message);
+  try {
+    await cambiarSuscripcionSimulada(negocio.id, true);
+  } catch (error) {
+    console.error("No se pudo activar la suscripción simulada:", error);
     redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=error`);
   }
 
   revalidarEmpresa(negocio.slug);
+  revalidarAdmin();
   redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=activa`);
 }
 
@@ -128,21 +143,22 @@ export async function cancelarSuscripcionSimuladaAction(
 export async function cancelarSuscripcionActivaAction(
   slug: string,
 ): Promise<never> {
-  const { negocio, user } = await requerirEmpresa(slug);
-  if (!isStripeMockMode) {
+  const [{ negocio }, config] = await Promise.all([
+    requerirEmpresaParaFacturacion(slug),
+    obtenerConfiguracion(),
+  ]);
+  if (!isStripeMockMode || !config.pagos_simulados) {
     redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=error`);
   }
 
-  const { error } = await supabaseAdmin
-    .from("negocios")
-    .update({ estado_suscripcion: "inactiva" })
-    .eq("id", negocio.id)
-    .eq("user_id", user.id);
-  if (error) {
-    console.error("No se pudo cancelar la suscripción:", error.message);
+  try {
+    await cambiarSuscripcionSimulada(negocio.id, false);
+  } catch (error) {
+    console.error("No se pudo cancelar la suscripción:", error);
     redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=error`);
   }
 
   revalidarEmpresa(negocio.slug);
+  revalidarAdmin();
   redirect(`${rutaPanelEmpresa(negocio.slug, "suscripcion")}?estado=inactiva`);
 }

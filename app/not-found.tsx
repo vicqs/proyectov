@@ -19,16 +19,16 @@ export default function NotFound() {
             aria-hidden="true"
           />
         </div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
-          No pudimos encontrar este negocio turístico
+        <h1 className="font-display text-2xl font-bold tracking-tight text-vuki-ink">
+          Página no encontrada
         </h1>
         <p className="mt-2 text-sm text-slate-500">
-          El enlace puede estar mal escrito o el negocio ya no está disponible.
-          Verifica la dirección e inténtalo de nuevo.
+          El enlace que buscas no existe, cambió de dirección o ya no está
+          disponible. Verifica la dirección e inténtalo de nuevo.
         </p>
         <Link
           href="/"
-          className="vuki-focus mt-7 inline-flex min-h-12 items-center justify-center rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+          className="vuki-btn-primary mt-7 min-h-12 px-6 py-3"
         >
           Volver al inicio
         </Link>

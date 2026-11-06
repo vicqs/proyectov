@@ -8,7 +8,7 @@ Este documento detalla las variables de entorno requeridas, la diferencia entre 
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `NEXT_PUBLIC_SUPABASE_URL`           | URL del proyecto de Supabase (pública, expuesta al cliente). Usada para inicializar el cliente de Supabase en browser y servidor.                                                            |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`      | Clave anónima (pública) de Supabase, usada por el cliente/middleware para operaciones respetando Row Level Security (RLS).                                                                   |
-| `SUPABASE_SERVICE_ROLE_KEY`          | Clave de servicio (privada, **solo servidor**) de Supabase con permisos elevados, usada en Route Handlers para operaciones administrativas (bypass de RLS). Nunca debe exponerse al cliente. |
+| `SUPABASE_SERVICE_ROLE_KEY`          | Clave privada de servidor para superadministración autorizada y webhooks con firma verificada. No se utiliza en páginas públicas ni acciones ordinarias de empresa. Nunca exponerla al navegador. |
 | `USE_MOCK_DB`                        | Flag booleano (`"true"/"false"`) que fuerza el uso de la capa mock (`lib/mock/*`) en vez de Supabase real, incluso si hay credenciales configuradas. Útil para desarrollo local sin backend. |
 | `NEXT_PUBLIC_APP_URL`                | URL pública base de la aplicación (ejemplo ilustrativo: `https://example.com`, no dominio operativo), usada para construir URLs absolutas (retorno de checkout, links en emails).            |
 | `RESEND_API_KEY`                     | Clave de API de Resend, usada para el envío de correos transaccionales (confirmaciones de reserva, alertas a la pyme).                                                                       |
@@ -33,15 +33,18 @@ Este documento detalla las variables de entorno requeridas, la diferencia entre 
 
 ### Desarrollo (Mock)
 
-- Las rutas de producción (`/[slug]`, `/[slug]/admin/*`) pueden ejecutarse localmente en modo mock activando `USE_MOCK_DB=true` (o simplemente dejando `NEXT_PUBLIC_SUPABASE_URL` sin configurar/con placeholder), lo que hace que [lib/mock/client.ts](../lib/mock/client.ts) sirva datos simulados (`lib/mock/data.ts`) en vez de conectarse a una base de datos real — así se puede desarrollar sin depender de credenciales externas. El panel real sigue requiriendo sesión y validación de `user_id` + `slug`, también en modo mock.
+- Las rutas públicas y ambos paneles pueden ejecutarse con `USE_MOCK_DB=true`. El fallback automático solo existe en desarrollo cuando **ambas** variables públicas de Supabase están vacías o son placeholders. Una configuración parcial es un error. El panel sigue requiriendo sesión y validación de `user_id` + `slug`, también en modo mock.
 - No se requieren claves reales de Stripe/Resend/pasarelas para trabajar en este modo; los emails y pagos también pueden simularse.
 
 ### Producción
 
-- Se conecta a una instancia real de **Supabase** (`NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` reales, `USE_MOCK_DB` ausente o `false`), persistiendo negocios, servicios, horarios y reservas de forma duradera.
+- Configurar `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`, aplicar [schema.sql](../supabase/schema.sql) y dejar `USE_MOCK_DB` ausente o en `false`. La service role se requiere únicamente para operaciones privilegiadas; su ausencia no activa mocks. La contraseña de PostgreSQL no sustituye las claves API.
+- No hay fallback automático en producción ni después de errores de consulta. Una demo de producción solo se habilita explícitamente con `USE_MOCK_DB=true` y no ofrece persistencia real.
 - La integración actual de suscripciones SaaS utiliza **Stripe** cuando se configuran claves reales. Los pagos de reservas turísticas **siguen simulados**: **TiloPay/OnvoPay son opciones futuras, no integraciones implementadas** (ver [docs/Roapmap.md](Roapmap.md)). El cambio de marca no altera precios, planes ni Stripe.
 - Los webhooks (`STRIPE_WEBHOOK_SECRET`, `PAGO_WEBHOOK_SECRET`) deben apuntar a URLs públicas HTTPS reales y verificarse estrictamente antes de procesar cualquier evento (ver [docs/Integracion_Pagos.md](Integracion_Pagos.md#2-🔔-manejo-de-webhooks-backend)).
 - Los correos se envían realmente a turistas y pymes vía Resend, usando un dominio verificado en `EMAIL_FROM`.
+- `platform_settings.simulated_payments_enabled` controla los pagos demo y se administra en la configuración global. El esquema lo desactiva por defecto y la primera semilla demo lo activa. Desactivarlo antes de pagos reales; las tasas fiscales y consecutivos demo no son integraciones con BCCR/Hacienda.
+- Si faltan las variables de Resend, los envíos devuelven fallo y se registran; esto no impide utilizar Supabase. Configurar también Auth y sus URLs de recuperación según [Migracion_Supabase.md](bd/Migracion_Supabase.md).
 
 ## 3. 🚀 Estrategia de despliegue en Vercel
 

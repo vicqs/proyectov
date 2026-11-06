@@ -1,9 +1,18 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import VLogo from "./VLogo";
 
 /** Marca de plataforma y atribución, sin revelar datos de contacto personales. */
 export default function Footer() {
+  const pathname = usePathname();
   const anioActual = new Date().getFullYear();
+
+  // No renderizar el footer público en el panel de administración (/admin/*)
+  if (pathname?.startsWith("/admin")) {
+    return null;
+  }
 
   return (
     <footer className="relative isolate overflow-hidden border-t border-white/10 bg-vuki-ink px-5 py-9 text-center text-xs text-slate-300">

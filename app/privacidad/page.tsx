@@ -13,7 +13,9 @@ export const metadata = {
  * Debe ser revisado por un abogado antes de producción.
  */
 export default async function PrivacidadPage() {
-  const { privacidad_texto } = await obtenerConfiguracion();
+  const { privacidad_texto } = await obtenerConfiguracion().catch(() => ({
+    privacidad_texto: null,
+  }));
   if (privacidad_texto) {
     return (
       <LegalPage tipo="privacidad">

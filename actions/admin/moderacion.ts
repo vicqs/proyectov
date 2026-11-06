@@ -4,7 +4,7 @@ import { z } from "zod";
 import { accionAdmin, type ResultadoAccion } from "../../lib/admin/auth";
 import { registrarAuditoria } from "../../lib/admin/auditoria";
 import { actualizar, leerUno } from "../../lib/admin/db";
-import { campo, revalidarAdmin } from "../../lib/admin/util";
+import { campo, esUuid, revalidarAdmin } from "../../lib/admin/util";
 
 export async function resolverReporteAction(
   id: string,
@@ -12,6 +12,7 @@ export async function resolverReporteAction(
   datos: FormData,
 ): Promise<ResultadoAccion> {
   return accionAdmin("moderacion", async (admin) => {
+    if (!esUuid(id)) return { error: "Identificador de reporte inválido." };
     const estado = z
       .enum(["descartado", "atendido", "pendiente"])
       .safeParse(campo(datos, "estado"));

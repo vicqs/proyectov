@@ -52,16 +52,23 @@ export function ToastViewport() {
   );
 
   return (
-    <div className="pointer-events-none fixed bottom-6 right-6 z-[100] flex flex-col gap-2">
+    <div
+      role="region"
+      aria-label="Notificaciones"
+      aria-live="polite"
+      className="pointer-events-none fixed bottom-6 left-4 right-4 z-[100] flex flex-col gap-2 sm:left-auto sm:right-6 sm:max-w-sm"
+    >
       <AnimatePresence>
         {items.map((item) => (
           <motion.div
             key={item.id}
+            role={item.tipo === "error" ? "alert" : "status"}
+            aria-atomic="true"
             initial={{ opacity: 0, y: 16, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            className="pointer-events-auto flex items-center gap-2.5 rounded-2xl bg-slate-900/95 px-4 py-3 text-sm font-medium text-white shadow-xl backdrop-blur-sm"
+            className="pointer-events-auto flex items-center gap-2.5 rounded-2xl bg-slate-900/95 px-4 py-3 text-sm font-medium text-white shadow-xl backdrop-blur-sm break-words"
           >
             {item.tipo === "exito" ? (
               <CheckCircle2

@@ -1,139 +1,60 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { supabaseAdmin } from "../../../lib/supabase";
-import { construirHorarios } from "../../../lib/horarios";
-import {
-  COLUMNAS_OPERATIVIDAD,
-  errorReservaNoPermitida,
-} from "../../../lib/reservas-guard";
+import { crearReservaPublica } from "@/lib/data/public";
+import { DataError } from "@/lib/data/db";
+import { revalidarAdmin } from "@/lib/admin/util";
+import { revalidarEmpresa } from "@/lib/empresa";
+import { flagActiva, obtenerConfiguracion } from "@/lib/plataforma";
+import { crearSesionCheckoutReserva, obtenerModoPasarelaReservas } from "@/lib/tilopay";
 
-/**
- * Esquema de validación estricta del cuerpo del request.
- * Evita persistir datos corruptos (ej. emails inválidos o fechas mal formadas).
- */
 const checkoutSchema = z.object({
   servicio_id: z.string().uuid(),
-  email_cliente: z.string().email(),
-  fecha_hora: z.string().datetime(),
+  email_cliente: z.string().email().max(254),
+  nombre_cliente: z.string().trim().min(1).max(100).optional(),
+  cupos: z.number().int().min(1).max(50).optional(),
+  fecha_hora: z.string().datetime({ offset: true }),
 });
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body: unknown = await request.json();
     const parsed = checkoutSchema.safeParse(body);
-
     if (!parsed.success) {
+      return NextResponse.json({ error: "Datos inválidos", detalles: parsed.error.flatten() }, { status: 400 });
+    }
+    const config = await obtenerConfiguracion();
+    if (config.modo_mantenimiento || !flagActiva(config, "reservas_publicas")) {
       return NextResponse.json(
-        { error: "Datos inválidos", detalles: parsed.error.flatten() },
-        { status: 400 },
+        { error: "Las reservas están temporalmente en pausa. Intenta más tarde." },
+        { status: 503 },
       );
     }
-
-    const { servicio_id, email_cliente, fecha_hora } = parsed.data;
-
-    // Se obtiene el negocio_id a partir del servicio para mantener el
-    // aislamiento multi-tenant (negocio_id siempre debe venir de la BD,
-    // nunca confiar en un valor enviado por el cliente).
-    const { data: servicio, error: servicioError } = await supabaseAdmin
-      .from("servicios")
-      .select("id, negocio_id")
-      .eq("id", servicio_id)
-      .single();
-
-    if (servicioError || !servicio) {
-      return NextResponse.json(
-        { error: "Servicio no encontrado" },
-        { status: 404 },
-      );
+    const modoPasarela = obtenerModoPasarelaReservas(config);
+    if (modoPasarela === "deshabilitado") {
+      return NextResponse.json({ error: "La pasarela de pagos todavía no está habilitada." }, { status: 503 });
     }
-
-    const { data: negocio } = await supabaseAdmin
-      .from("negocios")
-      .select(COLUMNAS_OPERATIVIDAD)
-      .eq("id", servicio.negocio_id)
-      .single();
-    const bloqueo = negocio
-      ? await errorReservaNoPermitida(negocio)
-      : "Este negocio no acepta reservas por ahora.";
-    if (!negocio || bloqueo) {
-      return NextResponse.json({ error: bloqueo }, { status: 409 });
-    }
-
-    // Mismas reglas que el perfil público: horario real, cupos y sin duplicados.
-    const emailNorm = email_cliente.trim().toLowerCase();
-    const [{ data: reservas }, { data: bloqueos }, { data: horariosDb }] =
-      await Promise.all([
-        supabaseAdmin.from("reservas").select("*").eq("negocio_id", negocio.id),
-        supabaseAdmin
-          .from("bloqueos_excepcion")
-          .select("*")
-          .eq("negocio_id", negocio.id),
-        supabaseAdmin.from("horarios").select("*").eq("negocio_id", negocio.id),
-      ]);
-
-    if (
-      (reservas ?? []).some(
-        (r) =>
-          r.estado !== "cancelada" &&
-          r.servicio_id === servicio_id &&
-          r.email_cliente.trim().toLowerCase() === emailNorm,
-      )
-    ) {
-      return NextResponse.json(
-        { error: "Este correo ya tiene una reserva para este servicio." },
-        { status: 409 },
-      );
-    }
-
-    const slot = construirHorarios(
-      (horariosDb ?? []).filter((h) => h.servicio_id === servicio_id),
-      reservas ?? [],
-      bloqueos ?? [],
-      true,
-    ).find(
-      (h) => new Date(h.fechaHora).getTime() === new Date(fecha_hora).getTime(),
-    );
-    if (!slot || slot.cuposDisponibles < 1) {
-      return NextResponse.json(
-        { error: "El horario no está disponible." },
-        { status: 409 },
-      );
-    }
-
-    // Acción 1: crear la reserva en estado 'pendiente'.
-    const { data: reserva, error: reservaError } = await supabaseAdmin
-      .from("reservas")
-      .insert({
-        servicio_id,
-        negocio_id: servicio.negocio_id,
-        fecha_hora: slot.fechaHora,
-        email_cliente: emailNorm,
-        cupos: 1,
-        token_gestion: crypto.randomUUID(),
-        estado: "pendiente",
-      })
-      .select("id")
-      .single();
-
-    if (reservaError || !reserva) {
-      throw reservaError ?? new Error("No se pudo crear la reserva.");
-    }
-
-    // Acción 2: respuesta de la "pasarela de pagos". Mientras no haya una
-    // integración real (ej. Tilopay), se redirige a una pantalla de pago
-    // simulada dentro de la misma app (ver /app/pago-simulado).
-    const checkoutMock = {
-      token: `mock_tk_${reserva.id}`,
-      checkout_url: `/pago-simulado/${reserva.id}`,
-      reserva_id: reserva.id,
-    };
-
-    return NextResponse.json(checkoutMock, { status: 200 });
+    const reserva = await crearReservaPublica({
+      p_service_id: parsed.data.servicio_id,
+      p_client_email: parsed.data.email_cliente.trim().toLowerCase(),
+      p_client_name: parsed.data.nombre_cliente ?? null,
+      p_quantity: parsed.data.cupos ?? 1,
+      p_starts_at: parsed.data.fecha_hora,
+    });
+    const sesion = await crearSesionCheckoutReserva(reserva, modoPasarela);
+    revalidarEmpresa(reserva.negocio_slug);
+    revalidarAdmin();
+    return NextResponse.json({
+      proveedor: sesion.proveedor,
+      token: sesion.token,
+      checkout_url: sesion.checkoutUrl,
+      reserva_id: sesion.reservaId,
+    });
   } catch (error) {
-    console.error("Error en /api/checkout:", error);
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 },
-    );
+    console.error("[checkout]", error);
+    if (error instanceof SyntaxError) return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
+    if (error instanceof DataError && ["P0001", "P0002", "23505", "23514", "22023"].includes(error.code ?? "")) {
+      return NextResponse.json({ error: error.message }, { status: error.code === "P0002" ? 404 : 409 });
+    }
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
   }
 }

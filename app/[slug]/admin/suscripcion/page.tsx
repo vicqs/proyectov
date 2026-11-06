@@ -12,7 +12,12 @@ import {
 import { isStripeMockMode } from "@/lib/stripe";
 import { requerirEmpresa, type EmpresaPageProps } from "@/lib/empresa";
 import { estadoEfectivo } from "@/lib/negocio-estado";
-import { funcionActivaNegocio, precioDelNegocio } from "@/lib/plataforma";
+import {
+  calcularPrecio,
+  funcionActiva,
+  listarPlanes,
+  obtenerConfiguracion,
+} from "@/lib/plataforma";
 import { fechaCorta } from "@/lib/admin/formato";
 import type { EstadoSuscripcion } from "@/types/database";
 import {
@@ -20,6 +25,7 @@ import {
   crearCheckoutSuscripcionAction,
 } from "@/actions/billing";
 import EmpresaPage from "@/components/EmpresaPage";
+import { formatearPrecioUsd } from "@/lib/formato";
 import SuscribirseButton, {
   CancelarSuscripcionMockButton,
   CopiarEnlacePublicoButton,
@@ -45,7 +51,7 @@ const ESTADO_STYLES: Record<EstadoSuscripcion, string> = {
 };
 
 function formatearMontoPlan(monto: number): string {
-  return Number.isInteger(monto) ? `$${monto}` : `$${monto.toFixed(2)}`;
+  return formatearPrecioUsd(monto);
 }
 
 /**
@@ -60,11 +66,20 @@ export default async function SuscripcionPage({
     params,
     searchParams,
   ]);
-  const { negocio } = await requerirEmpresa(slug);
-  const [detallePrecio, soporteActivo] = await Promise.all([
-    precioDelNegocio(negocio),
-    funcionActivaNegocio(negocio, "soporte_empresas"),
+  const [{ negocio }, config, planes] = await Promise.all([
+    requerirEmpresa(slug),
+    obtenerConfiguracion(),
+    listarPlanes(),
   ]);
+  const detallePrecio = calcularPrecio(negocio, planes);
+  const soporteActivo = funcionActiva(
+    config,
+    negocio,
+    planes,
+    "soporte_empresas",
+  );
+  const simulacionSuscripcionActiva =
+    isStripeMockMode && config.pagos_simulados;
 
   const ahoraMs = new Date().getTime();
   const efectivo = estadoEfectivo(negocio, ahoraMs);
@@ -219,7 +234,7 @@ export default async function SuscripcionPage({
               <span className="font-display text-xl font-bold text-vuki-ink">
                 {formatearMontoPlan(detallePrecio.precio)}{" "}
                 <span className="text-xs font-medium text-slate-500">
-                  USD / mes
+                  / mes
                 </span>
               </span>
               {detallePrecio.descuentoPct > 0 && (
@@ -232,7 +247,7 @@ export default async function SuscripcionPage({
               <p className="mt-0.5 text-[11px] text-slate-400">
                 Precio regular:{" "}
                 <span className="line-through">
-                  {formatearMontoPlan(detallePrecio.precioLista)} USD
+                  {formatearMontoPlan(detallePrecio.precioLista)}
                 </span>
               </p>
             )}
@@ -343,7 +358,7 @@ export default async function SuscripcionPage({
               <p className="mt-2 text-xs leading-relaxed text-slate-600">
                 Tu tarifa mensual es fija (
                 <strong className="text-slate-800">
-                  {formatearMontoPlan(detallePrecio.precio)} USD/mes
+                  {formatearMontoPlan(detallePrecio.precio)} / mes
                 </strong>
                 ) sin permanencia obligatoria. Si en algún momento pausas tu
                 suscripción, tus servicios, horarios y reportes financieros
@@ -361,7 +376,7 @@ export default async function SuscripcionPage({
               )}
             </section>
 
-            {isStripeMockMode && (
+            {simulacionSuscripcionActiva && (
               <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-slate-700">

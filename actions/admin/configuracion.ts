@@ -5,14 +5,16 @@ import { accionAdmin, type ResultadoAccion } from "../../lib/admin/auth";
 import { registrarAuditoria } from "../../lib/admin/auditoria";
 import { leerUno, upsertar } from "../../lib/admin/db";
 import { campo, revalidarAdmin } from "../../lib/admin/util";
-import { CONFIG_POR_DEFECTO, FLAGS_CONOCIDOS } from "../../lib/plataforma";
+import { FLAGS_CONOCIDOS } from "../../lib/plataforma";
+import { DataError } from "../../lib/data/db";
 import { revalidatePath } from "next/cache";
 import type { ConfiguracionPlataforma } from "../../types/database";
 
-/** Config actual con valores por defecto, para guardar cambios parciales. */
+/** Config actual para guardar cambios parciales sin ocultar una BD incompleta. */
 async function actual(): Promise<ConfiguracionPlataforma> {
   const fila = await leerUno("configuracion_plataforma", { eq: { id: 1 } });
-  return { ...CONFIG_POR_DEFECTO, ...(fila ?? {}) };
+  if (!fila) throw new DataError("Falta la configuración de plataforma; ejecuta el esquema inicial.");
+  return fila;
 }
 
 async function guardar(
@@ -72,6 +74,7 @@ export async function guardarGeneralAction(
       max_imagen_mb: parsed.data.max_imagen_mb,
       mensaje_mantenimiento: parsed.data.mensaje_mantenimiento || null,
       modo_mantenimiento: mantenimiento,
+      pagos_simulados: datos.get("pagos_simulados") === "on",
       slugs_reservados: [...new Set(slugs)],
       flags,
     });
@@ -81,6 +84,7 @@ export async function guardarGeneralAction(
       detalle: {
         mantenimiento_antes: anterior.modo_mantenimiento,
         mantenimiento_despues: mantenimiento,
+        pagos_simulados: datos.get("pagos_simulados") === "on",
         flags,
       },
     });

@@ -7,7 +7,8 @@ import {
   indexar,
   montoReserva,
 } from "../../../lib/admin/datos";
-import { fechaHora, usd } from "../../../lib/admin/formato";
+import { fechaHora, pluralizar, usd } from "../../../lib/admin/formato";
+import { estadoEfectivo } from "../../../lib/negocio-estado";
 import { esCobroPasarela, esTrxPasarela } from "../../../lib/pagos";
 import {
   CLASE_BOTON_NEUTRO,
@@ -20,10 +21,19 @@ import {
 
 export default async function FinanzasAdminPage() {
   await requerirAdmin("finanzas");
-  const { negocios, servicios, reservas, planes } = await cargarPlataforma();
-  const reembolsos = await leer("reembolsos").catch(() => []);
+  const [{ negocios, servicios, reservas, planes }, reembolsos] =
+    await Promise.all([
+      cargarPlataforma(),
+      leer("reembolsos").catch(() => []),
+    ]);
 
   const vivos = negocios.filter((n) => !n.eliminado_en);
+  const activas = vivos.filter((n) => estadoEfectivo(n) === "activa").length;
+  const enPrueba = vivos.filter((n) => estadoEfectivo(n) === "prueba").length;
+  const notaMrr =
+    activas === 1 && enPrueba === 1
+      ? "1 suscripción activa · 1 en prueba"
+      : `${pluralizar(activas, "suscripción activa", "suscripciones activas")} · ${enPrueba} en prueba`;
   const idx = indexar(servicios);
   const nombreNegocio = new Map(negocios.map((n) => [n.id, n.nombre]));
   const pagadas = reservas.filter(esCobroPasarela);
@@ -121,45 +131,71 @@ export default async function FinanzasAdminPage() {
           titulo="MRR"
           valor={usd(mrr)}
           tono="bueno"
-          nota="Suscripciones activas con descuento"
+          nota={notaMrr}
         />
         <Estadistica titulo="ARR estimado" valor={usd(mrr * 12)} />
         <Estadistica
           titulo="Volumen cobrado"
           valor={usd(volumenTotal)}
           nota={`${pagadas.length} reservas pagadas`}
+          href="/admin/reservas?estado=pagada"
         />
         <Estadistica
           titulo="Discrepancias"
           valor={String(discrepancias.length)}
           tono={discrepancias.length > 0 ? "malo" : "bueno"}
+          href="#conciliacion"
         />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Tarjeta titulo="Volumen por mes">
-          <Tabla columnas={["Mes", "Volumen"]} vacia={meses.length === 0}>
+          <Tabla
+            columnas={[
+              "Mes",
+              {
+                nombre: "Volumen",
+                className: "text-right pr-4 whitespace-nowrap",
+              },
+            ]}
+            tableClassName="w-full table-fixed"
+            vacia={meses.length === 0}
+          >
             {meses.map(([mes, monto]) => (
               <tr key={mes}>
                 <Celda>{mes}</Celda>
-                <Celda>{usd(monto)}</Celda>
+                <Celda className="text-right pr-4 whitespace-nowrap">
+                  {usd(monto)}
+                </Celda>
               </tr>
             ))}
           </Tabla>
         </Tarjeta>
         <Tarjeta titulo="Top negocios por volumen">
-          <Tabla columnas={["Negocio", "Volumen"]} vacia={top.length === 0}>
+          <Tabla
+            columnas={[
+              "Negocio",
+              {
+                nombre: "Volumen",
+                className: "text-right pr-4 whitespace-nowrap",
+              },
+            ]}
+            tableClassName="w-full table-fixed"
+            vacia={top.length === 0}
+          >
             {top.map(([id, monto]) => (
               <tr key={id}>
-                <Celda>
+                <Celda className="truncate">
                   <Link
                     href={`/admin/negocios/${id}`}
-                    className="text-sky-700 hover:underline"
+                    className="block truncate text-sky-700 hover:underline"
                   >
                     {nombreNegocio.get(id) ?? id}
                   </Link>
                 </Celda>
-                <Celda>{usd(monto)}</Celda>
+                <Celda className="text-right pr-4 whitespace-nowrap">
+                  {usd(monto)}
+                </Celda>
               </tr>
             ))}
           </Tabla>
@@ -167,20 +203,37 @@ export default async function FinanzasAdminPage() {
       </div>
 
       <Tarjeta
+        id="conciliacion"
         titulo="Conciliación"
         descripcion="Reservas cuyo estado no coincide con su pago o reembolso."
       >
         <Tabla
-          columnas={["Negocio", "Reserva", "Fecha", "Problema"]}
+          columnas={["Negocio", "Reserva", "Fecha", "Problema", ""]}
           vacia={discrepancias.length === 0}
           vacio="Sin discrepancias."
         >
           {discrepancias.slice(0, 100).map((d, i) => (
             <tr key={`${d.reserva}-${i}`}>
               <Celda>{d.negocio}</Celda>
-              <Celda className="font-mono text-xs">{d.reserva}</Celda>
+              <Celda className="font-mono text-xs">
+                <Link
+                  href={`/admin/reservas?q=${encodeURIComponent(d.reserva)}`}
+                  className="font-semibold text-sky-700 hover:underline"
+                  title="Buscar e inspeccionar esta reserva"
+                >
+                  {d.reserva}
+                </Link>
+              </Celda>
               <Celda>{fechaHora(d.fecha)}</Celda>
               <Celda>{d.problema}</Celda>
+              <Celda className="text-right whitespace-nowrap">
+                <Link
+                  href="/admin/reservas"
+                  className="font-medium text-sky-700 hover:underline"
+                >
+                  Revisar reserva →
+                </Link>
+              </Celda>
             </tr>
           ))}
         </Tabla>

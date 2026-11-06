@@ -8,11 +8,15 @@ import {
   actualizarContrasenaAction,
   type NuevaContrasenaState,
 } from "../../actions/auth";
+import { conResilienciaRed } from "../../lib/errores";
 
 const inicial: NuevaContrasenaState = {};
+const actualizarContrasenaResiliente = conResilienciaRed(
+  actualizarContrasenaAction,
+);
 
 const INPUT =
-  "block min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 pr-12 text-sm text-slate-900 placeholder:text-slate-500 transition focus-visible:border-sky-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40";
+  "vuki-input block min-h-11 py-2.5 pr-12";
 
 function CampoClave({
   id,
@@ -49,7 +53,7 @@ function CampoClave({
           onClick={onVer}
           aria-label={ver ? "Ocultar contraseñas" : "Mostrar contraseñas"}
           aria-pressed={ver}
-          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-slate-500 transition hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+          className="vuki-focus absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-slate-500 transition hover:text-slate-800"
         >
           {ver ? (
             <EyeOff className="h-4 w-4" aria-hidden="true" />
@@ -64,7 +68,7 @@ function CampoClave({
 
 export default function RestablecerPage() {
   const [state, accion, pendiente] = useActionState(
-    actualizarContrasenaAction,
+    actualizarContrasenaResiliente,
     inicial,
   );
   const [ver, setVer] = useState(false);
@@ -87,7 +91,7 @@ export default function RestablecerPage() {
           </div>
           <Link
             href="/login"
-            className="flex min-h-12 w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white shadow-sm shadow-slate-900/15 transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 focus-visible:ring-offset-2"
+            className="vuki-btn-primary flex min-h-12 w-full py-3"
           >
             Ir a iniciar sesión
           </Link>
@@ -126,7 +130,7 @@ export default function RestablecerPage() {
           <button
             type="submit"
             disabled={pendiente}
-            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-slate-900/15 transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+            className="vuki-btn-primary flex min-h-12 w-full py-3"
           >
             {pendiente && (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />

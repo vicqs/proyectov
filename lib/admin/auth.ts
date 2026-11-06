@@ -4,12 +4,25 @@ import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import type { RolAdmin } from "../../types/database";
+import type { NegocioListado } from "../data/columnas";
+import { esRedireccionNext } from "../errores";
 import { obtenerSesionValida } from "../sesion";
 import { tienePermiso, type Permiso } from "../roles";
 
 export type Admin = { user: User; email: string; rol: RolAdmin };
 
-export type ResultadoAccion = { ok?: string; error?: string };
+export type ContrasenaTemporalInfo = {
+  email: string;
+  password: string;
+  contexto?: string;
+};
+
+export type ResultadoAccion = {
+  ok?: string;
+  error?: string;
+  negocio?: NegocioListado;
+  contrasenaTemporal?: ContrasenaTemporalInfo;
+};
 
 /** Correos con acceso de superadministrador desde el entorno (bootstrap inicial). */
 function correosGlobales(): string[] {
@@ -58,11 +71,6 @@ export async function requerirAdmin(permiso?: Permiso): Promise<Admin> {
   return admin;
 }
 
-function esErrorDeNext(e: unknown): boolean {
-  const digest = (e as { digest?: unknown } | null)?.digest;
-  return typeof digest === "string" && digest.startsWith("NEXT_");
-}
-
 /**
  * Envoltorio de Server Actions de administración: valida sesión y permiso,
  * convierte excepciones en `{ error }` y deja pasar redirecciones de Next.
@@ -78,7 +86,7 @@ export async function accionAdmin(
   try {
     return (await fn(admin)) ?? { ok: "Cambios guardados." };
   } catch (e) {
-    if (esErrorDeNext(e)) throw e;
+    if (esRedireccionNext(e)) throw e;
     console.error("[admin] Error en acción:", e);
     return {
       error:

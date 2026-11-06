@@ -3,7 +3,7 @@ export default function AdminLoading() {
     <div
       role="status"
       aria-label="Cargando"
-      className="mx-auto max-w-7xl animate-pulse space-y-4 px-4 py-6 motion-reduce:animate-none sm:px-8 sm:py-8"
+      className="mx-auto w-full max-w-7xl animate-pulse space-y-4 px-4 py-6 motion-reduce:animate-none sm:px-8 sm:py-8 lg:px-10"
     >
       <div className="rounded-3xl border border-sky-100 bg-linear-to-br from-sky-50 to-emerald-50/60 p-6 sm:p-8">
         <div className="h-3 w-36 rounded bg-sky-200/70" />

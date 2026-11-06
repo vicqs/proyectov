@@ -1,6 +1,8 @@
 import "server-only";
 
-import { supabaseAdmin } from "../supabase";
+import { createSupabaseAdminClient } from "../supabase/admin";
+import { createSupabaseServerClient } from "../supabase/server";
+import type { DatabaseClient } from "../data/db";
 import type { Admin } from "./auth";
 
 export interface EventoAuditoria {
@@ -17,6 +19,7 @@ export async function registrarAuditoria(
   evento: EventoAuditoria,
 ): Promise<void> {
   try {
+    const supabaseAdmin = await createSupabaseAdminClient();
     const { error } = await supabaseAdmin.from("auditoria").insert({
       actor_id: admin?.user.id ?? "sistema",
       actor_email: admin?.email ?? "sistema",
@@ -37,9 +40,11 @@ export async function registrarAuditoria(
 export async function registrarEventoNegocio(
   actor: { id: string; email: string } | null,
   evento: EventoAuditoria,
+  client?: DatabaseClient,
 ): Promise<void> {
   try {
-    const { error } = await supabaseAdmin.from("auditoria").insert({
+    const supabase = client ?? await createSupabaseServerClient();
+    const { error } = await supabase.from("auditoria").insert({
       actor_id: actor?.id ?? "sistema",
       actor_email: actor?.email ?? "sistema",
       actor_rol: actor ? "empresa" : "sistema",

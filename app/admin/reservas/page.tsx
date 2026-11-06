@@ -1,237 +1,129 @@
-import Link from "next/link";
 import { requerirAdmin } from "../../../lib/admin/auth";
+import { tienePermiso } from "../../../lib/roles";
 import { leer } from "../../../lib/admin/db";
 import {
+  cargarPlataforma,
   indexar,
   montoReserva,
-  ETIQUETA_ESTADO,
 } from "../../../lib/admin/datos";
-import { fechaHora, paginar, parametro, usd } from "../../../lib/admin/formato";
+import { fechaHora, paginar, parametro } from "../../../lib/admin/formato";
 import { admiteReembolsoPasarela, esPagoManual } from "../../../lib/pagos";
 import {
   cancelarReservaAction,
   completarReembolsoAction,
   registrarReembolsoAction,
 } from "../../../actions/admin/reservas";
-import { AccionForm } from "../../../components/admin/AccionForm";
+import { CLASE_BOTON_NEUTRO, PaginaAdmin } from "../../../components/admin/ui";
 import {
-  CLASE_BOTON_NEUTRO,
-  CLASE_INPUT,
-  Celda,
-  FiltrosGet,
-  Insignia,
-  PaginaAdmin,
-  Paginacion,
-  Tabla,
-  Tarjeta,
-  type TonoInsignia,
-} from "../../../components/admin/ui";
-
-const TONO: Record<string, TonoInsignia> = {
-  pagada: "verde",
-  pendiente: "ambar",
-  cancelada: "rojo",
-};
+  ReservasAdminClient,
+  type ReservaItemAdmin,
+  type ReembolsoPendienteItem,
+} from "../../../components/admin/ReservasAdminClient";
 
 export default async function ReservasAdminPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requerirAdmin("reservas");
-  const sp = await searchParams;
+  const [admin, sp, { reservas, servicios, negocios }, reembolsos] =
+    await Promise.all([
+      requerirAdmin("reservas"),
+      searchParams,
+      cargarPlataforma(),
+      leer("reembolsos").catch(() => []),
+    ]);
+  const puedeCompletarReembolso = tienePermiso(admin.rol, "finanzas");
+  const idx = indexar(servicios);
   const q = (parametro(sp.q) ?? "").trim().toLowerCase();
   const estado = parametro(sp.estado) ?? "";
   const negocioId = parametro(sp.negocio) ?? "";
-
-  const [reservas, servicios, negocios, reembolsos] = await Promise.all([
-    leer("reservas"),
-    leer("servicios"),
-    leer("negocios"),
-    leer("reembolsos").catch(() => []),
-  ]);
-  const idx = indexar(servicios);
   const nombreNegocio = new Map(negocios.map((n) => [n.id, n.nombre]));
   const conReembolso = new Set(reembolsos.map((r) => r.reserva_id));
+  const conReembolsoCompletado = new Set(
+    reembolsos
+      .filter((r) => r.estado === "completado")
+      .map((r) => r.reserva_id),
+  );
+
+  // Conteos globales para las pestañas rápidas
+  const conteos = {
+    todas: reservas.length,
+    pagadas: reservas.filter((r) => r.estado === "pagada").length,
+    pendientes: reservas.filter((r) => r.estado === "pendiente").length,
+    canceladas: reservas.filter((r) => r.estado === "cancelada").length,
+    conReembolso: reservas.filter((r) => conReembolso.has(r.id)).length,
+  };
 
   const filtradas = reservas
-    .filter((r) => !estado || r.estado === estado)
+    .filter((r) => {
+      if (!estado) return true;
+      if (estado === "reembolso") return conReembolso.has(r.id);
+      return r.estado === estado;
+    })
     .filter((r) => !negocioId || r.negocio_id === negocioId)
     .filter(
       (r) =>
         !q ||
         r.id.toLowerCase().includes(q) ||
         r.email_cliente.toLowerCase().includes(q) ||
-        (r.trx_id ?? "").toLowerCase().includes(q),
+        (r.trx_id ?? "").toLowerCase().includes(q) ||
+        (nombreNegocio.get(r.negocio_id) ?? "").toLowerCase().includes(q) ||
+        (idx.get(r.servicio_id)?.nombre ?? "").toLowerCase().includes(q),
     )
     .sort((a, b) => b.fecha_hora.localeCompare(a.fecha_hora));
+
   const pag = paginar(filtradas, parametro(sp.pagina));
   const pendientes = reembolsos.filter((r) => r.estado === "pendiente");
+
+  const filasMapeadas: ReservaItemAdmin[] = pag.filas.map((r) => ({
+    id: r.id,
+    fechaHora: fechaHora(r.fecha_hora),
+    emailCliente: r.email_cliente,
+    trxId: r.trx_id ?? null,
+    esPagoManual: esPagoManual(r.trx_id),
+    estado: r.estado,
+    negocioId: r.negocio_id,
+    negocioNombre: nombreNegocio.get(r.negocio_id) ?? "—",
+    servicioNombre: idx.get(r.servicio_id)?.nombre ?? "—",
+    montoUsd: montoReserva(r, idx),
+    puedeReembolsar:
+      admiteReembolsoPasarela(r) && !conReembolsoCompletado.has(r.id),
+    conReembolso: conReembolso.has(r.id),
+  }));
+
+  const reembolsosMapeados: ReembolsoPendienteItem[] = pendientes.map((r) => ({
+    id: r.id,
+    negocioNombre: nombreNegocio.get(r.negocio_id) ?? "—",
+    reservaId: r.reserva_id,
+    montoUsd: r.monto_usd,
+    motivo: r.motivo,
+  }));
 
   return (
     <PaginaAdmin
       titulo="Reservas globales"
-      descripcion="Busca y corrige reservas de cualquier negocio."
+      descripcion="Busca y corrige reservas de cualquier negocio con herramientas de conciliación."
       accion={
         <a href="/admin/exportar/reservas" className={CLASE_BOTON_NEUTRO}>
           Exportar CSV
         </a>
       }
     >
-      {pendientes.length > 0 && (
-        <Tarjeta titulo="Reembolsos pendientes">
-          <Tabla columnas={["Negocio", "Reserva", "Monto", "Motivo", ""]}>
-            {pendientes.map((r) => (
-              <tr key={r.id}>
-                <Celda>{nombreNegocio.get(r.negocio_id) ?? "—"}</Celda>
-                <Celda className="font-mono text-xs">{r.reserva_id}</Celda>
-                <Celda>{usd(r.monto_usd)}</Celda>
-                <Celda>{r.motivo}</Celda>
-                <Celda>
-                  <AccionForm
-                    accion={completarReembolsoAction.bind(null, r.id)}
-                    boton="Marcar completado"
-                    variante="neutro"
-                    confirmar="¿Confirmas que el dinero ya fue devuelto al cliente?"
-                  />
-                </Celda>
-              </tr>
-            ))}
-          </Tabla>
-        </Tarjeta>
-      )}
-
-      <FiltrosGet>
-        <input
-          name="q"
-          defaultValue={q}
-          aria-label="Correo, id o transacción" placeholder="Correo, id o transacción"
-          className={`${CLASE_INPUT} sm:w-64`}
-        />
-        <select
-          name="estado"
-          defaultValue={estado}
-          className={`${CLASE_INPUT} sm:w-40`}
-        >
-          <option value="">Todos los estados</option>
-          <option value="pendiente">Pendiente</option>
-          <option value="pagada">Pagada</option>
-          <option value="cancelada">Cancelada</option>
-        </select>
-        <select
-          name="negocio"
-          defaultValue={negocioId}
-          className={`${CLASE_INPUT} sm:w-56`}
-        >
-          <option value="">Todos los negocios</option>
-          {negocios.map((n) => (
-            <option key={n.id} value={n.id}>
-              {n.nombre}
-            </option>
-          ))}
-        </select>
-      </FiltrosGet>
-
-      <Tabla
-        columnas={[
-          "Fecha",
-          "Negocio / servicio",
-          "Cliente",
-          "Estado",
-          "Monto",
-          "Acciones",
-        ]}
-        vacia={pag.filas.length === 0}
-      >
-        {pag.filas.map((r) => {
-          const monto = montoReserva(r, idx);
-          const puedeReembolsar =
-            admiteReembolsoPasarela(r) && !conReembolso.has(r.id);
-          return (
-            <tr key={r.id}>
-              <Celda>{fechaHora(r.fecha_hora)}</Celda>
-              <Celda>
-                <Link
-                  href={`/admin/negocios/${r.negocio_id}`}
-                  className="font-medium text-sky-700 hover:underline"
-                >
-                  {nombreNegocio.get(r.negocio_id) ?? "—"}
-                </Link>
-                <p className="text-xs text-slate-400">
-                  {idx.get(r.servicio_id)?.nombre ?? "—"}
-                </p>
-              </Celda>
-              <Celda>
-                {r.email_cliente}
-                {r.trx_id && (
-                  <p className="text-xs text-slate-400">
-                    {esPagoManual(r.trx_id)
-                      ? "Pago manual (fuera de pasarela)"
-                      : `trx ${r.trx_id}`}
-                  </p>
-                )}
-              </Celda>
-              <Celda>
-                <Insignia tono={TONO[r.estado] ?? "gris"}>
-                  {ETIQUETA_ESTADO[r.estado] ?? r.estado}
-                </Insignia>
-                {conReembolso.has(r.id) && (
-                  <p className="mt-1 text-xs text-slate-400">Con reembolso</p>
-                )}
-              </Celda>
-              <Celda>{usd(monto)}</Celda>
-              <Celda>
-                <div className="space-y-2">
-                  {r.estado !== "cancelada" && (
-                    <AccionForm
-                      accion={cancelarReservaAction.bind(null, r.id)}
-                      boton="Cancelar"
-                      variante="peligro"
-                      confirmar="¿Cancelar esta reserva? Se libera el cupo."
-                    />
-                  )}
-                  {puedeReembolsar && (
-                    <details>
-                      <summary className="cursor-pointer text-sm text-sky-700">
-                        Reembolsar
-                      </summary>
-                      <div className="mt-2">
-                        <AccionForm
-                          accion={registrarReembolsoAction.bind(null, r.id)}
-                          boton="Registrar reembolso"
-                          variante="neutro"
-                        >
-                          <input
-                            name="monto_usd"
-                            type="number"
-                            step="0.01"
-                            min={0.01}
-                            max={monto}
-                            defaultValue={monto}
-                            className={CLASE_INPUT}
-                          />
-                          <input
-                            name="motivo"
-                            required
-                            aria-label="Motivo" placeholder="Motivo"
-                            className={CLASE_INPUT}
-                          />
-                        </AccionForm>
-                      </div>
-                    </details>
-                  )}
-                </div>
-              </Celda>
-            </tr>
-          );
-        })}
-      </Tabla>
-      <Paginacion
+      <ReservasAdminClient
+        reservas={filasMapeadas}
+        negocios={negocios.map((n) => ({ id: n.id, nombre: n.nombre }))}
+        reembolsosPendientes={reembolsosMapeados}
+        conteos={conteos}
+        qInicial={q}
+        estadoInicial={estado}
+        negocioInicial={negocioId}
         pagina={pag.pagina}
         paginas={pag.paginas}
         total={pag.total}
-        base="/admin/reservas"
-        params={{ q, estado, negocio: negocioId }}
+        cancelarAction={cancelarReservaAction}
+        registrarReembolsoAction={registrarReembolsoAction}
+        completarReembolsoAction={completarReembolsoAction}
+        puedeCompletarReembolso={puedeCompletarReembolso}
       />
     </PaginaAdmin>
   );
