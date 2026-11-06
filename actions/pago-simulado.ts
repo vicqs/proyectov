@@ -13,6 +13,7 @@ import {
   reservarConPagoSimulado,
 } from "../lib/data/public";
 import { DataError } from "../lib/data/db";
+import { MONEDA_SCHEMA, normalizarMoneda, type CodigoMoneda } from "../lib/monedas";
 
 async function notificarPago(reserva: DetalleReservaPublica): Promise<boolean> {
   if (!reserva.pago_confirmado_ahora) return false;
@@ -20,6 +21,10 @@ async function notificarPago(reserva: DetalleReservaPublica): Promise<boolean> {
     console.error("[pago simulado] Falta el correo de contacto del negocio.");
     return false;
   }
+  const moneda = normalizarMoneda(
+    reserva.currency ?? reserva.servicio_currency ?? reserva.negocio_moneda,
+    "USD",
+  );
   const result = await enviarCorreosConfirmacion({
     negocioNombre: reserva.negocio_nombre,
     negocioLogoUrl: reserva.negocio_logo_url,
@@ -30,8 +35,11 @@ async function notificarPago(reserva: DetalleReservaPublica): Promise<boolean> {
       reserva.monto_usd ??
       reserva.gross_amount ??
       reserva.servicio_precio_usd * (reserva.cupos ?? 1),
+    moneda,
     trxId: reserva.trx_id ?? "",
     emailCliente: reserva.email_cliente,
+    esItem: reserva.servicio_tipo_unidad === "item",
+    cantidad: reserva.cupos ?? 1,
     gestionUrl: reserva.token_gestion
       ? `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/reserva/${reserva.token_gestion}`
       : undefined,
@@ -62,13 +70,18 @@ const reservaPublicaSchema = z.object({
   email: z.string().email().max(254),
   nombre: z.string().trim().min(1).max(100).optional(),
   cupos: z.number().int().min(1).max(50).default(1),
-  fechaHora: z.string().datetime({ offset: true }),
+  /** Obligatoria para servicios por cupo; los ítems de venta directa no la usan. */
+  fechaHora: z.string().datetime({ offset: true }).optional(),
+  moneda: MONEDA_SCHEMA.optional(),
 });
 
 export interface ReservaPublicaResultado {
   error?: string;
   trxId?: string;
+  tokenGestion?: string;
   reciboEnviado?: boolean;
+  montoPagado?: number;
+  moneda?: CodigoMoneda;
 }
 
 /** La creación y el pago simulado se confirman en una sola transacción SQL. */
@@ -80,10 +93,11 @@ export async function reservarYPagarAction(
   try {
     const paid = await reservarConPagoSimulado({
       p_service_id: parsed.data.servicioId,
-      p_starts_at: parsed.data.fechaHora,
+      p_starts_at: parsed.data.fechaHora ?? null,
       p_client_email: parsed.data.email.trim().toLowerCase(),
       p_client_name: parsed.data.nombre ?? null,
       p_quantity: parsed.data.cupos,
+      p_currency: parsed.data.moneda ?? null,
     });
     if (!paid.trx_id) {
       throw new DataError("El pago no devolvió una referencia de transacción.");
@@ -91,7 +105,13 @@ export async function reservarYPagarAction(
     const reciboEnviado = await notificarPago(paid);
     revalidarEmpresa(paid.negocio_slug);
     revalidarAdmin();
-    return { trxId: paid.trx_id, reciboEnviado };
+    return {
+      trxId: paid.trx_id,
+      tokenGestion: paid.token_gestion ?? undefined,
+      reciboEnviado,
+      montoPagado: paid.monto_usd ?? paid.gross_amount ?? undefined,
+      moneda: normalizarMoneda(paid.currency ?? paid.servicio_currency, "USD"),
+    };
   } catch (error) {
     console.error("[reserva pública] No se pudo completar la operación.", error);
     return {

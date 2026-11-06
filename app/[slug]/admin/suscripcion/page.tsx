@@ -466,12 +466,12 @@ export default async function SuscripcionPage({
                 <p className="font-display text-4xl font-bold tracking-tight text-vuki-ink">
                   {formatearMontoPlan(detallePrecio.precio)}{" "}
                   <span className="text-base font-medium text-slate-500">
-                    USD / mes
+                    / mes
                   </span>
                 </p>
                 {detallePrecio.descuentoPct > 0 && (
                   <span className="text-sm text-slate-400 line-through">
-                    {formatearMontoPlan(detallePrecio.precioLista)} USD
+                    {formatearMontoPlan(detallePrecio.precioLista)}
                   </span>
                 )}
               </div>
@@ -488,11 +488,25 @@ export default async function SuscripcionPage({
                 <SuscribirseButton
                   etiqueta={
                     efectivo === "inactiva"
-                      ? "Reactivar suscripción ahora"
-                      : "Activar suscripción mensual"
+                      ? simulacionSuscripcionActiva
+                        ? "Reactivar suscripción (modo demo)"
+                        : "Reactivar suscripción ahora"
+                      : simulacionSuscripcionActiva
+                        ? "Activar suscripción mensual (modo demo)"
+                        : "Activar suscripción mensual"
                   }
                 />
               </form>
+
+              {simulacionSuscripcionActiva && (
+                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/90 px-3.5 py-2.5 text-xs text-amber-900">
+                  <strong className="font-semibold">
+                    Entorno de demostración (Stripe simulado):
+                  </strong>{" "}
+                  Al activar la suscripción se abrirá la pasarela de prueba y no
+                  se realizará ningún cobro real.
+                </div>
+              )}
 
               <p className="mt-3 text-center text-[11px] text-slate-500">
                 Sin contratos forzosos · Cancela cuando quieras

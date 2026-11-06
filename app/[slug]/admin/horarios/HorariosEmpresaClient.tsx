@@ -6,7 +6,9 @@ import {
   crearHorariosLoteAction,
   eliminarHorarioAction,
 } from "@/actions/horarios";
+import type { CodigoMoneda } from "@/lib/monedas";
 import { rutaPanelEmpresa } from "@/lib/rutas-empresa";
+import { localCRaIso } from "@/lib/zona-horaria";
 import HorariosView, {
   type SugerenciaHorarioInicial,
   type VistaHorario,
@@ -27,6 +29,7 @@ export default function HorariosEmpresaClient({
     nombre: string;
     duracionMin?: number;
     precioUsd?: number;
+    moneda?: CodigoMoneda;
   }[];
   hoyClave?: string;
   sugerenciaInicial?: SugerenciaHorarioInicial;
@@ -67,7 +70,7 @@ export default function HorariosEmpresaClient({
       onCrear={async ({ servicioId, fechaHora, cupos }) => {
         const { error } = await crearHorarioAction(slug, {
           servicio_id: servicioId,
-          fecha_hora: new Date(fechaHora).toISOString(),
+          fecha_hora: localCRaIso(fechaHora),
           cupos_totales: cupos,
         });
         if (!error) sincronizarCambios();
@@ -76,7 +79,7 @@ export default function HorariosEmpresaClient({
       onCrearLote={async ({ servicioId, fechasHora, cupos }) => {
         const { error } = await crearHorariosLoteAction(slug, {
           servicio_id: servicioId,
-          fechas: fechasHora.map((f) => new Date(f).toISOString()),
+          fechas: fechasHora.map((f) => localCRaIso(f)),
           cupos_totales: cupos,
         });
         if (!error) sincronizarCambios();

@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUpRight,
+  Bike,
   CalendarDays,
   CalendarOff,
   Check,
@@ -16,15 +17,20 @@ import {
   LineChart,
   Link2,
   ListChecks,
+  PackageCheck,
   Palette,
   Plus,
+  QrCode,
   ShieldCheck,
+  Smartphone,
   Sparkles,
+  Store,
   Waves,
 } from "lucide-react";
 import VLogo from "../components/VLogo";
 import VistaPreviaProducto from "../components/marketing/VistaPreviaProducto";
 import HistoriaProducto from "../components/marketing/HistoriaProducto";
+import NegociosTuristicos from "../components/marketing/NegociosTuristicos";
 import {
   Aparecer,
   FondoMarca,
@@ -45,10 +51,10 @@ const VENTAJAS = [
   {
     icono: CalendarDays,
     numero: "02",
-    titulo: "Una agenda que sí se entiende.",
+    titulo: "Cupos por hora o ítems al instante.",
     texto:
-      "Calendario semanal con cupos en tiempo real, bloqueos por fecha y registro de reservas en línea o manuales.",
-    etiqueta: "Menos trabajo manual",
+      "Por defecto controlas cupos en calendario; y en ferias o salidas rápidas activas ítems que simplemente se rebajan al pagar.",
+    etiqueta: "Cero sobreventas",
     estilo: "bg-emerald-50 text-emerald-800",
   },
   {
@@ -78,22 +84,34 @@ const PREGUNTAS = [
   {
     pregunta: "¿Para qué negocios está pensado vuki?",
     respuesta:
-      "Para pymes turísticas de Costa Rica: escuelas de surf, guías, operadores de tours y experiencias que buscan organizar servicios, agenda y finanzas en un solo lugar.",
+      "Para cualquier pyme o emprendimiento en Costa Rica que venda experiencias con cupo limitado o salidas rápidas en ferias: alquiler de equipo, tours de aventura, guías y agroturismo, escuelas de surf, charters marinos, parques (Day Pass), centros de bienestar, shuttles y stands en ferias o mercados.",
+  },
+  {
+    pregunta:
+      "¿Sirve para ferias, salidas rápidas o vender ítems sin elegir horario?",
+    respuesta:
+      "Sí. Por defecto cada servicio funciona por «cupos» con fecha y hora, pero en la misma entidad puedes elegir «ítems» para productos o pases rápidos en ferias. El cliente escanea tu código QR o abre tu enlace sin descargar apps ni registrarse, paga con tarjeta en segundos (o tú registras la venta desde el panel móvil) y la unidad simplemente se rebaja al instante.",
+  },
+  {
+    pregunta:
+      "¿Por qué usar vuki en lugar de una tienda virtual tradicional?",
+    respuesta:
+      "Porque en un mismo enlace combinas reservas por franja horaria y cupo (sin sobrevender equipos ni espacios) con ítems de venta rápida para ferias, bloqueos inmediatos por clima o marea, registro móvil de ventas por SINPE o efectivo y control fiscal automatizado para Hacienda.",
   },
   {
     pregunta: "¿Cómo me ayuda con el Ministerio de Hacienda?",
     respuesta:
-      "Configuras CABYS e IVA por servicio, registras el consecutivo de Factura o Tiquete Electrónico (FE/TE) y descargas el CSV con tipo de cambio BCCR listo para tu Declaración D-104.",
+      "Configuras CABYS e IVA por servicio, separas Subtotal e IVA, registras el consecutivo de Factura o Tiquete Electrónico (FE/TE) y descargas el CSV con el tipo de cambio oficial del BCCR listo para tu Declaración D-104.",
   },
   {
     pregunta: "¿vuki cobra comisión por reserva?",
     respuesta:
-      "No. vuki cobra 0% de comisión por reserva y también te permite registrar pagos manuales (SINPE Móvil, efectivo o transferencia) sin costo adicional.",
+      "No. vuki cobra 0% de comisión por reserva y también te permite registrar pagos manuales (SINPE Móvil, efectivo o transferencia) indicando si el cliente «Ya pagó» o está «Pendiente de cobro».",
   },
   {
-    pregunta: "¿Puedo personalizar mi marca y bloquear fechas?",
+    pregunta: "¿Puedo personalizar mi marca y bloquear fechas por clima?",
     respuesta:
-      "Sí. Conservas tu logo, portada y colores en un enlace bilingüe (ES/EN), y puedes bloquear días u horas por clima o descanso sin borrar tus horarios.",
+      "Sí. Conservas tu logo, portada y colores en un enlace bilingüe (ES/EN), y puedes bloquear días u horas específicas en segundos por «Mal clima / Marea», tormentas o mantenimiento sin alterar el resto de tu catálogo.",
   },
 ];
 
@@ -129,6 +147,24 @@ export default function HomePage() {
               href="#caracteristicas"
             >
               Características
+            </a>
+            <a
+              className="vuki-focus relative rounded py-3 transition hover:text-white after:absolute after:inset-x-0 after:bottom-2 after:h-0.5 after:origin-left after:scale-x-0 after:rounded-full after:bg-emerald-400 after:transition-transform after:duration-200 hover:after:scale-x-100 motion-reduce:after:transition-none"
+              href="#ferias"
+            >
+              Ferias y exprés
+            </a>
+            <a
+              className="vuki-focus relative rounded py-3 transition hover:text-white after:absolute after:inset-x-0 after:bottom-2 after:h-0.5 after:origin-left after:scale-x-0 after:rounded-full after:bg-emerald-400 after:transition-transform after:duration-200 hover:after:scale-x-100 motion-reduce:after:transition-none"
+              href="#para-quien"
+            >
+              Negocios
+            </a>
+            <a
+              className="vuki-focus relative rounded py-3 transition hover:text-white after:absolute after:inset-x-0 after:bottom-2 after:h-0.5 after:origin-left after:scale-x-0 after:rounded-full after:bg-emerald-400 after:transition-transform after:duration-200 hover:after:scale-x-100 motion-reduce:after:transition-none"
+              href="#valor-unico"
+            >
+              Valor único
             </a>
             <a
               className="vuki-focus relative rounded py-3 transition hover:text-white after:absolute after:inset-x-0 after:bottom-2 after:h-0.5 after:origin-left after:scale-x-0 after:rounded-full after:bg-emerald-400 after:transition-transform after:duration-200 hover:after:scale-x-100 motion-reduce:after:transition-none"
@@ -236,22 +272,45 @@ export default function HomePage() {
             </Aparecer>
           </div>
           <div className="border-t border-white/10 bg-slate-950/15">
-            <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-8 gap-y-4 px-5 py-6 text-xs text-slate-300 sm:gap-x-12 sm:px-8 lg:justify-between lg:px-12">
+            <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-7 gap-y-4 px-5 py-6 text-xs text-slate-300 sm:gap-x-10 sm:px-8 lg:justify-between lg:px-12">
               <span className="text-slate-400">
                 Grandes experiencias. Negocios locales.
               </span>
-              <span className="flex items-center gap-2 transition-colors hover:text-white">
-                <Waves className="h-4 w-4 text-sky-300" aria-hidden="true" />
-                Escuelas de surf
-              </span>
-              <span className="flex items-center gap-2 transition-colors hover:text-white">
+              <a
+                href="#para-quien"
+                className="flex items-center gap-2 transition-colors hover:text-white"
+              >
+                <Bike className="h-4 w-4 text-sky-300" aria-hidden="true" />
+                Alquiler de equipo
+              </a>
+              <a
+                href="#para-quien"
+                className="flex items-center gap-2 transition-colors hover:text-white"
+              >
                 <Compass className="h-4 w-4 text-sky-300" aria-hidden="true" />
                 Tours y aventura
-              </span>
-              <span className="flex items-center gap-2 transition-colors hover:text-white">
+              </a>
+              <a
+                href="#para-quien"
+                className="flex items-center gap-2 transition-colors hover:text-white"
+              >
                 <Globe2 className="h-4 w-4 text-sky-300" aria-hidden="true" />
                 Guías y anfitriones
-              </span>
+              </a>
+              <a
+                href="#para-quien"
+                className="flex items-center gap-2 transition-colors hover:text-white"
+              >
+                <Waves className="h-4 w-4 text-sky-300" aria-hidden="true" />
+                Escuelas y campamentos
+              </a>
+              <a
+                href="#ferias"
+                className="flex items-center gap-2 transition-colors hover:text-white"
+              >
+                <Store className="h-4 w-4 text-emerald-300" aria-hidden="true" />
+                Ferias y ventas exprés
+              </a>
             </div>
           </div>
         </section>
@@ -349,6 +408,161 @@ export default function HomePage() {
             </Aparecer>
           </div>
         </section>
+
+        {/* SECCIÓN FERIAS, SALIDAS RÁPIDAS Y VENTAS EXPRÉS */}
+        <section
+          id="ferias"
+          aria-labelledby="ferias-titulo"
+          className="relative isolate overflow-hidden scroll-mt-20 border-t border-slate-200/70 bg-slate-50 px-5 py-20 sm:px-8 sm:py-24 lg:px-12"
+        >
+          <FondoMarca tono="claro" className="-z-10" />
+          <div className="mx-auto max-w-6xl">
+            <div className="grid items-start gap-10 lg:grid-cols-[1.08fr_0.92fr] lg:gap-14">
+              <div>
+                <Aparecer>
+                  <p className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-900">
+                    <Store className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+                    Ferias, stands y salidas rápidas
+                  </p>
+                  <h2
+                    id="ferias-titulo"
+                    className="mt-4 font-display text-3xl font-bold leading-tight tracking-tight text-slate-900 sm:text-4xl"
+                  >
+                    ¿Estás en una feria y ocupas que el cliente solo escanee y pague?
+                  </h2>
+                  <p className="mt-4 text-base leading-relaxed text-slate-600">
+                    Para ventas exprés, próximas salidas o artículos en stand,{" "}
+                    <strong className="font-semibold text-slate-900">vuki</strong>{" "}
+                    resuelve el cobro y el inventario sin enredarte: por defecto
+                    trabajas por{" "}
+                    <strong className="font-semibold text-slate-900">cupos</strong>, o
+                    cambias el servicio a{" "}
+                    <strong className="font-semibold text-slate-900">ítems</strong>{" "}
+                    para que simplemente se rebaje al pagar y listo.
+                  </p>
+                </Aparecer>
+
+                <div className="mt-8 space-y-4">
+                  <Aparecer retraso={0.06}>
+                    <article className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6">
+                      <div className="flex items-start gap-4">
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-200/70">
+                          <QrCode className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        <div>
+                          <h3 className="font-display text-lg font-bold text-slate-900">
+                            1. El enlace directo (cero fricción para el cliente)
+                          </h3>
+                          <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                            Nadie tiene que descargar una aplicación ni crear una
+                            cuenta. Con solo escanear tu código QR o abrir tu enlace
+                            personalizado (ej.{" "}
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-800">
+                              vuki.cr/surf-tamarindo
+                            </span>
+                            ), el cliente elige la salida o el ítem, paga con tarjeta
+                            desde su propio teléfono en segundos y queda confirmado al
+                            instante.
+                          </p>
+                        </div>
+                      </div>
+                    </article>
+                  </Aparecer>
+
+                  <Aparecer retraso={0.12}>
+                    <article className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6">
+                      <div className="flex items-start gap-4">
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200/70">
+                          <Smartphone className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        <div>
+                          <h3 className="font-display text-lg font-bold text-slate-900">
+                            2. Control de cupos o ítems al instante
+                          </h3>
+                          <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                            Si un guía o artesano está en feria y alguien compra en el
+                            stand (por SINPE, efectivo o tarjeta), registra la venta en
+                            su panel móvil en segundos y descuenta el espacio o ítem en
+                            tiempo real, evitando sobreventas con quienes están
+                            comprando online a distancia.
+                          </p>
+                        </div>
+                      </div>
+                    </article>
+                  </Aparecer>
+                </div>
+              </div>
+
+              <Aparecer retraso={0.14} className="lg:pt-4">
+                <div className="rounded-[2rem] border border-slate-200 bg-slate-900 p-6 text-white shadow-2xl shadow-slate-900/15 sm:p-7">
+                  <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-4">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-300">
+                        Una misma entidad · Dos modos simples
+                      </p>
+                      <h3 className="mt-1 font-display text-xl font-bold text-white">
+                        Tú eliges cómo se descuenta cada servicio
+                      </h3>
+                    </div>
+                    <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold text-sky-200">
+                      QR listo
+                    </span>
+                  </div>
+
+                  <div className="mt-5 space-y-3.5">
+                    <div className="rounded-2xl border border-white/15 bg-white/[0.06] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-400/20 px-2.5 py-0.5 text-[11px] font-semibold text-sky-200">
+                          <Clock className="h-3 w-3" aria-hidden="true" />
+                          Por defecto · Cupo con horario
+                        </span>
+                        <span className="text-xs font-bold text-emerald-300">
+                          4 cupos libres
+                        </span>
+                      </div>
+                      <p className="mt-2.5 font-display text-base font-bold text-white">
+                        Salida rápida Catamarán · 2:00 p.m.
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-300">
+                        Ideal cuando reservas un espacio o una hora específica y
+                        compartes disponibilidad entre feria y web.
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-emerald-400/35 bg-emerald-400/[0.09] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/25 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-200">
+                          <PackageCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                          Modo feria · Ítem directo
+                        </span>
+                        <span className="text-xs font-bold text-emerald-200">
+                          18 ítems disponibles
+                        </span>
+                      </div>
+                      <p className="mt-2.5 font-display text-base font-bold text-white">
+                        Producto en feria / Pase sin horario
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-200">
+                        Sin elegir fecha ni hora: el cliente paga desde su celular (o
+                        lo marcas vendido) y el stock simplemente se rebaja y listo.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-xs leading-relaxed text-slate-300">
+                    <strong className="font-semibold text-white">
+                      Todo conectado en un solo lugar:
+                    </strong>{" "}
+                    cobro rápido con QR, registro manual desde el celular, 0%
+                    comisión de vuki y respaldo fiscal (CABYS, IVA y CSV D-104).
+                  </div>
+                </div>
+              </Aparecer>
+            </div>
+          </div>
+        </section>
+
+        <NegociosTuristicos />
 
         <section
           aria-labelledby="confianza-titulo"

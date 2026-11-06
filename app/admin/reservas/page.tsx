@@ -4,9 +4,11 @@ import { leer } from "../../../lib/admin/db";
 import {
   cargarPlataforma,
   indexar,
+  monedaReserva,
   montoReserva,
 } from "../../../lib/admin/datos";
 import { fechaHora, paginar, parametro } from "../../../lib/admin/formato";
+import { normalizarMoneda } from "../../../lib/monedas";
 import { admiteReembolsoPasarela, esPagoManual } from "../../../lib/pagos";
 import {
   cancelarReservaAction,
@@ -34,6 +36,8 @@ export default async function ReservasAdminPage({
     ]);
   const puedeCompletarReembolso = tienePermiso(admin.rol, "finanzas");
   const idx = indexar(servicios);
+  const idxNegocios = indexar(negocios);
+  const idxReservas = indexar(reservas);
   const q = (parametro(sp.q) ?? "").trim().toLowerCase();
   const estado = parametro(sp.estado) ?? "";
   const negocioId = parametro(sp.negocio) ?? "";
@@ -85,19 +89,27 @@ export default async function ReservasAdminPage({
     negocioId: r.negocio_id,
     negocioNombre: nombreNegocio.get(r.negocio_id) ?? "—",
     servicioNombre: idx.get(r.servicio_id)?.nombre ?? "—",
-    montoUsd: montoReserva(r, idx),
+    montoUsd: montoReserva(r, idx, idxNegocios),
+    moneda: monedaReserva(r, idx, idxNegocios),
     puedeReembolsar:
       admiteReembolsoPasarela(r) && !conReembolsoCompletado.has(r.id),
     conReembolso: conReembolso.has(r.id),
   }));
 
-  const reembolsosMapeados: ReembolsoPendienteItem[] = pendientes.map((r) => ({
-    id: r.id,
-    negocioNombre: nombreNegocio.get(r.negocio_id) ?? "—",
-    reservaId: r.reserva_id,
-    montoUsd: r.monto_usd,
-    motivo: r.motivo,
-  }));
+  const reembolsosMapeados: ReembolsoPendienteItem[] = pendientes.map((r) => {
+    const resRef = idxReservas.get(r.reserva_id);
+    const monedaRespaldo = resRef
+      ? monedaReserva(resRef, idx, idxNegocios)
+      : normalizarMoneda(idxNegocios.get(r.negocio_id)?.moneda, "USD");
+    return {
+      id: r.id,
+      negocioNombre: nombreNegocio.get(r.negocio_id) ?? "—",
+      reservaId: r.reserva_id,
+      montoUsd: r.monto_usd,
+      moneda: normalizarMoneda(r.currency, monedaRespaldo),
+      motivo: r.motivo,
+    };
+  });
 
   return (
     <PaginaAdmin

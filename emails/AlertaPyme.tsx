@@ -11,7 +11,9 @@ import {
   Section,
   Text,
 } from "@react-email/components";
+import { formatearMoneda } from "../lib/formato";
 import { MARCA } from "../lib/marca";
+import type { CodigoMoneda } from "../lib/monedas";
 
 export interface AlertaPymeProps {
   negocioNombre: string;
@@ -19,6 +21,10 @@ export interface AlertaPymeProps {
   fechaHora: string; // ISO string
   emailCliente: string;
   montoUsd: number;
+  moneda?: CodigoMoneda;
+  /** Venta directa de ítems (sin horario). */
+  esItem?: boolean;
+  cantidad?: number;
   /** Texto opcional configurable por la administración global. */
   encabezado?: string;
   pie?: string;
@@ -34,6 +40,9 @@ export default function AlertaPyme({
   fechaHora,
   emailCliente,
   montoUsd,
+  moneda = "USD",
+  esItem = false,
+  cantidad = 1,
   encabezado,
   pie,
 }: AlertaPymeProps) {
@@ -41,12 +50,13 @@ export default function AlertaPyme({
     dateStyle: "full",
     timeStyle: "short",
   });
+  const montoFormateado = formatearMoneda(montoUsd, moneda);
 
   return (
     <Html>
       <Head />
       <Preview>
-        ¡Nueva reserva pagada! {servicioNombre} — ${montoUsd.toFixed(2)} USD
+        ¡Nueva reserva pagada! {servicioNombre} — {montoFormateado}
       </Preview>
       <Body style={main}>
         <Container style={container}>
@@ -56,7 +66,9 @@ export default function AlertaPyme({
             <Text style={badgeText}>✅ PAGADA</Text>
           </Section>
 
-          <Heading style={heading}>¡Nueva reserva confirmada!</Heading>
+          <Heading style={heading}>
+            {esItem ? "¡Nueva venta confirmada!" : "¡Nueva reserva confirmada!"}
+          </Heading>
 
           {encabezado && <Text style={paragraph}>{encabezado}</Text>}
 
@@ -74,10 +86,20 @@ export default function AlertaPyme({
             </Row>
             <Row>
               <Column>
-                <Text style={detailLabel}>Fecha y hora</Text>
+                <Text style={detailLabel}>
+                  {esItem ? "Fecha de compra" : "Fecha y hora"}
+                </Text>
                 <Text style={detailValue}>{fechaFormateada}</Text>
               </Column>
             </Row>
+            {esItem && (
+              <Row>
+                <Column>
+                  <Text style={detailLabel}>Cantidad de ítems</Text>
+                  <Text style={detailValue}>{cantidad}</Text>
+                </Column>
+              </Row>
+            )}
             <Row>
               <Column>
                 <Text style={detailLabel}>Cliente</Text>
@@ -88,7 +110,7 @@ export default function AlertaPyme({
               <Column>
                 <Text style={detailLabel}>Ingreso generado</Text>
                 <Text style={detailValueHighlight}>
-                  ${montoUsd.toFixed(2)} USD
+                  {montoFormateado}
                 </Text>
               </Column>
             </Row>

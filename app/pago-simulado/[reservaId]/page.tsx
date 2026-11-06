@@ -4,6 +4,8 @@ import PaginaPublica from "../../../components/PaginaPublica";
 import MarcaReserva from "../../../components/MarcaReserva";
 import { z } from "zod";
 import { obtenerReservaPorToken } from "../../../lib/data/public";
+import { formatearMoneda } from "../../../lib/formato";
+import { convertirMoneda, normalizarMoneda } from "../../../lib/monedas";
 import { obtenerConfiguracion } from "../../../lib/plataforma";
 import BotonesPagoSimulado from "./BotonesPagoSimulado";
 
@@ -28,6 +30,18 @@ export default async function PagoSimuladoPage({ params, searchParams }: PagePro
   if (!reserva || reserva.id !== reservaId) notFound();
   const servicio = { nombre: reserva.servicio_nombre, precio_usd: reserva.servicio_precio_usd };
   const negocio = { nombre: reserva.negocio_nombre };
+  const monedaServicio = normalizarMoneda(
+    reserva.servicio_currency ?? reserva.negocio_moneda,
+    "USD",
+  );
+  const monedaReserva = normalizarMoneda(reserva.currency, monedaServicio);
+  const totalPagar =
+    reserva.gross_amount ??
+    convertirMoneda(
+      servicio.precio_usd * (reserva.cupos ?? 1),
+      monedaServicio,
+      monedaReserva,
+    );
 
   if (reserva.estado === "pagada") {
     return (
@@ -104,7 +118,7 @@ export default async function PagoSimuladoPage({ params, searchParams }: PagePro
       <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5">
         <p className="text-xs font-medium text-emerald-800">Total a pagar</p>
         <p className="mt-1 font-display text-3xl font-bold tracking-tight text-vuki-ink">
-          ${(reserva.gross_amount ?? servicio.precio_usd * (reserva.cupos ?? 1)).toFixed(2)}
+          {formatearMoneda(totalPagar, monedaReserva)}
         </p>
       </div>
 

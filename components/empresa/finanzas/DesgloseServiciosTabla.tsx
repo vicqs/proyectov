@@ -1,17 +1,17 @@
 "use client";
 
 import { etiquetaTarifaIva } from "@/lib/finanzas";
-import { formatearPrecioUsd } from "@/lib/formato";
+import { formatearMoneda } from "@/lib/formato";
 import type { ServiceFiscalSummary } from "@/types/finanzas";
 
 interface DesgloseServiciosTablaProps {
   desgloseServicios: ServiceFiscalSummary[];
-  brutoTotalUsd: number;
+  brutoTotal: number;
 }
 
 export default function DesgloseServiciosTabla({
   desgloseServicios,
-  brutoTotalUsd,
+  brutoTotal,
 }: DesgloseServiciosTablaProps) {
   if (desgloseServicios.length === 0) return null;
 
@@ -23,9 +23,9 @@ export default function DesgloseServiciosTabla({
       <div className="grid gap-3 sm:grid-cols-2">
         {desgloseServicios.map((item) => {
           const mostrarParticipacion =
-            desgloseServicios.length > 1 && brutoTotalUsd > 0;
+            desgloseServicios.length > 1 && brutoTotal > 0;
           const pct = mostrarParticipacion
-            ? Math.round((item.gross_amount / brutoTotalUsd) * 100)
+            ? Math.round((item.gross_amount / brutoTotal) * 100)
             : 0;
           return (
             <div
@@ -46,10 +46,10 @@ export default function DesgloseServiciosTabla({
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="font-display text-sm font-bold text-vuki-ink">
-                    {formatearPrecioUsd(item.gross_amount)}
+                    {formatearMoneda(item.gross_amount, item.currency)}
                   </p>
                   <p className="text-[11px] font-medium text-emerald-700">
-                    Neto {formatearPrecioUsd(item.net_amount)}
+                    Neto {formatearMoneda(item.net_amount, item.currency)}
                   </p>
                 </div>
               </div>
@@ -70,8 +70,8 @@ export default function DesgloseServiciosTabla({
               </div>
 
               <p className="mt-2 text-[11px] text-slate-500">
-                Subtotal {formatearPrecioUsd(item.subtotal_amount)} + IVA{" "}
-                {formatearPrecioUsd(item.iva_amount)}
+                Subtotal {formatearMoneda(item.subtotal_amount, item.currency)} +
+                IVA {formatearMoneda(item.iva_amount, item.currency)}
               </p>
 
               {mostrarParticipacion && (

@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { toast } from "@/components/Toast";
 import { textoSobre } from "@/lib/color";
+import { formatearMoneda } from "@/lib/formato";
+import { obtenerInfoMoneda, type CodigoMoneda } from "@/lib/monedas";
 
 export interface ImagePickerProps {
   label: string;
@@ -220,6 +222,7 @@ interface VistaPreviaPerfilPublicoProps {
   colorPrimario: string;
   nombre: string;
   descripcion: string;
+  moneda?: CodigoMoneda;
   tieneWhatsApp: boolean;
   codigoPaisWhatsApp: string;
 }
@@ -232,9 +235,11 @@ export default function VistaPreviaPerfilPublico({
   colorPrimario,
   nombre,
   descripcion,
+  moneda = "USD",
   tieneWhatsApp,
   codigoPaisWhatsApp,
 }: VistaPreviaPerfilPublicoProps) {
+  const ejemploMonto = Number(obtenerInfoMoneda(moneda).ejemploPrecio) || 35;
   return (
     <section
       aria-label="Vista previa en vivo de tu perfil público"
@@ -293,9 +298,11 @@ export default function VistaPreviaPerfilPublico({
         <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/80 p-3">
           <div>
             <p className="text-xs font-semibold text-slate-800">
-              Experiencia destacada
+              Experiencia de ejemplo (demo)
             </p>
-            <p className="text-[11px] text-slate-500">2 horas · $35.00</p>
+            <p className="text-[11px] text-slate-500">
+              2 horas · {formatearMoneda(ejemploMonto, moneda)}
+            </p>
           </div>
           <span
             className={`rounded-xl px-3 py-1.5 text-xs font-semibold shadow-sm ${

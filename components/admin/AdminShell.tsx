@@ -70,12 +70,14 @@ export default function AdminShell({
   links,
   email,
   rol,
+  modoDemo = false,
   pie,
   children,
 }: {
   links: AdminNavLink[];
   email: string;
   rol: string;
+  modoDemo?: boolean;
   pie: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -324,6 +326,18 @@ export default function AdminShell({
         transition={{ duration: 0.15, ease: "easeOut" }}
         className="flex min-w-0 flex-1 flex-col"
       >
+        {modoDemo && (
+          <div
+            role="status"
+            className="border-b border-amber-200/80 bg-amber-50/90 px-4 py-2 text-center text-xs font-medium text-amber-950 sm:px-6"
+          >
+            <strong className="font-semibold">
+              Modo demostración / pruebas activo:
+            </strong>{" "}
+            Las reservas o suscripciones simuladas son de prueba y no ejecutan
+            cobros bancarios reales ni emiten documentos ante Hacienda.
+          </div>
+        )}
         {children}
       </motion.div>
     </div>

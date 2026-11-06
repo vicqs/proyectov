@@ -24,6 +24,9 @@ export type {
 
 export type EstadoReserva = "pendiente" | "pagada" | "cancelada";
 
+/** Modalidad de venta del servicio: `cupo` con horario (por defecto) o `item` de descuento directo. */
+export type TipoUnidadServicio = "cupo" | "item";
+
 /** Estado de la suscripción SaaS de la pyme (cobro de $15 USD/mes). */
 export type EstadoSuscripcion = "activa" | "inactiva" | "prueba";
 
@@ -40,6 +43,8 @@ export type Negocio = {
   logo_url: string | null;
   imagen_portada_url: string | null;
   whatsapp?: string | null; // Solo dígitos con código de país, ej. 50688887777
+  /** Moneda operativa predeterminada del negocio (`USD`, `CRC`, `CAD`, `EUR`, `GBP`). */
+  moneda?: FiscalCurrency;
   estado_suscripcion: EstadoSuscripcion;
   stripe_customer_id: string | null;
   /** Suspensión impuesta por la administración global (oculta el perfil y bloquea el panel). */
@@ -211,6 +216,7 @@ export type Reembolso = {
   reserva_id: string;
   negocio_id: string;
   monto_usd: number;
+  currency?: FiscalCurrency;
   motivo: string;
   estado: "pendiente" | "completado";
   creado_por: string;
@@ -223,6 +229,10 @@ export type Servicio = {
   nombre: string;
   precio_usd: number; // Decimal (IVA incluido)
   duracion_min: number;
+  /** Por defecto `cupo` (con horarios); `item` para venta rápida/feria con descuento de stock. */
+  unit_type?: TipoUnidadServicio;
+  /** Unidades disponibles cuando `unit_type === "item"`; `null` cuando es por cupos. */
+  stock?: number | null;
   descripcion?: string | null;
   imagen_url?: string | null;
   /** Código CABYS de 13 dígitos (Ministerio de Hacienda / BCCR). */
@@ -278,7 +288,7 @@ export type Reserva = {
 
 /** Reserva extendida con el nombre del servicio (JOIN reservas + servicios). */
 export interface ReservaConServicio extends Reserva {
-  servicio: Pick<Servicio, "nombre" | "precio_usd"> | null;
+  servicio: Pick<Servicio, "nombre" | "precio_usd" | "currency" | "unit_type"> | null;
 }
 
 export type BloqueoExcepcion = {
@@ -465,7 +475,7 @@ export type DomainViews = {
 export type NegocioPublicoDb = Pick<
   Negocio,
   | "id" | "nombre" | "slug" | "descripcion" | "color_tema" | "color_secundario"
-  | "logo_url" | "imagen_portada_url" | "whatsapp" | "estado_suscripcion"
+  | "logo_url" | "imagen_portada_url" | "whatsapp" | "moneda" | "estado_suscripcion"
   | "prueba_hasta" | "suspendido" | "eliminado_en" | "plan_id"
   | "descuento_pct" | "flags_override"
 >;
@@ -477,20 +487,24 @@ export type DisponibilidadPublicaDb = Pick<
 export type DetalleReservaPublica = Reserva & {
   servicio_nombre: string;
   servicio_precio_usd: number;
+  servicio_currency?: FiscalCurrency;
+  servicio_tipo_unidad?: TipoUnidadServicio;
   negocio_nombre: string;
   negocio_slug: string;
   negocio_logo_url: string | null;
   negocio_whatsapp: string | null;
   negocio_email: string | null;
+  negocio_moneda?: FiscalCurrency;
   pago_confirmado_ahora: boolean;
 };
 
 type PublicBookingArgs = {
   p_service_id: string;
-  p_starts_at: string;
+  p_starts_at?: string | null;
   p_client_email: string;
   p_client_name?: string | null;
   p_quantity?: number;
+  p_currency?: FiscalCurrency | null;
 };
 
 export type Database = {

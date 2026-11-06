@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { LogOut } from "lucide-react";
 import { requerirAdmin } from "../../lib/admin/auth";
+import { obtenerConfiguracion } from "../../lib/plataforma";
 import { ETIQUETA_ROL, tienePermiso, type Permiso } from "../../lib/roles";
+import { isStripeMockMode } from "../../lib/stripe";
 import { logoutAction } from "../../actions/auth";
 import AdminShell, {
   type AdminNavLink,
@@ -113,16 +115,22 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const admin = await requerirAdmin();
+  const [admin, config] = await Promise.all([
+    requerirAdmin(),
+    obtenerConfiguracion().catch(() => null),
+  ]);
   const links: AdminNavLink[] = NAV.filter((l) =>
     tienePermiso(admin.rol, l.permiso),
   ).map(({ permiso: _permiso, ...resto }) => resto);
+  const pagosSimulados = Boolean(config?.pagos_simulados);
+  const modoDemo = pagosSimulados || isStripeMockMode;
 
   return (
     <AdminShell
       links={links}
       email={admin.email}
       rol={ETIQUETA_ROL[admin.rol]}
+      modoDemo={modoDemo}
       pie={
         <form action={logoutAction}>
           <button

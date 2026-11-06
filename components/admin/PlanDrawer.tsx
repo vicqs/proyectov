@@ -241,136 +241,141 @@ function FormularioEditarPlan({
     }
   }, [estado, onClose, router]);
 
+  const formId = `form-editar-plan-${plan.id}`;
+
   return (
-    <form
-      ref={formRef}
-      action={enviar}
-      className="flex flex-col min-h-full justify-between gap-6"
-    >
+    <div className="flex flex-col min-h-full justify-between gap-6">
       <div className="space-y-5">
-        <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-slate-600">Estado:</span>
-            <Insignia tono={plan.activo ? "verde" : "gris"}>
-              {plan.activo ? "Activo" : "Inactivo"}
-            </Insignia>
-            {plan.por_defecto && <Insignia tono="azul">Por defecto</Insignia>}
+        <form
+          id={formId}
+          ref={formRef}
+          action={enviar}
+          className="space-y-5"
+        >
+          <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-600">Estado:</span>
+              <Insignia tono={plan.activo ? "verde" : "gris"}>
+                {plan.activo ? "Activo" : "Inactivo"}
+              </Insignia>
+              {plan.por_defecto && <Insignia tono="azul">Por defecto</Insignia>}
+            </div>
+            <span className="font-mono text-xs text-slate-400">ID: {plan.id}</span>
           </div>
-          <span className="font-mono text-xs text-slate-400">ID: {plan.id}</span>
-        </div>
 
-        <Campo etiqueta="Nombre del plan">
-          <input
-            name="nombre"
-            defaultValue={plan.nombre}
-            required
-            className={CLASE_INPUT}
-          />
-        </Campo>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Campo etiqueta="USD / mes">
+          <Campo etiqueta="Nombre del plan">
             <input
-              name="precio_usd"
-              type="number"
-              step="0.01"
-              min={0}
-              defaultValue={plan.precio_usd}
+              name="nombre"
+              defaultValue={plan.nombre}
               required
               className={CLASE_INPUT}
             />
           </Campo>
 
-          <Campo etiqueta="Stripe Price ID">
-            <input
-              name="stripe_price_id"
-              defaultValue={plan.stripe_price_id ?? ""}
-              placeholder="price_..."
-              className={CLASE_INPUT}
-            />
-          </Campo>
-        </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Campo etiqueta="USD / mes">
+              <input
+                name="precio_usd"
+                type="number"
+                step="0.01"
+                min={0}
+                defaultValue={plan.precio_usd}
+                required
+                className={CLASE_INPUT}
+              />
+            </Campo>
 
-        <p className="text-[11px] text-slate-500 -mt-2">
-          Los cambios de precio afectarán a los próximos ciclos de facturación de los negocios suscritos.
-        </p>
+            <Campo etiqueta="Stripe Price ID">
+              <input
+                name="stripe_price_id"
+                defaultValue={plan.stripe_price_id ?? ""}
+                placeholder="price_..."
+                className={CLASE_INPUT}
+              />
+            </Campo>
+          </div>
 
-        {/* Checkbox de activo / inactivo */}
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-4">
-          {plan.por_defecto ? (
-            <div>
-              <input type="hidden" name="activo" value="on" />
-              <label className="flex items-start gap-2.5 text-xs text-slate-400 cursor-not-allowed select-none">
+          <p className="text-[11px] text-slate-500 -mt-2">
+            Los cambios de precio afectarán a los próximos ciclos de facturación de los negocios suscritos.
+          </p>
+
+          {/* Checkbox de activo / inactivo */}
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-4">
+            {plan.por_defecto ? (
+              <div>
+                <input type="hidden" name="activo" value="on" />
+                <label className="flex items-start gap-2.5 text-xs text-slate-400 cursor-not-allowed select-none">
+                  <input
+                    type="checkbox"
+                    checked
+                    disabled
+                    className={`${CLASE_CHECKBOX} mt-0.5 opacity-60`}
+                  />
+                  <div>
+                    <span className="font-medium text-slate-700">Plan activo</span>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      El plan por defecto no puede desactivarse. Para desactivarlo, establece otro plan como predeterminado primero.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            ) : (
+              <label className="flex items-start gap-2.5 text-xs text-slate-700 cursor-pointer select-none">
                 <input
                   type="checkbox"
-                  checked
-                  disabled
-                  className={`${CLASE_CHECKBOX} mt-0.5 opacity-60`}
+                  name="activo"
+                  defaultChecked={plan.activo}
+                  className={`${CLASE_CHECKBOX} mt-0.5`}
                 />
                 <div>
-                  <span className="font-medium text-slate-700">Plan activo</span>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    El plan por defecto no puede desactivarse. Para desactivarlo, establece otro plan como predeterminado primero.
+                  <span className="font-medium text-slate-900">
+                    Plan activo
+                  </span>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Los planes inactivos no se ofrecen a nuevos comercios ni se pueden seleccionar manualmente en cuentas activas.
                   </p>
                 </div>
               </label>
+            )}
+          </div>
+
+          {/* Funciones incluidas */}
+          <div className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <Layers className="h-3.5 w-3.5 text-sky-600" />
+              <span>Funciones incluidas</span>
             </div>
-          ) : (
-            <label className="flex items-start gap-2.5 text-xs text-slate-700 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                name="activo"
-                defaultChecked={plan.activo}
-                className={`${CLASE_CHECKBOX} mt-0.5`}
-              />
-              <div>
-                <span className="font-medium text-slate-900">
-                  Plan activo
-                </span>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Los planes inactivos no se ofrecen a nuevos comercios ni se pueden seleccionar manualmente en cuentas activas.
-                </p>
-              </div>
-            </label>
-          )}
-        </div>
 
-        {/* Funciones incluidas */}
-        <div className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-            <Layers className="h-3.5 w-3.5 text-sky-600" />
-            <span>Funciones incluidas</span>
+            <div className="space-y-2.5">
+              {flagsDisponibles.map((f) => {
+                const activo = plan.flags?.[f.clave] ?? true;
+                return (
+                  <label
+                    key={f.clave}
+                    className="flex items-start gap-2.5 text-xs text-slate-700 cursor-pointer select-none"
+                  >
+                    <input
+                      type="checkbox"
+                      name={`flag_${f.clave}`}
+                      defaultChecked={activo}
+                      className={`${CLASE_CHECKBOX} mt-0.5`}
+                    />
+                    <div>
+                      <span className="font-medium text-slate-900">
+                        {f.etiqueta}
+                      </span>
+                      {f.ayuda && (
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">
+                          {f.ayuda}
+                        </p>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
           </div>
-
-          <div className="space-y-2.5">
-            {flagsDisponibles.map((f) => {
-              const activo = plan.flags?.[f.clave] ?? true;
-              return (
-                <label
-                  key={f.clave}
-                  className="flex items-start gap-2.5 text-xs text-slate-700 cursor-pointer select-none"
-                >
-                  <input
-                    type="checkbox"
-                    name={`flag_${f.clave}`}
-                    defaultChecked={activo}
-                    className={`${CLASE_CHECKBOX} mt-0.5`}
-                  />
-                  <div>
-                    <span className="font-medium text-slate-900">
-                      {f.etiqueta}
-                    </span>
-                    {f.ayuda && (
-                      <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">
-                        {f.ayuda}
-                      </p>
-                    )}
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-        </div>
+        </form>
 
         {/* Opción para predeterminar si no lo es */}
         {!plan.por_defecto && plan.activo && (
@@ -403,6 +408,7 @@ function FormularioEditarPlan({
         </button>
         <button
           type="submit"
+          form={formId}
           disabled={pendiente}
           className="vuki-btn-primary flex-1"
         >
@@ -419,6 +425,6 @@ function FormularioEditarPlan({
           )}
         </button>
       </div>
-    </form>
+    </div>
   );
 }

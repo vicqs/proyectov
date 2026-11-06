@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { CalendarCheck } from "lucide-react";
 import { z } from "zod";
 import { obtenerReservaPorToken } from "../../../lib/data/public";
+import { esTransaccionSimulada, formatearMoneda } from "../../../lib/formato";
+import { convertirMoneda, normalizarMoneda } from "../../../lib/monedas";
 import { esPagoManual } from "../../../lib/pagos";
 import {
   etiquetaHorario,
@@ -39,32 +41,54 @@ export default async function ReservaPublicaPage({
   const negocio = { nombre: reserva.negocio_nombre, slug: reserva.negocio_slug, whatsapp: reserva.negocio_whatsapp };
 
   const cupos = reserva.cupos ?? 1;
+  const monedaServicio = normalizarMoneda(
+    reserva.servicio_currency ?? reserva.negocio_moneda,
+    "USD",
+  );
+  const monedaReserva = normalizarMoneda(reserva.currency, monedaServicio);
+  const totalReserva =
+    reserva.monto_usd ??
+    reserva.gross_amount ??
+    convertirMoneda(servicio.precio_usd * cupos, monedaServicio, monedaReserva);
+
   const puedeCancelar =
     reserva.estado !== "cancelada" &&
     (reserva.estado === "pendiente" ||
       new Date(reserva.fecha_hora).getTime() - Date.now() >=
         HORAS_LIMITE_CANCELACION * 3_600_000);
 
+  const pagoEsSimulado = esTransaccionSimulada(reserva.trx_id);
+  const esItem = reserva.servicio_tipo_unidad === "item";
+
   const filas: [string, string][] = [
     ["Negocio", negocio?.nombre ?? "—"],
     ["Servicio", servicio?.nombre ?? "—"],
-    ["Fecha y hora", etiquetaHorario(reserva.fecha_hora)],
-    ["Personas", String(cupos)],
-    ["Estado", ESTADO_LABEL[reserva.estado]],
+    [esItem ? "Fecha de compra" : "Fecha y hora", etiquetaHorario(reserva.fecha_hora)],
+    [esItem ? "Ítems" : "Personas", String(cupos)],
+    [
+      "Estado",
+      pagoEsSimulado && reserva.estado === "pagada"
+        ? "Confirmada (pago simulado · demo)"
+        : ESTADO_LABEL[reserva.estado],
+    ],
   ];
   if (servicio) {
-    filas.push(["Total", `$${(reserva.monto_usd ?? reserva.gross_amount ?? servicio.precio_usd * cupos).toFixed(2)} USD`]);
+    filas.push(["Total", formatearMoneda(totalReserva, monedaReserva)]);
   }
   if (reserva.trx_id)
     filas.push([
       "ID de transacción",
-      esPagoManual(reserva.trx_id) ? "Pago directo al comercio" : reserva.trx_id,
+      esPagoManual(reserva.trx_id)
+        ? "Pago directo al comercio"
+        : pagoEsSimulado
+          ? `${reserva.trx_id} (demostración · sin cobro real)`
+          : reserva.trx_id,
     ]);
 
   return (
     <PaginaPublica
-      titulo="Tu reserva"
-      etiqueta="Gestiona tu experiencia"
+      titulo={esItem ? "Tu compra" : "Tu reserva"}
+      etiqueta={esItem ? "Gestiona tu compra" : "Gestiona tu experiencia"}
       icono={<CalendarCheck className="h-4 w-4" />}
       descripcion={`A nombre de ${reserva.nombre_cliente || reserva.email_cliente}`}
       pie={
@@ -88,9 +112,15 @@ export default async function ReservaPublicaPage({
         <CancelarReservaButton token={token} />
       ) : reserva.estado !== "cancelada" ? (
         <p className="mt-6 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          Ya no es posible cancelar en línea (se requieren{" "}
-          {HORAS_LIMITE_CANCELACION} horas de anticipación). Contacta al
-          negocio.
+          {esItem ? (
+            <>Las compras de ítems ya pagadas no se cancelan en línea. Contacta al negocio.</>
+          ) : (
+            <>
+              Ya no es posible cancelar en línea (se requieren{" "}
+              {HORAS_LIMITE_CANCELACION} horas de anticipación). Contacta al
+              negocio.
+            </>
+          )}
           {negocio?.whatsapp && (
             <>
               {" "}

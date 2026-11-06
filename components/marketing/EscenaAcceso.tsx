@@ -70,25 +70,36 @@ export default function EscenaAcceso() {
           fill="none"
           className="absolute inset-0 h-full w-full"
         >
+          {/* Arco sutil del monograma VK detrás de la tarjeta del isotipo */}
           <path
-            d="M38 172C126 206 108 15 240 76S342 231 454 113"
+            d="M96 116A38 38 0 0 1 172 116"
+            stroke="#10b981"
+            strokeOpacity="0.22"
+            strokeWidth="1.1"
+          />
+
+          {/* Trayectoria suave con el gesto v - u - k - i . */}
+          <path
+            d="M36 156C72 126 98 38 128 118C152 178 176 42 222 86C262 124 286 192 342 156C386 128 416 172 454 156"
             stroke="#38bdf8"
-            strokeOpacity="0.25"
-            strokeWidth="1.5"
+            strokeOpacity="0.22"
+            strokeWidth="1.3"
           />
           <motion.path
-            d="M38 172C126 206 108 15 240 76S342 231 454 113"
+            d="M36 156C72 126 98 38 128 118C152 178 176 42 222 86C262 124 286 192 342 156C386 128 416 172 454 156"
             stroke="#6ee7b7"
-            strokeOpacity="0.7"
-            strokeWidth="2"
-            strokeDasharray="3 25"
-            animate={{ strokeDashoffset: animar ? [0, -112] : 0 }}
+            strokeOpacity="0.65"
+            strokeWidth="1.8"
+            strokeDasharray="3 26"
+            animate={{ strokeDashoffset: animar ? [0, -145] : 0 }}
             transition={
               animar
                 ? { duration: 12, repeat: Infinity, ease: "linear" }
                 : { duration: 0 }
             }
           />
+
+          <circle cx="454" cy="156" r="2.5" fill="#10b981" fillOpacity="0.75" />
         </svg>
         <motion.div
           className="absolute left-2 top-3 flex h-24 w-24 items-center justify-center rounded-[1.8rem] border border-white/15 bg-slate-900/70 shadow-xl shadow-black/10 backdrop-blur-xl xl:left-4 xl:h-28 xl:w-28"

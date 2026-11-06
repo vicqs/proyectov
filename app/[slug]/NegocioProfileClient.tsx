@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -10,12 +10,18 @@ import AnimatedCheckoutSheet from "../../components/AnimatedCheckoutSheet";
 import ServicioCard from "../../components/ServicioCard";
 import MarcaReserva from "../../components/MarcaReserva";
 import SelectorIdioma from "../../components/SelectorIdioma";
+import SelectorMoneda from "../../components/SelectorMoneda";
 import {
   esImagenOptimizable,
   type HorarioPublico,
   type ServicioPublico,
 } from "../../lib/tipos-publicos";
 import { LocaleProvider, useTranslations } from "../../lib/i18n";
+import {
+  esMonedaSoportada,
+  normalizarMoneda,
+  type CodigoMoneda,
+} from "../../lib/monedas";
 import { reservarYPagarAction } from "../../actions/pago-simulado";
 import { mensajeErrorUsuario } from "../../lib/errores";
 
@@ -26,6 +32,7 @@ export interface NegocioPublico {
   logoUrl: string;
   colorTema: string;
   colorSecundario: string;
+  moneda?: CodigoMoneda;
   whatsapp?: string;
 }
 
@@ -35,6 +42,7 @@ interface NegocioProfileClientProps {
   horarios: HorarioPublico[];
   suscripcionActiva: boolean;
   pago?: string;
+  modoPagosSimulados?: boolean;
   /** Ruta del formulario de reportes (solo si la función está activa). */
   hrefReportar?: string;
 }
@@ -68,13 +76,36 @@ function NegocioProfileContenido({
   horarios,
   suscripcionActiva,
   pago,
+  modoPagosSimulados,
   hrefReportar,
 }: NegocioProfileClientProps) {
   const router = useRouter();
   const { t, locale } = useTranslations();
+  const monedaNegocio = normalizarMoneda(negocio.moneda, "USD");
+  const [monedaVista, setMonedaVista] = useState<CodigoMoneda>(monedaNegocio);
   const [servicioSeleccionado, setServicioSeleccionado] =
     useState<ServicioPublico | null>(null);
   const [huboReserva, setHuboReserva] = useState(false);
+
+  useEffect(() => {
+    try {
+      const guardada = window.localStorage.getItem("vuki_moneda");
+      if (esMonedaSoportada(guardada)) {
+        setMonedaVista(guardada);
+      }
+    } catch {
+      // Almacenamiento no disponible: usa la moneda predeterminada del negocio.
+    }
+  }, []);
+
+  const cambiarMoneda = useCallback((nueva: CodigoMoneda) => {
+    setMonedaVista(nueva);
+    try {
+      window.localStorage.setItem("vuki_moneda", nueva);
+    } catch {
+      // Almacenamiento no disponible: la selección aplica durante la sesión.
+    }
+  }, []);
 
   const horariosDelServicio = servicioSeleccionado
     ? horarios.filter((h) => h.servicioId === servicioSeleccionado.id)
@@ -88,13 +119,17 @@ function NegocioProfileContenido({
     : null;
 
   async function handleReservaConfirmada(
-    horarioId: string,
+    horarioId: string | null,
     nombreCliente: string,
     emailCliente: string,
     cupos: number,
+    monedaPago?: CodigoMoneda,
   ) {
-    const horario = horarios.find((h) => h.id === horarioId);
-    if (!servicioSeleccionado || !horario) {
+    const esItem = servicioSeleccionado?.tipoUnidad === "item";
+    const horario = horarioId
+      ? horarios.find((h) => h.id === horarioId)
+      : undefined;
+    if (!servicioSeleccionado || (!esItem && !horario)) {
       return { error: t("horario_no_disponible") };
     }
     try {
@@ -102,8 +137,9 @@ function NegocioProfileContenido({
         servicioId: servicioSeleccionado.id,
         email: emailCliente,
         nombre: nombreCliente.trim() || undefined,
-        fechaHora: horario.fechaHora,
+        fechaHora: esItem ? undefined : horario?.fechaHora,
         cupos,
+        moneda: monedaPago ?? monedaVista,
       });
       if (!resultado.error) setHuboReserva(true);
       return resultado;
@@ -160,7 +196,10 @@ function NegocioProfileContenido({
         />
         <div className="absolute inset-0 bg-gradient-to-t from-white via-white/10 to-black/20" />
 
-        <SelectorIdioma className="absolute right-4 top-4" />
+        <div className="absolute right-4 top-4 flex items-center gap-2">
+          <SelectorMoneda valor={monedaVista} onChange={cambiarMoneda} />
+          <SelectorIdioma />
+        </div>
       </div>
 
       <div className="relative mx-auto -mt-16 max-w-md px-6 sm:max-w-xl sm:px-8">
@@ -169,7 +208,9 @@ function NegocioProfileContenido({
             role="status"
             className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm text-emerald-700"
           >
-            {t("pago_confirmado")}
+            {modoPagosSimulados
+              ? t("pago_demo_confirmado")
+              : t("pago_confirmado")}
           </div>
         )}
         {pago === "cancelado" && (
@@ -192,6 +233,7 @@ function NegocioProfileContenido({
             unoptimized={!esImagenOptimizable(negocio.logoUrl)}
             alt={`Logo de ${negocio.nombre}`}
             fill
+            loading="eager"
             className="object-cover"
             sizes="128px"
           />
@@ -262,6 +304,7 @@ function NegocioProfileContenido({
                   <ServicioCard
                     prioritaria={i < 2}
                     servicio={servicio}
+                    monedaVista={monedaVista}
                     colorTema={negocio.colorTema}
                     colorSecundario={negocio.colorSecundario}
                     onSeleccionar={setServicioSeleccionado}
@@ -288,6 +331,8 @@ function NegocioProfileContenido({
         {servicioSeleccionado && (
           <AnimatedCheckoutSheet
             servicio={servicioSeleccionado}
+            moneda={monedaVista}
+            onCambiarMoneda={cambiarMoneda}
             negocioNombre={negocio.nombre}
             colorTema={negocio.colorTema}
             horariosDisponibles={horariosDelServicio}

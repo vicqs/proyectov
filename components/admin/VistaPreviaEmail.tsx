@@ -37,7 +37,15 @@ export function VistaPreviaEmail({ titulo, html }: VistaPreviaEmailProps) {
   }, [html]);
 
   return (
-    <div className="w-full">
+    <div className="w-full space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200/80 bg-amber-50/80 px-3 py-1.5 text-xs text-amber-900">
+        <span className="font-semibold">
+          Vista previa de demostración (datos de prueba)
+        </span>
+        <span className="text-[11px] text-amber-800">
+          Ejemplo ilustrativo · No envía correos reales
+        </span>
+      </div>
       <iframe
         ref={iframeRef}
         title={`Vista previa ${titulo}`}

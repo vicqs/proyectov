@@ -9,7 +9,18 @@ import {
   leerUno,
   type FilaDe,
 } from "../../../../lib/admin/db";
-import { indexar, montoReserva } from "../../../../lib/admin/datos";
+import {
+  indexar,
+  monedaReserva,
+  montoReserva,
+  montoReservaEnMoneda,
+} from "../../../../lib/admin/datos";
+import {
+  normalizarMoneda,
+  obtenerInfoMoneda,
+  redondearMontoMoneda,
+  type CodigoMoneda,
+} from "../../../../lib/monedas";
 import { tienePermiso } from "../../../../lib/roles";
 import {
   calcularPrecio,
@@ -21,6 +32,7 @@ import {
 import { estadoEfectivo } from "../../../../lib/negocio-estado";
 import { cuposOcupados } from "../../../../lib/horarios";
 import { facturasPendientes } from "../../../../lib/facturas-pendientes";
+import { esClienteStripeSimulado } from "../../../../lib/formato";
 import { esCobroPasarela } from "../../../../lib/pagos";
 import {
   Briefcase,
@@ -31,6 +43,7 @@ import {
 import {
   fechaCorta,
   fechaHora,
+  moneda,
   parametro,
   pluralizar,
   usd,
@@ -170,7 +183,13 @@ export default async function NegocioDetallePage({
             puedeFacturar={puedeFacturar}
           />
         )}
-        {tab === "vista" && <VistaSoporte id={id} admin={admin} />}
+        {tab === "vista" && (
+          <VistaSoporte
+            id={id}
+            admin={admin}
+            monedaNegocio={normalizarMoneda(negocio.moneda, "USD")}
+          />
+        )}
         {tab === "cuenta" &&
           (puedeGestionar ? <Cuenta negocio={negocio} /> : <SinAcceso />)}
         {tab === "facturacion" &&
@@ -231,7 +250,14 @@ function formatearIban(iban: string): string {
   return limpio.match(/.{1,4}/g)?.join(" ") ?? limpio;
 }
 
-function formatearDuracionServicio(minutos: number): string {
+function formatearDuracionServicio(
+  minutos: number,
+  tipo?: "cupo" | "item",
+  stock?: number | null,
+): string {
+  if (tipo === "item") {
+    return `Venta directa · ${stock ?? 0} ${(stock ?? 0) === 1 ? "unidad" : "unidades"}`;
+  }
   if (!Number.isFinite(minutos) || minutos <= 0) return "—";
   if (minutos < 60) return `${minutos} min`;
   const horas = Math.floor(minutos / 60);
@@ -270,11 +296,16 @@ async function Resumen({
     resolverEmailOwner(negocio),
   ]);
   const idx = indexar(servicios);
+  const monedaNeg = normalizarMoneda(negocio.moneda, "USD");
+  const infoMoneda = obtenerInfoMoneda(monedaNeg);
+  const idxNeg = new Map([[negocio.id, negocio]]);
   const pagadas = reservas.filter((r) => r.estado === "pagada");
   const ingresos = puedeVerFinanzas
-    ? reservas
-        .filter(esCobroPasarela)
-        .reduce((a, r) => a + montoReserva(r, idx), 0)
+    ? redondearMontoMoneda(
+        reservas
+          .filter(esCobroPasarela)
+          .reduce((a, r) => a + montoReservaEnMoneda(r, monedaNeg, idx, idxNeg), 0),
+      )
     : 0;
   const precio = puedeFacturar ? calcularPrecio(negocio, planes) : null;
   const estado = estadoEfectivo(negocio);
@@ -305,7 +336,7 @@ async function Resumen({
           <Estadistica
             titulo="Volumen cobrado"
             icono={<TrendingUp className="h-4 w-4" />}
-            valor={usd(ingresos)}
+            valor={moneda(ingresos, monedaNeg)}
             tono="bueno"
             href="/admin/finanzas"
           />
@@ -323,6 +354,10 @@ async function Resumen({
         <dl className="grid gap-3.5 sm:grid-cols-2">
           <Dato t="Dueño" v={ownerEmail || "—"} />
           <Dato t="Alta" v={fechaCorta(negocio.creado_en)} />
+          <Dato
+            t="Moneda operativa"
+            v={`${infoMoneda.codigo} (${infoMoneda.simbolo}) · ${infoMoneda.nombreEs}`}
+          />
           <Dato
             t="Suscripción"
             v={
@@ -356,9 +391,16 @@ async function Resumen({
               t="Cliente Stripe"
               v={
                 negocio.stripe_customer_id ? (
-                  <span className="font-mono text-xs text-slate-700">
-                    {negocio.stripe_customer_id}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-mono text-xs text-slate-700">
+                      {negocio.stripe_customer_id}
+                    </span>
+                    {esClienteStripeSimulado(negocio.stripe_customer_id) && (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                        Simulado (demo)
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <span className="text-slate-400">—</span>
                 )
@@ -437,9 +479,11 @@ const cacheSoporteVista = new Map<string, number>();
 async function VistaSoporte({
   id,
   admin,
+  monedaNegocio,
 }: {
   id: string;
   admin: Awaited<ReturnType<typeof requerirAdmin>>;
+  monedaNegocio: CodigoMoneda;
 }) {
   const ahora = Date.now();
   const cacheKey = `${admin.user.id}:${id}`;
@@ -479,6 +523,7 @@ async function VistaSoporte({
     auditoriaPromise,
   ]);
   const idx = indexar(servicios);
+  const idxNeg = new Map([[id, { moneda: monedaNegocio }]]);
   const proximos = horarios.filter(
     (h) => new Date(h.fecha_hora).getTime() >= Date.now(),
   );
@@ -490,14 +535,20 @@ async function VistaSoporte({
       </p>
       <Tarjeta titulo="Servicios">
         <Tabla
-          columnas={["Servicio", "Precio", "Duración"]}
+          columnas={["Servicio", "Precio", "Modalidad / duración"]}
           vacia={servicios.length === 0}
         >
           {servicios.map((s) => (
             <tr key={s.id}>
               <Celda>{s.nombre}</Celda>
-              <Celda>{usd(s.precio_usd)}</Celda>
-              <Celda>{formatearDuracionServicio(s.duracion_min)}</Celda>
+              <Celda>{moneda(s.precio_usd, s.currency ?? monedaNegocio)}</Celda>
+              <Celda>
+                {formatearDuracionServicio(
+                  s.duracion_min,
+                  s.unit_type,
+                  s.stock,
+                )}
+              </Celda>
             </tr>
           ))}
         </Tabla>
@@ -574,7 +625,12 @@ async function VistaSoporte({
                       : "Pendiente"}
                 </Insignia>
               </Celda>
-              <Celda>{usd(montoReserva(r, idx))}</Celda>
+              <Celda>
+                {moneda(
+                  montoReserva(r, idx, idxNeg),
+                  monedaReserva(r, idx, idxNeg),
+                )}
+              </Celda>
             </tr>
           ))}
         </Tabla>
@@ -593,6 +649,7 @@ function Cuenta({ negocio }: { negocio: NegocioFila }) {
         nombre={negocio.nombre}
         slug={negocio.slug}
         descripcion={negocio.descripcion ?? ""}
+        moneda={negocio.moneda}
       />
 
       {/* Grid de 2 columnas para tarjetas de control */}
@@ -756,6 +813,7 @@ async function Facturacion({ negocio }: { negocio: NegocioFila }) {
             className="flex items-center gap-3 w-full"
           >
             <select
+              key={negocio.estado_suscripcion}
               name="estado"
               defaultValue={negocio.estado_suscripcion}
               className={`${CLASE_SELECT} flex-1 min-w-0`}
@@ -781,6 +839,7 @@ async function Facturacion({ negocio }: { negocio: NegocioFila }) {
             className="flex items-center gap-3 w-full"
           >
             <select
+              key={negocio.plan_id ?? ""}
               name="plan_id"
               defaultValue={negocio.plan_id ?? ""}
               className={`${CLASE_SELECT} flex-1 min-w-0`}
@@ -812,6 +871,7 @@ async function Facturacion({ negocio }: { negocio: NegocioFila }) {
           >
             <div className="relative w-32 sm:w-36 shrink-0">
               <input
+                key={negocio.descuento_pct ?? 0}
                 name="descuento_pct"
                 type="number"
                 min={0}
@@ -870,13 +930,14 @@ async function Facturacion({ negocio }: { negocio: NegocioFila }) {
             <div className="space-y-3">
               {FLAGS_POR_NEGOCIO.map((f) => {
                 const actual = negocio.flags_override?.[f.clave];
+                const valorActual =
+                  actual === undefined ? "" : actual ? "on" : "off";
                 return (
                   <Campo key={f.clave} etiqueta={f.etiqueta}>
                     <select
+                      key={`${f.clave}-${valorActual}`}
                       name={`flag_${f.clave}`}
-                      defaultValue={
-                        actual === undefined ? "" : actual ? "on" : "off"
-                      }
+                      defaultValue={valorActual}
                       className={`${CLASE_SELECT} w-full`}
                     >
                       <option value="">
@@ -917,7 +978,7 @@ async function Facturacion({ negocio }: { negocio: NegocioFila }) {
                     Factura <b>{f.numero}</b> · emitida el {fechaCorta(f.creada)}
                   </span>
                   <span className="text-slate-600">
-                    <b>{usd(f.monto)}</b> · {f.intentos}{" "}
+                    <b>{moneda(f.monto, f.moneda)}</b> · {f.intentos}{" "}
                     {f.intentos === 1 ? "intento" : "intentos"} de cobro
                   </span>
                 </li>

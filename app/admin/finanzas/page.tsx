@@ -5,11 +5,14 @@ import {
   calcularMrr,
   cargarPlataforma,
   indexar,
-  montoReserva,
+  montoReservaUsd,
 } from "../../../lib/admin/datos";
 import { fechaHora, pluralizar, usd } from "../../../lib/admin/formato";
+import { redondearMoneda } from "../../../lib/monedas";
 import { estadoEfectivo } from "../../../lib/negocio-estado";
 import { esCobroPasarela, esTrxPasarela } from "../../../lib/pagos";
+import { obtenerConfiguracion } from "../../../lib/plataforma";
+import { isStripeMockMode } from "../../../lib/stripe";
 import {
   CLASE_BOTON_NEUTRO,
   Celda,
@@ -21,10 +24,11 @@ import {
 
 export default async function FinanzasAdminPage() {
   await requerirAdmin("finanzas");
-  const [{ negocios, servicios, reservas, planes }, reembolsos] =
+  const [{ negocios, servicios, reservas, planes }, reembolsos, config] =
     await Promise.all([
       cargarPlataforma(),
       leer("reembolsos").catch(() => []),
+      obtenerConfiguracion().catch(() => null),
     ]);
 
   const vivos = negocios.filter((n) => !n.eliminado_en);
@@ -35,20 +39,26 @@ export default async function FinanzasAdminPage() {
       ? "1 suscripción activa · 1 en prueba"
       : `${pluralizar(activas, "suscripción activa", "suscripciones activas")} · ${enPrueba} en prueba`;
   const idx = indexar(servicios);
+  const idxNegocios = indexar(negocios);
   const nombreNegocio = new Map(negocios.map((n) => [n.id, n.nombre]));
   const pagadas = reservas.filter(esCobroPasarela);
 
   const mrr = calcularMrr(vivos, planes);
-  const volumenTotal = pagadas.reduce((a, r) => a + montoReserva(r, idx), 0);
+  const volumenTotal = redondearMoneda(
+    pagadas.reduce((a, r) => a + montoReservaUsd(r, idx, idxNegocios), 0),
+  );
 
-  // Volumen por mes (últimos 6) y por negocio.
+  // Volumen por mes (últimos 6) y por negocio (normalizado a USD).
   const porMes = new Map<string, number>();
   const porNegocio = new Map<string, number>();
   for (const r of pagadas) {
-    const monto = montoReserva(r, idx);
+    const monto = montoReservaUsd(r, idx, idxNegocios);
     const mes = r.fecha_hora.slice(0, 7);
-    porMes.set(mes, (porMes.get(mes) ?? 0) + monto);
-    porNegocio.set(r.negocio_id, (porNegocio.get(r.negocio_id) ?? 0) + monto);
+    porMes.set(mes, redondearMoneda((porMes.get(mes) ?? 0) + monto));
+    porNegocio.set(
+      r.negocio_id,
+      redondearMoneda((porNegocio.get(r.negocio_id) ?? 0) + monto),
+    );
   }
   const meses = [...porMes.entries()]
     .sort((a, b) => b[0].localeCompare(a[0]))
@@ -131,13 +141,25 @@ export default async function FinanzasAdminPage() {
           titulo="MRR"
           valor={usd(mrr)}
           tono="bueno"
-          nota={notaMrr}
+          nota={
+            isStripeMockMode
+              ? `${notaMrr} · Stripe simulado (demo)`
+              : notaMrr
+          }
         />
-        <Estadistica titulo="ARR estimado" valor={usd(mrr * 12)} />
+        <Estadistica
+          titulo="ARR estimado"
+          valor={usd(mrr * 12)}
+          nota={isStripeMockMode ? "Proyección en modo demo" : undefined}
+        />
         <Estadistica
           titulo="Volumen cobrado"
           valor={usd(volumenTotal)}
-          nota={`${pagadas.length} reservas pagadas`}
+          nota={
+            config?.pagos_simulados
+              ? `Equiv. USD · ${pagadas.length} reservas pagadas (incluye demo)`
+              : `Equiv. USD · ${pagadas.length} reservas pagadas`
+          }
           href="/admin/reservas?estado=pagada"
         />
         <Estadistica

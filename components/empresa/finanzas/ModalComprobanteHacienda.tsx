@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CheckCircle2, FileCheck2, FileText, Sparkles, X } from "lucide-react";
 import AnimatedIconButton from "../../AnimatedIconButton";
-import { formatearPrecioUsd } from "@/lib/formato";
+import { formatearMoneda } from "@/lib/formato";
 import type {
   ClientIdType,
   FinancialTransaction,
@@ -32,19 +32,11 @@ const TIPOS_ID_OPCIONES: {
   { valor: "extranjero", etiqueta: "Extranjero No Domiciliado" },
 ];
 
-const formatoNumeroCr = new Intl.NumberFormat("es-CR", {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
 export function formatoMonedaFiscal(
   monto: number,
   currency: FiscalCurrency,
 ): string {
-  if (currency === "CRC") {
-    return `₡${formatoNumeroCr.format(monto)}`;
-  }
-  return formatearPrecioUsd(monto);
+  return formatearMoneda(monto, currency);
 }
 
 interface ModalComprobanteHaciendaProps {

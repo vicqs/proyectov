@@ -4,7 +4,8 @@ import { z } from "zod";
 import { accionAdmin, type ResultadoAccion } from "../../lib/admin/auth";
 import { registrarAuditoria } from "../../lib/admin/auditoria";
 import { actualizar, insertar, leer, leerUno } from "../../lib/admin/db";
-import { indexar, montoReserva } from "../../lib/admin/datos";
+import { indexar, monedaReserva, montoReserva } from "../../lib/admin/datos";
+import { moneda } from "../../lib/admin/formato";
 import { campo, esUuid, revalidarAdmin } from "../../lib/admin/util";
 import { revalidarEmpresa } from "../../lib/empresa";
 import {
@@ -64,10 +65,14 @@ export async function registrarReembolsoAction(
     if (!admiteReembolsoPasarela(reserva)) {
       return { error: "Solo se reembolsan reservas pagadas por pasarela." };
     }
-    const servicios = indexar(
-      await leer("servicios", { eq: { negocio_id: reserva.negocio_id } }),
-    );
-    const maximo = montoReserva(reserva, servicios);
+    const [listaServicios, negocio] = await Promise.all([
+      leer("servicios", { eq: { negocio_id: reserva.negocio_id } }),
+      leerUno("negocios", { eq: { id: reserva.negocio_id } }),
+    ]);
+    const servicios = indexar(listaServicios);
+    const idxNeg = negocio ? new Map([[negocio.id, negocio]]) : undefined;
+    const codMoneda = monedaReserva(reserva, servicios, idxNeg);
+    const maximo = montoReserva(reserva, servicios, idxNeg);
     const monto = z.coerce
       .number()
       .positive("El monto debe ser mayor que 0.")
@@ -75,7 +80,7 @@ export async function registrarReembolsoAction(
     if (!monto.success) return { error: monto.error.issues[0].message };
     if (monto.data > maximo + 0.001) {
       return {
-        error: `El reembolso no puede superar ${maximo.toFixed(2)} USD.`,
+        error: `El reembolso no puede superar ${moneda(maximo, codMoneda)}.`,
       };
     }
     const motivoParsed = z
@@ -100,6 +105,7 @@ export async function registrarReembolsoAction(
         "reembolsos",
         {
           monto_usd: monto.data,
+          currency: codMoneda,
           motivo,
           creado_por: admin.email,
         },
@@ -110,6 +116,7 @@ export async function registrarReembolsoAction(
         reserva_id: id,
         negocio_id: reserva.negocio_id,
         monto_usd: monto.data,
+        currency: codMoneda,
         motivo,
         estado: "pendiente",
         creado_por: admin.email,
@@ -120,15 +127,17 @@ export async function registrarReembolsoAction(
     if (reserva.estado === "pagada") {
       await actualizar("reservas", { estado: "cancelada" }, { id });
     }
-    const negocio = await leerUno("negocios", {
-      eq: { id: reserva.negocio_id },
-    });
     await registrarAuditoria(admin, {
       accion: "reembolso.registrar",
       entidad: "reembolso",
       entidad_id: reembolsoId ?? id,
       negocio_id: reserva.negocio_id,
-      detalle: { reserva_id: id, monto_usd: monto.data, motivo },
+      detalle: {
+        reserva_id: id,
+        monto_usd: monto.data,
+        currency: codMoneda,
+        motivo,
+      },
     });
     revalidarAdmin();
     if (negocio) revalidarEmpresa(negocio.slug);

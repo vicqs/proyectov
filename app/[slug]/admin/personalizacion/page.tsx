@@ -36,6 +36,7 @@ export default async function PersonalizacionPage({
           nombre: negocio.nombre,
           descripcion: negocio.descripcion,
           cuenta_iban: negocio.cuenta_iban,
+          moneda: negocio.moneda,
           whatsapp: negocio.whatsapp,
           color_tema: negocio.color_tema,
           color_secundario: negocio.color_secundario,

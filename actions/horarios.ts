@@ -55,7 +55,7 @@ async function verificarServicioYCapacidad(
       obtenerConfiguracion(),
       ctx.supabase
         .from("servicios")
-        .select("id")
+        .select("id, unit_type")
         .eq("id", servicioId)
         .eq("negocio_id", ctx.negocio.id)
         .maybeSingle(),
@@ -69,6 +69,9 @@ async function verificarServicioYCapacidad(
   }
   if (!servicio) {
     return "El servicio no existe.";
+  }
+  if (servicio.unit_type === "item") {
+    return "Los servicios por ítems no usan horarios: se venden por stock.";
   }
   return null;
 }

@@ -11,6 +11,7 @@ import {
 } from "../../lib/tipos-publicos";
 import type { ServicioPublico } from "../../lib/tipos-publicos";
 import NegocioProfileClient from "./NegocioProfileClient";
+import { normalizarMoneda } from "../../lib/monedas";
 import { motivoNoOperativo } from "../../lib/negocio-estado";
 import {
   funcionActiva,
@@ -121,12 +122,17 @@ export default async function NegocioPublicPage({
     );
   }
 
+  const monedaNegocio = normalizarMoneda(negocio.moneda, "USD");
+
   const servicios: ServicioPublico[] = serviciosDb.map((s) => ({
     id: s.id,
     nombre: s.nombre,
     descripcion: s.descripcion ?? "",
     precioUsd: s.precio_usd,
+    moneda: normalizarMoneda(s.currency, monedaNegocio),
     duracionMin: s.duracion_min,
+    tipoUnidad: s.unit_type ?? "cupo",
+    stockDisponible: s.stock ?? null,
     imagenUrl: s.imagen_url ?? negocio.logo_url ?? IMAGEN_SERVICIO_DEFAULT,
   }));
 
@@ -149,6 +155,7 @@ export default async function NegocioPublicPage({
             negocio.color_secundario ??
             negocio.color_tema ??
             COLOR_TEMA_DEFAULT,
+          moneda: monedaNegocio,
           whatsapp: negocio.whatsapp?.trim() || undefined,
         }}
         servicios={servicios}
@@ -159,6 +166,7 @@ export default async function NegocioPublicPage({
           flagActiva(config, "reservas_publicas")
         }
         pago={pago}
+        modoPagosSimulados={config.pagos_simulados}
         hrefReportar={
           funcionActiva(config, negocio, planes, "reportes_publicos")
             ? `/${encodeURIComponent(slug)}/reportar`

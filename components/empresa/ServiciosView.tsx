@@ -13,6 +13,7 @@ import {
   ImageIcon,
   ListChecks,
   Loader2,
+  Package,
   Pencil,
   Plus,
   Search,
@@ -23,14 +24,26 @@ import Drawer from "../Drawer";
 import ConfirmDialog from "../ConfirmDialog";
 import { toast } from "../Toast";
 import { esImagenOptimizable } from "../../lib/tipos-publicos";
-import { formatearPrecioUsd } from "@/lib/formato";
+import { formatearMoneda } from "@/lib/formato";
+import {
+  LISTA_MONEDAS,
+  normalizarMoneda,
+  obtenerInfoMoneda,
+  type CodigoMoneda,
+} from "@/lib/monedas";
 import { mensajeErrorUsuario } from "../../lib/errores";
+import type { TipoUnidadServicio } from "@/types/database";
 
 export interface VistaServicio {
   id: string;
   nombre: string;
   precioUsd: number;
+  moneda?: CodigoMoneda;
   duracionMin: number;
+  /** `cupo` (por defecto, con horarios) o `item` (venta directa que descuenta stock). */
+  tipoUnidad?: TipoUnidadServicio;
+  /** Unidades disponibles cuando `tipoUnidad === "item"`. */
+  stock?: number | null;
   descripcion?: string;
   imagenUrl?: string;
   /** Horarios futuros publicados para este servicio. */
@@ -42,7 +55,10 @@ export interface VistaServicio {
 export interface DatosServicio {
   nombre: string;
   precioUsd: number;
+  moneda: CodigoMoneda;
   duracionMin: number;
+  tipoUnidad: TipoUnidadServicio;
+  stock: number | null;
   descripcion: string;
   imagenUrl: string;
 }
@@ -52,6 +68,8 @@ type Resultado = string | void | Promise<string | void>;
 
 interface ServiciosViewProps {
   servicios: VistaServicio[];
+  /** Moneda operativa predeterminada del negocio para nuevos servicios. */
+  monedaNegocio?: CodigoMoneda;
   /** Muestra los campos descripción e imagen. */
   conDetalle?: boolean;
   descripcionPagina?: string;
@@ -70,17 +88,27 @@ interface FormValues {
   nombre: string;
   descripcion: string;
   precioUsd: string;
+  moneda: CodigoMoneda;
   duracionMin: string;
+  tipoUnidad: TipoUnidadServicio;
+  stock: string;
   imagenUrl: string;
 }
 
-const FORM_VACIO: FormValues = {
-  nombre: "",
-  descripcion: "",
-  precioUsd: "",
-  duracionMin: "120",
-  imagenUrl: "",
-};
+function crearFormVacio(moneda: CodigoMoneda): FormValues {
+  return {
+    nombre: "",
+    descripcion: "",
+    precioUsd: "",
+    moneda,
+    duracionMin: "120",
+    tipoUnidad: "cupo",
+    stock: "10",
+    imagenUrl: "",
+  };
+}
+
+const STOCKS_RAPIDOS = ["5", "10", "20", "50", "100"];
 
 const DURACIONES_RAPIDAS: { valor: string; etiqueta: string }[] = [
   { valor: "30", etiqueta: "30 min" },
@@ -91,8 +119,6 @@ const DURACIONES_RAPIDAS: { valor: string; etiqueta: string }[] = [
   { valor: "240", etiqueta: "4 h" },
   { valor: "480", etiqueta: "8 h" },
 ];
-
-const PRECIOS_RAPIDOS = ["25", "35", "45", "65", "95"];
 
 const INPUT = "vuki-input min-h-11";
 
@@ -125,6 +151,7 @@ function esUrlHttpsValida(valor: string): boolean {
  */
 export default function ServiciosView({
   servicios,
+  monedaNegocio = "USD",
   conDetalle = false,
   descripcionPagina = "Configura tus experiencias, precios y duración. Los cambios se reflejan al instante en tu enlace público.",
   abrirInicial = false,
@@ -135,9 +162,12 @@ export default function ServiciosView({
   onGuardar,
   onEliminar,
 }: ServiciosViewProps) {
+  const monedaPorDefecto = normalizarMoneda(monedaNegocio, "USD");
   const [drawerAbierto, setDrawerAbierto] = useState<boolean>(abrirInicial);
   const [editandoId, setEditandoId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormValues>(FORM_VACIO);
+  const [form, setForm] = useState<FormValues>(() =>
+    crearFormVacio(monedaPorDefecto),
+  );
   const [guardando, setGuardando] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [imagenesFallidas, setImagenesFallidas] = useState<
@@ -147,16 +177,26 @@ export default function ServiciosView({
   const [eliminando, setEliminando] = useState(false);
 
   const resumen = useMemo(() => {
-    const conDatoHorarios = servicios.some(
+    // Los ítems de venta directa no usan horarios: no cuentan como "sin horarios".
+    const porCupos = servicios.filter((s) => s.tipoUnidad !== "item");
+    const conDatoHorarios = porCupos.some(
       (s) => s.horariosActivos !== undefined,
     );
     const sinHorarios = conDatoHorarios
-      ? servicios.filter((s) => (s.horariosActivos ?? 0) === 0).length
+      ? porCupos.filter((s) => (s.horariosActivos ?? 0) === 0).length
       : 0;
     const conHorarios = conDatoHorarios
-      ? servicios.filter((s) => (s.horariosActivos ?? 0) > 0).length
+      ? porCupos.filter((s) => (s.horariosActivos ?? 0) > 0).length
       : 0;
-    return { conDatoHorarios, sinHorarios, conHorarios };
+    const items = servicios.filter((s) => s.tipoUnidad === "item");
+    const agotados = items.filter((s) => (s.stock ?? 0) <= 0).length;
+    return {
+      conDatoHorarios,
+      sinHorarios,
+      conHorarios,
+      totalItems: items.length,
+      agotados,
+    };
   }, [servicios]);
 
   const serviciosFiltrados = useMemo(() => {
@@ -169,7 +209,7 @@ export default function ServiciosView({
 
   function abrirNuevo() {
     setEditandoId(null);
-    setForm(FORM_VACIO);
+    setForm(crearFormVacio(monedaPorDefecto));
     setDrawerAbierto(true);
   }
 
@@ -179,7 +219,10 @@ export default function ServiciosView({
       nombre: servicio.nombre,
       descripcion: servicio.descripcion ?? "",
       precioUsd: String(servicio.precioUsd),
+      moneda: normalizarMoneda(servicio.moneda, monedaPorDefecto),
       duracionMin: String(servicio.duracionMin),
+      tipoUnidad: servicio.tipoUnidad ?? "cupo",
+      stock: String(servicio.stock ?? 0),
       imagenUrl: servicio.imagenUrl ?? "",
     });
     setDrawerAbierto(true);
@@ -201,16 +244,34 @@ export default function ServiciosView({
     const nombreLimpio = form.nombre.trim();
     const precio = Number(form.precioUsd);
     const duracion = Number(form.duracionMin);
+    const esItemForm = form.tipoUnidad === "item";
+    const stockNum = Number(form.stock);
 
     if (nombreLimpio.length < 2) {
       toast.error("El nombre debe tener al menos 2 caracteres.");
       return;
     }
+    const infoMonedaActual = obtenerInfoMoneda(form.moneda);
     if (!Number.isFinite(precio) || precio <= 0) {
-      toast.error("Ingresa un precio mayor a $0.");
+      toast.error(`Ingresa un precio mayor a ${infoMonedaActual.simbolo}0.`);
       return;
     }
-    if (!Number.isInteger(duracion) || duracion < 1) {
+    if (precio > infoMonedaActual.maxPrecioServicio) {
+      toast.error(
+        `El precio supera el máximo permitido para ${infoMonedaActual.codigo} (${infoMonedaActual.maxPrecioServicio.toLocaleString("es-CR")}).`,
+      );
+      return;
+    }
+    if (esItemForm) {
+      if (
+        !Number.isInteger(stockNum) ||
+        stockNum < 0 ||
+        stockNum > 100_000
+      ) {
+        toast.error("Las unidades disponibles deben ser un entero entre 0 y 100000.");
+        return;
+      }
+    } else if (!Number.isInteger(duracion) || duracion < 1) {
       toast.error("La duración debe ser un número entero de minutos.");
       return;
     }
@@ -230,7 +291,10 @@ export default function ServiciosView({
         nombre: nombreLimpio,
         descripcion: form.descripcion,
         precioUsd: precio,
-        duracionMin: duracion,
+        moneda: form.moneda,
+        duracionMin: esItemForm ? 0 : duracion,
+        tipoUnidad: form.tipoUnidad,
+        stock: esItemForm ? stockNum : null,
         imagenUrl: urlLimpia,
       });
       if (error) {
@@ -340,6 +404,21 @@ export default function ServiciosView({
                 {resumen.sinHorarios} sin horarios publicados
               </span>
             )}
+
+            {resumen.totalItems > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 font-medium text-sky-800">
+                <Package className="h-3.5 w-3.5 text-sky-600" aria-hidden="true" />
+                {resumen.totalItems}{" "}
+                {resumen.totalItems === 1 ? "ítem de venta directa" : "ítems de venta directa"}
+              </span>
+            )}
+
+            {resumen.agotados > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 font-medium text-red-700 ring-1 ring-red-200/80">
+                <AlertTriangle className="h-3.5 w-3.5 text-red-600" aria-hidden="true" />
+                {resumen.agotados} {resumen.agotados === 1 ? "agotado" : "agotados"}
+              </span>
+            )}
           </div>
 
           {servicios.length > 2 && (
@@ -407,7 +486,10 @@ export default function ServiciosView({
               !imagenesFallidas[urlImg];
             const sinDescripcion =
               conDetalle && !servicio.descripcion?.trim();
+            const esItem = servicio.tipoUnidad === "item";
+            const stockActual = servicio.stock ?? 0;
             const sinHorarios =
+              !esItem &&
               servicio.horariosActivos !== undefined &&
               servicio.horariosActivos === 0;
             const tieneReservas = (servicio.reservasTotales ?? 0) > 0;
@@ -424,6 +506,7 @@ export default function ServiciosView({
                           unoptimized={!esImagenOptimizable(urlImg)}
                           alt={`Imagen de ${servicio.nombre}`}
                           fill
+                          loading="eager"
                           sizes="(max-width: 640px) 100vw, 480px"
                           onError={() => marcarImagenFallida(urlImg)}
                           className="object-cover"
@@ -438,16 +521,26 @@ export default function ServiciosView({
                           {servicio.nombre}
                         </h2>
                         <span className="inline-flex shrink-0 items-center rounded-full bg-(--marca-2-fondo) px-3 py-1 font-display text-sm font-bold text-(--marca-2-texto) ring-1 ring-(--marca-2-borde)">
-                          {formatearPrecioUsd(servicio.precioUsd)}
+                          {formatearMoneda(
+                            servicio.precioUsd,
+                            servicio.moneda ?? monedaPorDefecto,
+                          )}
                         </span>
                       </div>
 
                       {/* Metadatos: duración, reservas y estado de horarios/contenido */}
                       <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
-                          <Clock className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
-                          {formatearDuracion(servicio.duracionMin)}
-                        </span>
+                        {esItem ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 font-medium text-sky-800">
+                            <Package className="h-3.5 w-3.5 text-sky-600" aria-hidden="true" />
+                            Venta directa
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
+                            <Clock className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+                            {formatearDuracion(servicio.duracionMin)}
+                          </span>
+                        )}
 
                         {hrefReservas && tieneReservas ? (
                           <Link
@@ -471,18 +564,34 @@ export default function ServiciosView({
                           </span>
                         )}
 
-                        {servicio.horariosActivos !== undefined && (
+                        {esItem ? (
                           <span
                             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${
-                              sinHorarios
-                                ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200/80"
-                                : "bg-emerald-50 text-emerald-800"
+                              stockActual <= 0
+                                ? "bg-red-50 text-red-700 ring-1 ring-red-200/80"
+                                : stockActual <= 5
+                                  ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200/80"
+                                  : "bg-emerald-50 text-emerald-800"
                             }`}
                           >
-                            {sinHorarios
-                              ? "Sin horarios publicados"
-                              : `${servicio.horariosActivos} ${servicio.horariosActivos === 1 ? "horario activo" : "horarios activos"}`}
+                            {stockActual <= 0
+                              ? "Agotado"
+                              : `${stockActual} ${stockActual === 1 ? "unidad disponible" : "unidades disponibles"}`}
                           </span>
+                        ) : (
+                          servicio.horariosActivos !== undefined && (
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${
+                                sinHorarios
+                                  ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200/80"
+                                  : "bg-emerald-50 text-emerald-800"
+                              }`}
+                            >
+                              {sinHorarios
+                                ? "Sin horarios publicados"
+                                : `${servicio.horariosActivos} ${servicio.horariosActivos === 1 ? "horario activo" : "horarios activos"}`}
+                            </span>
+                          )
                         )}
 
                         {conDetalle && !tieneImagenPropia && (
@@ -521,19 +630,29 @@ export default function ServiciosView({
                         Editar
                       </button>
 
-                      {hrefHorarios && (
-                        <Link
-                          href={`${hrefHorarios}?nuevo=1&servicio=${encodeURIComponent(servicio.id)}`}
-                          className={`vuki-focus inline-flex min-h-9 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                            sinHorarios
-                              ? "bg-vuki-ink text-white shadow-sm hover:bg-slate-800"
-                              : "border border-(--marca-borde) bg-(--marca-fondo) text-(--marca-texto) hover:brightness-95"
-                          }`}
-                        >
-                          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                          {sinHorarios ? "Publicar horario" : "Horario"}
-                        </Link>
-                      )}
+                      {esItem
+                        ? hrefReservas && (
+                            <Link
+                              href={`${hrefReservas}?nueva=1`}
+                              className="vuki-focus inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-(--marca-borde) bg-(--marca-fondo) px-3 py-1.5 text-xs font-semibold text-(--marca-texto) transition hover:brightness-95"
+                            >
+                              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                              Registrar venta
+                            </Link>
+                          )
+                        : hrefHorarios && (
+                            <Link
+                              href={`${hrefHorarios}?nuevo=1&servicio=${encodeURIComponent(servicio.id)}`}
+                              className={`vuki-focus inline-flex min-h-9 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                                sinHorarios
+                                  ? "bg-vuki-ink text-white shadow-sm hover:bg-slate-800"
+                                  : "border border-(--marca-borde) bg-(--marca-fondo) text-(--marca-texto) hover:brightness-95"
+                              }`}
+                            >
+                              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                              {sinHorarios ? "Publicar horario" : "Horario"}
+                            </Link>
+                          )}
                     </div>
 
                     <button
@@ -588,6 +707,53 @@ export default function ServiciosView({
             />
           </div>
 
+          <fieldset>
+            <legend className="mb-1.5 block text-sm font-medium text-slate-700">
+              ¿Cómo se vende?
+            </legend>
+            <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
+              {(
+                [
+                  {
+                    valor: "cupo",
+                    titulo: "Por cupos y horario",
+                    detalle: "Por defecto. Salidas, tours o clases con fecha, hora y cupos.",
+                    icono: Clock,
+                  },
+                  {
+                    valor: "item",
+                    titulo: "Por ítems (venta rápida)",
+                    detalle: "Ferias o stands. Se paga y simplemente se rebaja el stock.",
+                    icono: Package,
+                  },
+                ] as const
+              ).map(({ valor, titulo, detalle, icono: Icono }) => {
+                const activo = form.tipoUnidad === valor;
+                return (
+                  <button
+                    key={valor}
+                    type="button"
+                    aria-pressed={activo}
+                    onClick={() => setForm({ ...form, tipoUnidad: valor })}
+                    className={`vuki-focus flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
+                      activo
+                        ? "border-(--marca) bg-(--marca-fondo) ring-1 ring-(--marca-borde)"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-vuki-ink">
+                      <Icono className="h-3.5 w-3.5" aria-hidden="true" />
+                      {titulo}
+                    </span>
+                    <span className="text-[11px] leading-snug text-slate-600">
+                      {detalle}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+
           {conDetalle && (
             <div>
               <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -616,107 +782,201 @@ export default function ServiciosView({
           )}
 
           <div className="space-y-3">
-            <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="precio_usd"
-                  className="mb-1.5 block text-sm font-medium text-slate-700"
-                >
-                  Precio por cupo (USD)
-                </label>
-                <div className="relative">
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400 select-none"
+            <div>
+              <label
+                htmlFor="moneda_servicio"
+                className="mb-1.5 block text-sm font-medium text-slate-700"
+              >
+                Moneda del servicio
+              </label>
+              <select
+                id="moneda_servicio"
+                value={form.moneda}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    moneda: normalizarMoneda(e.target.value, monedaPorDefecto),
+                  })
+                }
+                className="vuki-select min-h-11 w-full"
+              >
+                {LISTA_MONEDAS.map((m) => (
+                  <option key={m.codigo} value={m.codigo}>
+                    {m.codigo} ({m.simbolo}) — {m.nombreEs}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {(() => {
+              const infoMoneda = obtenerInfoMoneda(form.moneda);
+              const claseMonedaInput =
+                infoMoneda.simbolo.length > 1
+                  ? "vuki-input-currency-wide"
+                  : "vuki-input-currency";
+              return (
+                <>
+                  <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="precio_usd"
+                        className="mb-1.5 block text-sm font-medium text-slate-700"
+                      >
+                        Precio por {form.tipoUnidad === "item" ? "ítem" : "cupo"} ({infoMoneda.codigo})
+                      </label>
+                      <div className="relative">
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400 select-none"
+                        >
+                          {infoMoneda.simbolo}
+                        </span>
+                        <input
+                          id="precio_usd"
+                          type="number"
+                          step={infoMoneda.stepInput}
+                          min={infoMoneda.stepInput}
+                          max={infoMoneda.maxPrecioServicio}
+                          required
+                          value={form.precioUsd}
+                          onChange={(e) =>
+                            setForm({ ...form, precioUsd: e.target.value })
+                          }
+                          placeholder={infoMoneda.ejemploPrecio}
+                          className={`${INPUT} ${claseMonedaInput}`}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      {form.tipoUnidad === "item" ? (
+                        <>
+                          <label
+                            htmlFor="stock_servicio"
+                            className="mb-1.5 block text-sm font-medium text-slate-700"
+                          >
+                            Unidades disponibles (stock)
+                          </label>
+                          <input
+                            id="stock_servicio"
+                            type="number"
+                            min="0"
+                            max="100000"
+                            step="1"
+                            required
+                            value={form.stock}
+                            onChange={(e) =>
+                              setForm({ ...form, stock: e.target.value })
+                            }
+                            className={INPUT}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <label
+                            htmlFor="duracion_min"
+                            className="mb-1.5 block text-sm font-medium text-slate-700"
+                          >
+                            Duración (min)
+                          </label>
+                          <input
+                            id="duracion_min"
+                            type="number"
+                            min="1"
+                            max="10080"
+                            step="1"
+                            required
+                            value={form.duracionMin}
+                            onChange={(e) =>
+                              setForm({ ...form, duracionMin: e.target.value })
+                            }
+                            className={INPUT}
+                          />
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Atajos rápidos de precio */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="mr-1 text-xs text-slate-500">
+                      Precio rápido:
+                    </span>
+                    {infoMoneda.preciosRapidos.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setForm({ ...form, precioUsd: p })}
+                        className={`vuki-focus rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                          form.precioUsd === p
+                            ? "border-(--marca) bg-(--marca-fondo) font-semibold text-(--marca-texto)"
+                            : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        {formatearMoneda(Number(p), infoMoneda.codigo, {
+                          decimales: 0,
+                        })}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+
+            {/* Atajos rápidos de stock (ítems) o duración (cupos) */}
+            {form.tipoUnidad === "item" ? (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-xs text-slate-500">Stock rápido:</span>
+                {STOCKS_RAPIDOS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setForm({ ...form, stock: s })}
+                    className={`vuki-focus rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                      form.stock === s
+                        ? "border-(--marca) bg-(--marca-fondo) font-semibold text-(--marca-texto)"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
                   >
-                    $
-                  </span>
-                  <input
-                    id="precio_usd"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    max="100000"
-                    required
-                    value={form.precioUsd}
-                    onChange={(e) =>
-                      setForm({ ...form, precioUsd: e.target.value })
-                    }
-                    placeholder="35.00"
-                    className={`${INPUT} vuki-input-currency`}
-                  />
-                </div>
+                    {s}
+                  </button>
+                ))}
               </div>
-
-              <div>
-                <label
-                  htmlFor="duracion_min"
-                  className="mb-1.5 block text-sm font-medium text-slate-700"
-                >
-                  Duración (min)
-                </label>
-                <input
-                  id="duracion_min"
-                  type="number"
-                  min="1"
-                  max="10080"
-                  step="1"
-                  required
-                  value={form.duracionMin}
-                  onChange={(e) =>
-                    setForm({ ...form, duracionMin: e.target.value })
-                  }
-                  className={INPUT}
-                />
+            ) : (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-xs text-slate-500">Duración:</span>
+                {DURACIONES_RAPIDAS.map((d) => (
+                  <button
+                    key={d.valor}
+                    type="button"
+                    onClick={() => setForm({ ...form, duracionMin: d.valor })}
+                    className={`vuki-focus rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                      form.duracionMin === d.valor
+                        ? "border-(--marca) bg-(--marca-fondo) font-semibold text-(--marca-texto)"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    {d.etiqueta}
+                  </button>
+                ))}
               </div>
-            </div>
+            )}
 
-            {/* Atajos rápidos de precio */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-xs text-slate-500">Precio rápido:</span>
-              {PRECIOS_RAPIDOS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setForm({ ...form, precioUsd: p })}
-                  className={`vuki-focus rounded-full border px-2.5 py-1 text-xs font-medium transition ${
-                    form.precioUsd === p
-                      ? "border-(--marca) bg-(--marca-fondo) font-semibold text-(--marca-texto)"
-                      : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  ${p} USD
-                </button>
-              ))}
-            </div>
-
-            {/* Atajos rápidos de duración + equivalencia en horas */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-xs text-slate-500">Duración:</span>
-              {DURACIONES_RAPIDAS.map((d) => (
-                <button
-                  key={d.valor}
-                  type="button"
-                  onClick={() => setForm({ ...form, duracionMin: d.valor })}
-                  className={`vuki-focus rounded-full border px-2.5 py-1 text-xs font-medium transition ${
-                    form.duracionMin === d.valor
-                      ? "border-(--marca) bg-(--marca-fondo) font-semibold text-(--marca-texto)"
-                      : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  {d.etiqueta}
-                </button>
-              ))}
-            </div>
-
-            {duracionNum >= 60 && (
+            {form.tipoUnidad === "item" ? (
               <p className="text-xs text-slate-500">
-                Equivale a{" "}
-                <strong className="font-semibold text-slate-700">
-                  {formatearDuracion(duracionNum)}
-                </strong>{" "}
-                en tu tarjeta pública.
+                Cada compra en línea o venta manual descuenta unidades del stock
+                al instante; si se cancela, las unidades regresan.
               </p>
+            ) : (
+              duracionNum >= 60 && (
+                <p className="text-xs text-slate-500">
+                  Equivale a{" "}
+                  <strong className="font-semibold text-slate-700">
+                    {formatearDuracion(duracionNum)}
+                  </strong>{" "}
+                  en tu tarjeta pública.
+                </p>
+              )
             )}
           </div>
 
@@ -752,6 +1012,7 @@ export default function ServiciosView({
                     unoptimized={!esImagenOptimizable(urlFormLimpia)}
                     alt="Vista previa de imagen del servicio"
                     fill
+                    loading="eager"
                     sizes="380px"
                     onError={() => marcarImagenFallida(urlFormLimpia)}
                     className="object-cover"

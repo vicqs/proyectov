@@ -3,6 +3,7 @@ import type { HorarioPublico } from "./tipos-publicos";
 import {
   aClaveFecha,
   desplazarClave,
+  DIA_MS,
   DIAS_CORTOS,
   DIAS_LARGOS,
   DIAS_MIN,
@@ -228,8 +229,9 @@ function formatoHorarioBloqueo(
 }
 
 function formatoFechaCorta(d: Date, incluirAnio = false): string {
-  const base = `${DIAS_MIN[d.getDay()]} ${d.getDate()} ${MESES_CORTOS[d.getMonth()]}`;
-  return incluirAnio ? `${base} ${d.getFullYear()}` : base;
+  const { diaSemana, dia, mes, anio } = partesCR(d.toISOString());
+  const base = `${DIAS_MIN[diaSemana]} ${dia} ${MESES_CORTOS[mes]}`;
+  return incluirAnio ? `${base} ${anio}` : base;
 }
 
 /** Construye la estructura semanal de 7 días para `CalendarioPage` / `CalendarioView`. */
@@ -258,9 +260,7 @@ export function construirSemanaCalendario({
   bloqueos: BloqueoExcepcion[];
 }) {
   const hoyMs = hoy.getTime();
-  const manana = new Date(hoy);
-  manana.setDate(hoy.getDate() + 1);
-  const mananaMs = manana.getTime();
+  const mananaMs = hoyMs + DIA_MS;
 
   const servicioPorId = new Map(servicios.map((s) => [s.id, s]));
   const nombreServicio = (id: string) =>
@@ -289,11 +289,9 @@ export function construirSemanaCalendario({
     );
 
   const fechasSemana = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(inicio);
-    d.setDate(inicio.getDate() + i);
-    const sig = new Date(d);
-    sig.setDate(d.getDate() + 1);
-    return { fecha: d, ini: d.getTime(), finDia: sig.getTime() };
+    const ini = inicioMs + i * DIA_MS;
+    const finDia = ini + DIA_MS;
+    return { fecha: new Date(ini), ini, finDia };
   });
 
   const reservasAsignadas = new Set<string>();
@@ -374,14 +372,16 @@ export function construirSemanaCalendario({
         horarioTexto: formatoHorarioBloqueo(b, ini, finDia),
       }));
 
+    const p = partesCR(fecha.toISOString());
+
     return {
-      clave: aClaveFecha(fecha),
+      clave: p.clave,
       iso: fecha.toISOString(),
-      diaNumero: fecha.getDate(),
-      diaSemanaCorto: DIAS_CORTOS[fecha.getDay()],
-      diaSemanaLargo: DIAS_LARGOS[fecha.getDay()],
-      mesCorto: MESES_CORTOS[fecha.getMonth()],
-      mesLargo: MESES_LARGOS[fecha.getMonth()],
+      diaNumero: p.dia,
+      diaSemanaCorto: DIAS_CORTOS[p.diaSemana],
+      diaSemanaLargo: DIAS_LARGOS[p.diaSemana],
+      mesCorto: MESES_CORTOS[p.mes],
+      mesLargo: MESES_LARGOS[p.mes],
       esHoy: ini === hoyMs,
       esManana: ini === mananaMs,
       esPasado: finDia <= hoyMs,
@@ -393,9 +393,10 @@ export function construirSemanaCalendario({
 
   const primerDia = fechasSemana[0].fecha;
   const ultimoDia = fechasSemana[6].fecha;
-  const distintoAnio =
-    primerDia.getFullYear() !== ultimoDia.getFullYear() ||
-    primerDia.getFullYear() !== hoy.getFullYear();
+  const anioInicio = partesCR(primerDia.toISOString()).anio;
+  const anioFin = partesCR(ultimoDia.toISOString()).anio;
+  const anioHoy = partesCR(hoy.toISOString()).anio;
+  const distintoAnio = anioInicio !== anioFin || anioInicio !== anioHoy;
   const rangoSemana = `${formatoFechaCorta(primerDia, distintoAnio)} – ${formatoFechaCorta(ultimoDia, distintoAnio)}`;
 
   return { dias, rangoSemana };

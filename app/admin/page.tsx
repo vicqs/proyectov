@@ -15,10 +15,13 @@ import {
   calcularMrr,
   cargarPlataforma,
   indexar,
-  montoReserva,
+  montoReservaUsd,
 } from "../../lib/admin/datos";
+import { redondearMoneda } from "../../lib/monedas";
 import { tienePermiso } from "../../lib/roles";
 import { estadoEfectivo } from "../../lib/negocio-estado";
+import { obtenerConfiguracion } from "../../lib/plataforma";
+import { isStripeMockMode } from "../../lib/stripe";
 import { fechaCorta, pluralizar, usd } from "../../lib/admin/formato";
 import { esCobroPasarela } from "../../lib/pagos";
 import {
@@ -38,11 +41,13 @@ export default async function AdminResumenPage() {
   const puedeGestionarNegocios = tienePermiso(admin.rol, "negocios_gestionar");
   const [
     { negocios, servicios, reservas, planes },
+    config,
     ticketsAbiertos,
     reportesPendientes,
     erroresSinResolver,
   ] = await Promise.all([
     cargarPlataforma(),
+    obtenerConfiguracion().catch(() => null),
     puedeSoporte
       ? contar("tickets", { en: { estado: ["abierto", "en_curso"] } }).catch(
           () => 0,
@@ -73,11 +78,14 @@ export default async function AdminResumenPage() {
   ).length;
 
   const idxServicios = indexar(servicios);
+  const idxNegocios = indexar(negocios);
   const pagadas = reservas.filter((r) => r.estado === "pagada");
-  const ingresos30 = reservas
-    .filter(esCobroPasarela)
-    .filter((r) => new Date(r.fecha_hora).getTime() >= hace30)
-    .reduce((a, r) => a + montoReserva(r, idxServicios), 0);
+  const ingresos30 = redondearMoneda(
+    reservas
+      .filter(esCobroPasarela)
+      .filter((r) => new Date(r.fecha_hora).getTime() >= hace30)
+      .reduce((a, r) => a + montoReservaUsd(r, idxServicios, idxNegocios), 0),
+  );
 
   const mostrarAtencion = puedeSoporte || puedeModeracion || puedeSistema;
   const atencion = ticketsAbiertos + reportesPendientes + erroresSinResolver;
@@ -140,14 +148,22 @@ export default async function AdminResumenPage() {
               icono={<Wallet className="h-4 w-4" />}
               valor={usd(calcularMrr(vivos, planes))}
               tono="bueno"
-              nota="Suscripciones activas"
+              nota={
+                isStripeMockMode
+                  ? "Suscripciones activas (modo simulado · demo)"
+                  : "Suscripciones activas"
+              }
               href="/admin/finanzas"
             />
             <Estadistica
               titulo="Volumen 30 días"
               icono={<TrendingUp className="h-4 w-4" />}
               valor={usd(ingresos30)}
-              nota="Reservas pagadas"
+              nota={
+                config?.pagos_simulados
+                  ? "Equiv. USD · Reservas pagadas (incluye demo)"
+                  : "Equiv. USD · Reservas pagadas"
+              }
               href="/admin/finanzas"
             />
           </>

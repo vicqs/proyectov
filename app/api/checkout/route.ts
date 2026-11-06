@@ -4,6 +4,7 @@ import { crearReservaPublica } from "@/lib/data/public";
 import { DataError } from "@/lib/data/db";
 import { revalidarAdmin } from "@/lib/admin/util";
 import { revalidarEmpresa } from "@/lib/empresa";
+import { MONEDA_SCHEMA } from "@/lib/monedas";
 import { flagActiva, obtenerConfiguracion } from "@/lib/plataforma";
 import { crearSesionCheckoutReserva, obtenerModoPasarelaReservas } from "@/lib/tilopay";
 
@@ -12,7 +13,8 @@ const checkoutSchema = z.object({
   email_cliente: z.string().email().max(254),
   nombre_cliente: z.string().trim().min(1).max(100).optional(),
   cupos: z.number().int().min(1).max(50).optional(),
-  fecha_hora: z.string().datetime({ offset: true }),
+  fecha_hora: z.string().datetime({ offset: true }).optional(),
+  moneda: MONEDA_SCHEMA.optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -38,7 +40,8 @@ export async function POST(request: NextRequest) {
       p_client_email: parsed.data.email_cliente.trim().toLowerCase(),
       p_client_name: parsed.data.nombre_cliente ?? null,
       p_quantity: parsed.data.cupos ?? 1,
-      p_starts_at: parsed.data.fecha_hora,
+      p_starts_at: parsed.data.fecha_hora ?? null,
+      p_currency: parsed.data.moneda ?? null,
     });
     const sesion = await crearSesionCheckoutReserva(reserva, modoPasarela);
     revalidarEmpresa(reserva.negocio_slug);

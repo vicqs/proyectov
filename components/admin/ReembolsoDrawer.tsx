@@ -1,11 +1,18 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { DollarSign, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import Drawer from "../Drawer";
 import { toast } from "../Toast";
 import { CLASE_INPUT, TextareaConContador } from "./ui";
-import { usd } from "../../lib/admin/formato";
+import { moneda } from "../../lib/admin/formato";
+import { esTransaccionSimulada } from "../../lib/formato";
+import {
+  normalizarMoneda,
+  obtenerInfoMoneda,
+  redondearMontoMoneda,
+  type CodigoMoneda,
+} from "../../lib/monedas";
 import { conResilienciaRed } from "../../lib/errores";
 import type { ResultadoAccion } from "../../lib/admin/auth";
 
@@ -17,6 +24,7 @@ export interface ReservaParaReembolso {
   negocioNombre: string;
   servicioNombre: string;
   montoUsd: number;
+  moneda?: CodigoMoneda;
 }
 
 const ESTADO_INICIAL: ResultadoAccion = {};
@@ -73,8 +81,10 @@ export function ReembolsoDrawer({
     }
   }, [estado, onClose]);
 
+  const codMoneda = normalizarMoneda(reserva?.moneda, "USD");
+  const infoMoneda = obtenerInfoMoneda(codMoneda);
   const totalCobrado = reserva?.montoUsd ?? 0;
-  const mitadCobrado = Math.round((totalCobrado / 2) * 100) / 100;
+  const mitadCobrado = redondearMontoMoneda(totalCobrado / 2);
 
   const montoNum = parseFloat(monto);
   const esMontoValido =
@@ -130,17 +140,22 @@ export function ReembolsoDrawer({
                   <span>{reserva.fechaHora}</span>
                 </div>
                 {reserva.trxId && (
-                  <div className="flex justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-slate-500">Transacción:</span>
-                    <span className="font-mono text-[11px] text-slate-700">
-                      {reserva.trxId}
+                    <span className="flex flex-wrap items-center justify-end gap-1.5 font-mono text-[11px] text-slate-700">
+                      <span>{reserva.trxId}</span>
+                      {esTransaccionSimulada(reserva.trxId) && (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 font-sans text-[10px] font-semibold text-amber-800">
+                          Simulado (demo)
+                        </span>
+                      )}
                     </span>
                   </div>
                 )}
                 <div className="flex items-center justify-between border-t border-sky-200/60 pt-2 text-sm">
                   <span className="font-semibold text-slate-700">Total cobrado:</span>
                   <span className="font-bold text-emerald-800 font-display">
-                    {usd(totalCobrado)}
+                    {moneda(totalCobrado, codMoneda)}
                   </span>
                 </div>
               </div>
@@ -152,11 +167,11 @@ export function ReembolsoDrawer({
                 htmlFor="monto_usd"
                 className="mb-1.5 block text-sm font-medium text-slate-700"
               >
-                Monto a devolver (USD)
+                Monto a devolver ({infoMoneda.codigo})
               </label>
               <div className="relative">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                  <DollarSign className="h-4 w-4" />
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
+                  {infoMoneda.simbolo}
                 </span>
                 <input
                   id="monto_usd"
@@ -168,7 +183,11 @@ export function ReembolsoDrawer({
                   value={monto}
                   onChange={(e) => setMonto(e.target.value)}
                   required
-                  className={`${CLASE_INPUT} vuki-input-currency`}
+                  className={`${CLASE_INPUT} ${
+                    infoMoneda.simbolo.length > 1
+                      ? "vuki-input-currency-wide"
+                      : "vuki-input-currency"
+                  }`}
                 />
               </div>
 
@@ -183,7 +202,7 @@ export function ReembolsoDrawer({
                       : "border-slate-200 bg-slate-50/80 text-slate-600 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-800"
                   }`}
                 >
-                  Total (${totalCobrado.toFixed(2)})
+                  Total ({moneda(totalCobrado, codMoneda)})
                 </button>
                 <button
                   type="button"
@@ -194,17 +213,19 @@ export function ReembolsoDrawer({
                       : "border-slate-200 bg-slate-50/80 text-slate-600 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-800"
                   }`}
                 >
-                  50% (${mitadCobrado.toFixed(2)})
+                  50% ({moneda(mitadCobrado, codMoneda)})
                 </button>
               </div>
 
               <p className="mt-1.5 text-xs text-slate-500">
-                Puedes reembolsar el total o una parte (hasta {usd(totalCobrado)}).
+                Puedes reembolsar el total o una parte (hasta{" "}
+                {moneda(totalCobrado, codMoneda)}).
               </p>
 
               {monto.length > 0 && !isNaN(montoNum) && montoNum > totalCobrado && (
                 <p className="mt-1 text-xs text-red-600">
-                  El monto a devolver no puede superar el total cobrado ({usd(totalCobrado)}).
+                  El monto a devolver no puede superar el total cobrado (
+                  {moneda(totalCobrado, codMoneda)}).
                 </p>
               )}
               {monto.length > 0 && !isNaN(montoNum) && montoNum <= 0 && (
@@ -232,12 +253,15 @@ export function ReembolsoDrawer({
                 placeholder="Ej. Cancelación justificada por solicitud del cliente..."
               />
               <p className="mt-1 text-xs text-slate-500">
-                Quedará registrado en la auditoría y en el historial de la pasarela.
+                Quedará registrado en la auditoría y en el control interno de
+                conciliación (modo demostración / manual; no ejecuta reversos
+                bancarios automáticos).
               </p>
             </div>
 
             <div className="rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 text-xs text-amber-900 leading-relaxed">
-              ⚠️ Se registrará la orden de reembolso. Esta acción no se puede deshacer.
+              ⚠️ Se registrará la orden de reembolso en el panel (control
+              interno / simulación). Esta acción no se puede deshacer.
             </div>
           </div>
 

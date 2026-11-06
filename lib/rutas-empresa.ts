@@ -19,6 +19,7 @@ export function seccionPanelAnterior(
     "finanzas",
     "personalizacion",
     "suscripcion",
+    "soporte",
   ];
   if (segmentos.length === 1 && secciones.includes(segmentos[0])) {
     return segmentos[0];

@@ -16,7 +16,12 @@ import ConfirmDialog from "../ConfirmDialog";
 import { toast } from "../Toast";
 import { descargarCsv } from "../../lib/csv";
 import { esPagoManual, esTrxPasarela } from "../../lib/pagos";
-import { formatearPrecioUsd } from "@/lib/formato";
+import { esTransaccionSimulada, formatearMoneda } from "@/lib/formato";
+import {
+  convertirMoneda,
+  redondearMoneda,
+  type CodigoMoneda,
+} from "@/lib/monedas";
 import { mensajeErrorUsuario } from "../../lib/errores";
 import { diaCR, fechaHoraCR } from "@/lib/zona-horaria";
 import TablaReservasEmpresa from "./reservas/TablaReservasEmpresa";
@@ -30,10 +35,14 @@ export interface VistaReserva {
   servicio: string;
   horario?: string;
   cupos?: number;
+  /** Venta directa de un ítem (descuenta stock, sin horario). */
+  esItem?: boolean;
   estado: "pendiente" | "pagada" | "cancelada";
   monto?: number;
   /** Monto esperado según tarifa × cupos (útil en reservas pendientes o reembolsos). */
   montoEstimado?: number;
+  moneda?: CodigoMoneda;
+  tipoCambioBccr?: number;
   trxId?: string | null;
 }
 
@@ -44,13 +53,24 @@ export interface HorarioManual {
   fechaHora?: string;
   duracionMin?: number;
   precioUsd?: number;
+  moneda?: CodigoMoneda;
   cuposDisponibles: number;
+}
+
+/** Ítem de venta directa disponible para registrar una venta manual (ferias). */
+export interface ItemManual {
+  servicioId: string;
+  nombre: string;
+  stock: number;
+  precioUsd?: number;
+  moneda?: CodigoMoneda;
 }
 
 export type OpcionHorarioManual = HorarioManual;
 
 interface ReservasViewProps {
   reservas: VistaReserva[];
+  monedaNegocio?: CodigoMoneda;
   mensajeVacio?: React.ReactNode;
   hoyClave?: string;
   ahoraIso?: string;
@@ -62,12 +82,15 @@ interface ReservasViewProps {
   manual?: {
     horarios?: HorarioManual[];
     horariosDisponibles?: HorarioManual[];
+    items?: ItemManual[];
     onCrear: (datos: {
-      horarioId: string;
+      horarioId?: string;
+      servicioId?: string;
       nombre: string;
       email: string;
       cupos: number;
       pagada: boolean;
+      moneda?: CodigoMoneda;
     }) => Promise<string | null | undefined | void> | void;
   };
   onCancelar?: (id: string) => Promise<string | null | undefined | void> | void;
@@ -88,6 +111,7 @@ type OrdenReservas = "proximas" | "recientes";
 
 export default function ReservasView({
   reservas,
+  monedaNegocio = "USD",
   mensajeVacio,
   hoyClave = "",
   ahoraIso,
@@ -145,17 +169,23 @@ export default function ReservasView({
         continue;
       }
 
-      if (hoyClave && clave >= hoyClave) {
+      if (!r.esItem && hoyClave && clave >= hoyClave) {
         proximasCount++;
         proximasPersonas += cupos;
       }
-      if (hoyClave && clave === hoyClave) {
+      if (!r.esItem && hoyClave && clave === hoyClave) {
         hoyCount++;
         hoyPersonas += cupos;
       }
       if (r.estado === "pagada") {
         pagadasCount++;
-        pagadasMonto += r.monto ?? r.montoEstimado ?? 0;
+        const nominal = r.monto ?? r.montoEstimado ?? 0;
+        pagadasMonto += convertirMoneda(
+          nominal,
+          r.moneda ?? monedaNegocio,
+          monedaNegocio,
+          r.tipoCambioBccr,
+        );
       } else if (r.estado === "pendiente") {
         pendientesCount++;
       }
@@ -167,11 +197,11 @@ export default function ReservasView({
       hoyCount,
       hoyPersonas,
       pagadasCount,
-      pagadasMonto,
+      pagadasMonto: redondearMoneda(pagadasMonto),
       pendientesCount,
       canceladasCount,
     };
-  }, [reservas, hoyClave]);
+  }, [reservas, hoyClave, monedaNegocio]);
 
   const filtradas = useMemo(() => {
     const q = texto.trim().toLowerCase();
@@ -179,10 +209,10 @@ export default function ReservasView({
       const clave = diaCR(r.fechaIso);
 
       if (vista === "proximas") {
-        if (r.estado === "cancelada") return false;
+        if (r.estado === "cancelada" || r.esItem) return false;
         if (hoyClave && clave < hoyClave) return false;
       } else if (vista === "hoy") {
-        if (r.estado === "cancelada") return false;
+        if (r.estado === "cancelada" || r.esItem) return false;
         if (!hoyClave || clave !== hoyClave) return false;
       } else if (vista === "pagadas") {
         if (r.estado !== "pagada") return false;
@@ -251,7 +281,8 @@ export default function ReservasView({
         "Servicio",
         "Cupos",
         "Estado",
-        "Monto USD",
+        "Monto",
+        "Moneda",
         "Canal de pago",
         "Transacción",
       ],
@@ -264,8 +295,11 @@ export default function ReservasView({
         r.cupos ?? 1,
         r.estado,
         r.monto ?? r.montoEstimado ?? "",
+        r.moneda ?? monedaNegocio,
         esTrxPasarela(r.trxId)
-          ? "Pasarela Vualá"
+          ? esTransaccionSimulada(r.trxId)
+            ? "Pasarela simulada (demo)"
+            : "Pasarela Vualá"
           : esPagoManual(r.trxId) || r.estado !== "cancelada"
             ? "Cobro directo"
             : "",
@@ -325,6 +359,8 @@ export default function ReservasView({
     onCerrarManualInicial?.();
   }
 
+  const itemsManual = manual?.items ?? [];
+  const itemsConStock = itemsManual.filter((i) => i.stock > 0);
   const horariosDisponibles =
     manual?.horariosDisponibles ?? manual?.horarios ?? [];
   const horariosConCupo = horariosDisponibles.filter(
@@ -356,14 +392,24 @@ export default function ReservasView({
 
   const descripcionCancelacion = porCancelar
     ? (() => {
-        const cuposTxt = `${porCancelar.cupos ?? 1} ${(porCancelar.cupos ?? 1) === 1 ? "cupo" : "cupos"}`;
-        const base = `Se cancelará la reserva de "${porCancelar.cliente}" para ${porCancelar.servicio} (${fechaHoraCR(porCancelar.fechaIso)}) y se liberarán ${cuposTxt}.`;
+        const unidadTxt = porCancelar.esItem
+          ? (porCancelar.cupos ?? 1) === 1
+            ? "ítem"
+            : "ítems"
+          : (porCancelar.cupos ?? 1) === 1
+            ? "cupo"
+            : "cupos";
+        const cuposTxt = `${porCancelar.cupos ?? 1} ${unidadTxt}`;
+        const base = porCancelar.esItem
+          ? `Se cancelará la venta de \"${porCancelar.cliente}\" de ${porCancelar.servicio} y se devolverán ${cuposTxt} al stock.`
+          : `Se cancelará la reserva de \"${porCancelar.cliente}\" para ${porCancelar.servicio} (${fechaHoraCR(porCancelar.fechaIso)}) y se liberarán ${cuposTxt}.`;
         if (
           porCancelar.estado === "pagada" &&
           esTrxPasarela(porCancelar.trxId)
         ) {
           const m = porCancelar.monto ?? porCancelar.montoEstimado;
-          return `${base} Como tiene un pago por pasarela${m !== undefined ? ` (${formatearPrecioUsd(m)})` : ""}, quedará señalada con reembolso pendiente en Finanzas.`;
+          const mon = porCancelar.moneda ?? monedaNegocio;
+          return `${base} Como tiene un pago por pasarela${m !== undefined ? ` (${formatearMoneda(m, mon, { mostrarCodigo: mon !== monedaNegocio })})` : ""}, quedará señalada con reembolso pendiente en Finanzas.`;
         }
         if (porCancelar.estado === "pagada") {
           return `${base} Si ya recibiste el pago directo, recuerda coordinar la devolución con el cliente.`;
@@ -405,7 +451,7 @@ export default function ReservasView({
               className="vuki-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-vuki-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 sm:flex-none"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
-              Reserva manual
+              Reserva / venta manual
             </motion.button>
           )}
         </div>
@@ -436,7 +482,7 @@ export default function ReservasView({
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 Registrar reserva manual
               </button>
-              {hrefHorarios && horariosConCupo.length === 0 && (
+              {hrefHorarios && horariosConCupo.length === 0 && itemsConStock.length === 0 && (
                 <Link
                   href={`${hrefHorarios}?nuevo=1`}
                   className="vuki-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
@@ -513,7 +559,7 @@ export default function ReservasView({
                 {resumen.pagadasCount}
               </p>
               <p className="mt-0.5 text-xs text-slate-500">
-                {formatearPrecioUsd(resumen.pagadasMonto)} acumulados
+                {formatearMoneda(resumen.pagadasMonto, monedaNegocio)} acumulados
               </p>
             </button>
 
@@ -694,6 +740,7 @@ export default function ReservasView({
           ) : (
             <TablaReservasEmpresa
               reservasFiltradas={filtradas}
+              monedaNegocio={monedaNegocio}
               hoyClave={hoyClave}
               ahoraMs={ahoraMs}
               confirmandoPagoId={confirmandoPagoId}
@@ -716,7 +763,9 @@ export default function ReservasView({
         <NuevaReservaManualDrawer
           abierto={abierto}
           onCerrar={cerrarManual}
+          monedaNegocio={monedaNegocio}
           horariosDisponibles={horariosDisponibles}
+          items={itemsManual}
           hrefHorarios={hrefHorarios}
           onCrear={manual.onCrear}
         />

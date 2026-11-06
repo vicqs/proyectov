@@ -9,7 +9,7 @@ import type { Negocio, Reserva, Servicio } from "@/types/database";
 
 /** Lo mínimo que necesita el listado de negocios (también viaja al navegador). */
 export const COLUMNAS_NEGOCIO_LISTADO = [
-  "id", "nombre", "slug", "estado_suscripcion", "prueba_hasta",
+  "id", "nombre", "slug", "moneda", "estado_suscripcion", "prueba_hasta",
   "suspendido", "eliminado_en", "creado_en",
 ] as const satisfies readonly (keyof Negocio)[];
 export type NegocioListado = Pick<Negocio, (typeof COLUMNAS_NEGOCIO_LISTADO)[number]>;
@@ -21,21 +21,21 @@ export const COLUMNAS_NEGOCIO_ADMIN = [
 export type NegocioAdmin = Pick<Negocio, (typeof COLUMNAS_NEGOCIO_ADMIN)[number]>;
 
 export const COLUMNAS_SERVICIO_ADMIN = [
-  "id", "negocio_id", "nombre", "precio_usd",
+  "id", "negocio_id", "nombre", "precio_usd", "currency", "unit_type", "stock",
 ] as const satisfies readonly (keyof Servicio)[];
 export type ServicioAdmin = Pick<Servicio, (typeof COLUMNAS_SERVICIO_ADMIN)[number]>;
 
 /** Reservas para tableros administrativos: sin token de gestión ni datos fiscales del turista. */
 export const COLUMNAS_RESERVA_ADMIN = [
-  "id", "servicio_id", "negocio_id", "fecha_hora", "email_cliente", "cupos",
-  "estado", "trx_id", "monto_usd",
+  "id", "servicio_id", "negocio_id", "horario_id", "fecha_hora", "email_cliente", "cupos",
+  "estado", "trx_id", "monto_usd", "gross_amount", "currency", "exchange_rate_bccr",
 ] as const satisfies readonly (keyof Reserva)[];
 export type ReservaAdmin = Pick<Reserva, (typeof COLUMNAS_RESERVA_ADMIN)[number]>;
 
 /** Reservas para las pantallas operativas de empresa (inicio, reservas, calendario, agenda). */
 export const COLUMNAS_RESERVA_PANEL = [
-  "id", "servicio_id", "fecha_hora", "email_cliente", "nombre_cliente", "cupos",
-  "estado", "trx_id", "monto_usd",
+  "id", "servicio_id", "horario_id", "fecha_hora", "email_cliente", "nombre_cliente", "cupos",
+  "estado", "trx_id", "monto_usd", "gross_amount", "currency", "exchange_rate_bccr",
 ] as const satisfies readonly (keyof Reserva)[];
 export type ReservaPanel = Pick<Reserva, (typeof COLUMNAS_RESERVA_PANEL)[number]>;
 
