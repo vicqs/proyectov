@@ -73,6 +73,7 @@ export function ReservasAdminClient({
   cancelarAction,
   registrarReembolsoAction,
   completarReembolsoAction,
+  puedeCompletarReembolso = true,
 }: {
   reservas: ReservaItemAdmin[];
   negocios: { id: string; nombre: string }[];
@@ -105,6 +106,7 @@ export function ReservasAdminClient({
     previo: ResultadoAccion,
     datos: FormData,
   ) => Promise<ResultadoAccion>;
+  puedeCompletarReembolso?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -206,14 +208,20 @@ export function ReservasAdminClient({
                 <Celda>{usd(r.montoUsd)}</Celda>
                 <Celda>{r.motivo}</Celda>
                 <Celda>
-                  <AccionForm
-                    accion={completarReembolsoAction.bind(null, r.id)}
-                    boton="Marcar completado"
-                    variante="acento_sm"
-                    tamano="sm"
-                    icono={<Check className="h-3.5 w-3.5" aria-hidden="true" />}
-                    confirmar="¿Confirmas que el dinero ya fue devuelto al cliente?"
-                  />
+                  {puedeCompletarReembolso ? (
+                    <AccionForm
+                      accion={completarReembolsoAction.bind(null, r.id)}
+                      boton="Marcar completado"
+                      variante="acento_sm"
+                      tamano="sm"
+                      icono={
+                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      }
+                      confirmar="¿Confirmas que el dinero ya fue devuelto al cliente?"
+                    />
+                  ) : (
+                    <Insignia tono="ambar">Pendiente de finanzas</Insignia>
+                  )}
                 </Celda>
               </tr>
             ))}

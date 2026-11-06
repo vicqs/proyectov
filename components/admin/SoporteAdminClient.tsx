@@ -91,7 +91,7 @@ export function SoporteAdminClient({
         vacia={filas.length === 0}
       >
         {filas.map((t) => (
-          <tr key={t.id} className="hover:bg-slate-50/70 transition-colors">
+          <tr key={t.id}>
             <Celda>
               <button
                 type="button"

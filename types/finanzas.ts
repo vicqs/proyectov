@@ -28,16 +28,17 @@ export type InvoiceStatus = "pending" | "issued";
  * Transacción financiera procesada por pasarela con desglose tributario
  * completo (IVA, CABYS, tipo de cambio BCCR y estado de comprobante electrónico).
  *
- * Tabla objetivo en Supabase/PostgreSQL: `public.financial_transactions`.
+ * Vista de la aplicacion: `public.transacciones_financieras`.
+ * Tabla canonica: `public.financial_transactions` (columnas inglesas).
  */
 export interface FinancialTransaction {
   /** PK UUID (`uuid primary key default gen_random_uuid()`). */
   id: string;
-  /** FK -> `public.negocios(id)` para aislamiento multi-tenant con RLS. */
+  /** FK canonica -> `public.businesses(id)` para aislamiento multi-tenant con RLS. */
   negocio_id: string;
-  /** FK opcional -> `public.reservas(id)`. */
+  /** FK opcional canonica -> `public.bookings(id)`. */
   reserva_id: string | null;
-  /** FK opcional -> `public.servicios(id)`. */
+  /** FK opcional canonica -> `public.services(id)`. */
   servicio_id: string | null;
   /** Fecha/hora programada del servicio (`timestamptz` ISO 8601). */
   service_date: string;
@@ -122,4 +123,3 @@ export interface ServiceFiscalSummary {
   /** Cantidad de comprobantes ya emitidos/facturados. */
   issued_invoices_count: number;
 }
-

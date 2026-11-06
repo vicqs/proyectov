@@ -41,3 +41,23 @@ export function admiteReembolsoPasarela(reserva: {
   );
 }
 
+/**
+ * Monto efectivo en USD de una reserva: prioriza `monto_usd` o `gross_amount`
+ * persistidos y cae como respaldo en `precio_usd × cupos`.
+ */
+export function montoEfectivoReserva(
+  reserva: {
+    monto_usd?: number | null;
+    gross_amount?: number | null;
+    cupos?: number | null;
+  },
+  precioServicioUsd?: number | null,
+): number {
+  return (
+    reserva.monto_usd ??
+    reserva.gross_amount ??
+    (precioServicioUsd ?? 0) * (reserva.cupos ?? 1)
+  );
+}
+
+

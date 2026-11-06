@@ -41,7 +41,7 @@ const AnimatedIconButton = forwardRef<
       whileTap={esAbrir ? { scale: 0.9, rotate: 90 } : { scale: 0.85 }}
       transition={TRANSICION}
       className={cn(
-        "inline-flex items-center justify-center rounded-lg p-2 text-slate-600 outline-none transition hover:bg-slate-100",
+        "vuki-focus inline-flex cursor-pointer items-center justify-center rounded-xl p-2 text-slate-600 transition-colors hover:bg-slate-100",
         className,
       )}
       {...props}

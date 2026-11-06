@@ -25,15 +25,19 @@ export default async function TicketPage({
 }) {
   await requerirAdmin("soporte");
   const { id } = await params;
-  const ticket = await leerUno("tickets", { eq: { id } });
-  if (!ticket) notFound();
-  const [mensajes, negocio] = await Promise.all([
+  const [ticketConNegocio, mensajes] = await Promise.all([
+    leerUno("tickets", { eq: { id } }).then(async (ticket) => {
+      if (!ticket) return null;
+      const negocio = await leerUno("negocios", { eq: { id: ticket.negocio_id } });
+      return { ticket, negocio };
+    }),
     leer("ticket_mensajes", {
       eq: { ticket_id: id },
       orden: ["creado_en", true],
     }),
-    leerUno("negocios", { eq: { id: ticket.negocio_id } }),
   ]);
+  if (!ticketConNegocio) notFound();
+  const { ticket, negocio } = ticketConNegocio;
 
   return (
     <PaginaAdmin
@@ -103,26 +107,37 @@ export default async function TicketPage({
       </Tarjeta>
 
       <Tarjeta titulo="Conversación">
-        <ul className="space-y-3">
-          {mensajes.map((m) => (
-            <li
-              key={m.id}
-              className={`rounded-2xl p-4 text-sm ${
-                m.autor_tipo === "admin"
-                  ? "ml-6 sm:ml-12 border border-sky-100 bg-sky-50/70"
-                  : "mr-6 sm:mr-12 border border-slate-200 bg-slate-50/70"
-              }`}
-            >
-              <p className="text-xs font-semibold text-slate-500">
-                {m.autor_tipo === "admin" ? "🛡️ Soporte vuki" : "🏢 Empresa"} ·{" "}
-                {m.autor_email} · {fechaHora(m.creado_en)}
-              </p>
-              <p className="mt-2 whitespace-pre-wrap text-slate-800 leading-relaxed">
-                {m.mensaje}
-              </p>
-            </li>
-          ))}
-        </ul>
+        {mensajes.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center">
+            <p className="text-sm font-medium text-slate-600">
+              Este ticket aún no tiene mensajes registrados.
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              Envía una respuesta abajo para iniciar la conversación con la empresa.
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {mensajes.map((m) => (
+              <li
+                key={m.id}
+                className={`rounded-2xl p-4 text-sm ${
+                  m.autor_tipo === "admin"
+                    ? "ml-6 sm:ml-12 border border-sky-100 bg-sky-50/70"
+                    : "mr-6 sm:mr-12 border border-slate-200 bg-slate-50/70"
+                }`}
+              >
+                <p className="text-xs font-semibold text-slate-500">
+                  {m.autor_tipo === "admin" ? "🛡️ Soporte vuki" : "🏢 Empresa"} ·{" "}
+                  {m.autor_email} · {fechaHora(m.creado_en)}
+                </p>
+                <p className="mt-2 whitespace-pre-wrap text-slate-800 leading-relaxed">
+                  {m.mensaje}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
         <div className="mt-6 border-t border-slate-100 pt-4">
           <h3 className="mb-2 text-sm font-semibold text-slate-800">
             Responder al cliente

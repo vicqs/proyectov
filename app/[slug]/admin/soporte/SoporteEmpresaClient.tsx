@@ -249,7 +249,7 @@ export default function SoporteEmpresaClient({
             onClick={() => abrirNuevo()}
             disabled={activosCount >= 10}
             whileTap={{ scale: 0.96 }}
-            className="vuki-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-vuki-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+            className="vuki-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-vuki-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Nuevo ticket
@@ -398,43 +398,49 @@ export default function SoporteEmpresaClient({
                   </summary>
 
                   <div className="border-t border-slate-100 bg-slate-50/40 p-5">
-                    <ul className="space-y-3">
-                      {mensajes.map((m) => {
-                        const esAdmin = m.autor_tipo === "admin";
-                        return (
-                          <li
-                            key={m.id}
-                            className={`rounded-2xl border p-3.5 text-sm ${
-                              esAdmin
-                                ? "border-sky-200 bg-sky-50/90"
-                                : "border-slate-200 bg-white"
-                            }`}
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                              <span
-                                className={`inline-flex items-center gap-1.5 font-semibold ${
-                                  esAdmin ? "text-sky-900" : "text-slate-700"
-                                }`}
-                              >
-                                {esAdmin && (
-                                  <ShieldCheck
-                                    className="h-3.5 w-3.5 text-sky-600"
-                                    aria-hidden="true"
-                                  />
-                                )}
-                                {esAdmin ? "Equipo vuki · Soporte" : "Tú"}
-                              </span>
-                              <span className="text-slate-400">
-                                {fechaHora(m.creado_en)}
-                              </span>
-                            </div>
-                            <p className="mt-1.5 whitespace-pre-wrap leading-relaxed text-slate-800">
-                              {m.mensaje}
-                            </p>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                    {mensajes.length === 0 ? (
+                      <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-5 text-center text-xs text-slate-500">
+                        Aún no hay mensajes registrados en esta conversación.
+                      </p>
+                    ) : (
+                      <ul className="space-y-3">
+                        {mensajes.map((m) => {
+                          const esAdmin = m.autor_tipo === "admin";
+                          return (
+                            <li
+                              key={m.id}
+                              className={`rounded-2xl border p-3.5 text-sm ${
+                                esAdmin
+                                  ? "border-sky-200 bg-sky-50/90"
+                                  : "border-slate-200 bg-white"
+                              }`}
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <span
+                                  className={`inline-flex items-center gap-1.5 font-semibold ${
+                                    esAdmin ? "text-sky-900" : "text-slate-700"
+                                  }`}
+                                >
+                                  {esAdmin && (
+                                    <ShieldCheck
+                                      className="h-3.5 w-3.5 text-sky-600"
+                                      aria-hidden="true"
+                                    />
+                                  )}
+                                  {esAdmin ? "Equipo vuki · Soporte" : "Tú"}
+                                </span>
+                                <span className="text-slate-400">
+                                  {fechaHora(m.creado_en)}
+                                </span>
+                              </div>
+                              <p className="mt-1.5 whitespace-pre-wrap leading-relaxed text-slate-800">
+                                {m.mensaje}
+                              </p>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
 
                     <div className="mt-4 border-t border-slate-200/70 pt-4">
                       {!activo && (
@@ -674,7 +680,7 @@ export default function SoporteEmpresaClient({
                   value={mensaje}
                   onChange={(e) => setMensaje(e.target.value)}
                   placeholder={placeholderActual}
-                  className={INPUT}
+                  className="vuki-textarea"
                 />
               </div>
 
@@ -682,7 +688,7 @@ export default function SoporteEmpresaClient({
                 type="submit"
                 disabled={enviando || activosCount >= 10}
                 whileTap={{ scale: 0.97 }}
-                className="vuki-focus flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="vuki-focus flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {enviando ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />

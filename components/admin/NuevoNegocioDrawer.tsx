@@ -4,10 +4,17 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Loader2, Plus, Store } from "lucide-react";
 import Drawer from "../Drawer";
 import { toast } from "../Toast";
+import {
+  extraerContrasenaTemporal,
+  mostrarContrasenaTemporal,
+} from "./ContrasenaTemporalModal";
 import { CLASE_INPUT, Campo } from "./ui";
 import { crearNegocioAction } from "../../actions/admin/negocios";
+import { conResilienciaRed } from "../../lib/errores";
 import type { ResultadoAccion } from "../../lib/admin/auth";
-import type { Negocio } from "../../types/database";
+import type { NegocioListado } from "../../lib/data/columnas";
+
+const crearNegocioResiliente = conResilienciaRed(crearNegocioAction);
 
 function aSlug(texto: string): string {
   return texto
@@ -24,7 +31,7 @@ const ESTADO_INICIAL: ResultadoAccion = {};
 interface NuevoNegocioDrawerProps {
   abierto: boolean;
   onClose: () => void;
-  onCreado?: (negocio?: Negocio) => void;
+  onCreado?: (negocio?: NegocioListado) => void;
 }
 
 export function NuevoNegocioDrawer({
@@ -38,7 +45,7 @@ export function NuevoNegocioDrawer({
   const [slugEditadoManualmente, setSlugEditadoManualmente] = useState(false);
 
   const [estado, enviar, pendiente] = useActionState(
-    crearNegocioAction,
+    crearNegocioResiliente,
     ESTADO_INICIAL,
   );
 
@@ -56,15 +63,14 @@ export function NuevoNegocioDrawer({
   }
 
   useEffect(() => {
-    if (estado.ok) {
-      const matchPassword = estado.ok.match(
-        /(?:contraseña temporal:?|temporal:?)\s*([^\s(),.]+)/i,
-      );
-      if (matchPassword && matchPassword[1]) {
-        navigator?.clipboard?.writeText(matchPassword[1]).catch(() => {});
+    if (estado.ok || estado.contrasenaTemporal) {
+      const temporalInfo = extraerContrasenaTemporal(estado);
+      if (temporalInfo) {
+        mostrarContrasenaTemporal(temporalInfo);
+      } else if (estado.ok) {
+        toast.success(estado.ok);
       }
-      toast.success(estado.ok);
-      onCreado?.(estado.negocio as Negocio | undefined);
+      onCreado?.(estado.negocio as NegocioListado | undefined);
       resetearFormulario();
       onClose();
     } else if (estado.error) {

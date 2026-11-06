@@ -21,8 +21,11 @@ import {
 
 export default async function FinanzasAdminPage() {
   await requerirAdmin("finanzas");
-  const { negocios, servicios, reservas, planes } = await cargarPlataforma();
-  const reembolsos = await leer("reembolsos").catch(() => []);
+  const [{ negocios, servicios, reservas, planes }, reembolsos] =
+    await Promise.all([
+      cargarPlataforma(),
+      leer("reembolsos").catch(() => []),
+    ]);
 
   const vivos = negocios.filter((n) => !n.eliminado_en);
   const activas = vivos.filter((n) => estadoEfectivo(n) === "activa").length;
@@ -228,7 +231,7 @@ export default async function FinanzasAdminPage() {
                   href="/admin/reservas"
                   className="font-medium text-sky-700 hover:underline"
                 >
-                  {"Revisar reserva ->"}
+                  Revisar reserva →
                 </Link>
               </Celda>
             </tr>

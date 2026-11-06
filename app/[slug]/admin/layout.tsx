@@ -2,8 +2,8 @@ import Link from "next/link";
 import { requerirEmpresa } from "@/lib/empresa";
 import { rutaPanelEmpresa } from "@/lib/rutas-empresa";
 import { estadoEfectivo } from "@/lib/negocio-estado";
-import { funcionActivaNegocio, obtenerConfiguracion } from "@/lib/plataforma";
-import { leer } from "@/lib/admin/db";
+import { funcionActiva, listarPlanes, obtenerConfiguracion } from "@/lib/plataforma";
+import { leer } from "@/lib/data/server";
 import { logoutAction } from "@/actions/auth";
 import EmpresaShell, { type EmpresaNavLink } from "@/components/EmpresaShell";
 import PaginaPublica from "@/components/PaginaPublica";
@@ -74,8 +74,12 @@ export default async function EmpresaLayout({
   children: React.ReactNode;
 }) {
   const { slug } = await params;
-  const { negocio } = await requerirEmpresa(slug);
-  const config = await obtenerConfiguracion();
+  const [{ negocio }, config, planes, anunciosActivos] = await Promise.all([
+    requerirEmpresa(slug),
+    obtenerConfiguracion(),
+    listarPlanes(),
+    leer("anuncios", { eq: { activo: true } }).catch(() => []),
+  ]);
 
   if (negocio.suspendido) {
     return (
@@ -99,16 +103,15 @@ export default async function EmpresaLayout({
 
   const efectivo = estadoEfectivo(negocio);
   const ahora = Date.now();
-  const anuncios = (await leer("anuncios").catch(() => []))
+  const anuncios = anunciosActivos
     .filter(
       (a) =>
-        a.activo &&
         (!a.expira_en || new Date(a.expira_en).getTime() > ahora) &&
         (a.segmento === "todas" || a.segmento === efectivo),
     )
     .sort((a, b) => b.creado_en.localeCompare(a.creado_en));
 
-  const links = (await funcionActivaNegocio(negocio, "soporte_empresas"))
+  const links = funcionActiva(config, negocio, planes, "soporte_empresas")
     ? NAV_LINKS
     : NAV_LINKS.filter((l) => l.href !== "soporte");
 

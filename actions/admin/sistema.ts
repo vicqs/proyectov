@@ -1,12 +1,14 @@
 "use server";
 
-import { z } from "zod";
+import { revalidatePath } from "next/cache";
 import { accionAdmin, type ResultadoAccion } from "../../lib/admin/auth";
 import { registrarAuditoria } from "../../lib/admin/auditoria";
 import { actualizar, leerUno } from "../../lib/admin/db";
-import { revalidarAdmin } from "../../lib/admin/util";
-import { esPagoManual } from "../../lib/pagos";
-import { supabaseAdmin } from "../../lib/supabase";
+import { esUuid, revalidarAdmin } from "../../lib/admin/util";
+import { revalidarEmpresa } from "../../lib/empresa";
+import { createSupabaseAdminClient } from "../../lib/supabase/admin";
+import { DataError } from "../../lib/data/db";
+import { normalizarWebhookPago } from "../../lib/tilopay";
 
 export async function resolverRegistroAction(
   id: string,
@@ -14,6 +16,7 @@ export async function resolverRegistroAction(
   _datos: FormData,
 ): Promise<ResultadoAccion> {
   return accionAdmin("sistema", async (admin) => {
+    if (!esUuid(id)) return { error: "Identificador de registro inválido." };
     await actualizar("registro_sistema", { resuelto: true }, { id });
     await registrarAuditoria(admin, {
       accion: "sistema.resolver",
@@ -25,16 +28,6 @@ export async function resolverRegistroAction(
   });
 }
 
-const payloadPago = z.object({
-  reserva_id: z.string().uuid(),
-  estado: z.enum(["pendiente", "pagada"]),
-  trx_id: z
-    .string()
-    .refine((v) => !esPagoManual(v), "Prefijo trx_id reservado")
-    .nullable()
-    .optional(),
-});
-
 /**
  * Reintenta aplicar un webhook de pago fallido. Es idempotente: no revive
  * reservas canceladas y no reenvía correos (eso solo ocurre en el webhook real).
@@ -45,6 +38,7 @@ export async function reprocesarWebhookAction(
   _datos: FormData,
 ): Promise<ResultadoAccion> {
   return accionAdmin("sistema", async (admin) => {
+    if (!esUuid(id)) return { error: "Identificador de registro inválido." };
     const registro = await leerUno("registro_sistema", { eq: { id } });
     if (
       !registro ||
@@ -53,7 +47,7 @@ export async function reprocesarWebhookAction(
     ) {
       return { error: "Solo se pueden reprocesar webhooks de pago." };
     }
-    const payload = payloadPago.safeParse(registro.payload);
+    const payload = normalizarWebhookPago(registro.payload);
     if (!payload.success)
       return { error: "El registro no conserva datos suficientes." };
 
@@ -66,14 +60,13 @@ export async function reprocesarWebhookAction(
         error: "La reserva está cancelada: gestiona el reembolso en Reservas.",
       };
     }
-    const { error } = await supabaseAdmin
-      .from("reservas")
-      .update({
-        estado: payload.data.estado,
-        trx_id: payload.data.trx_id ?? null,
-      })
-      .eq("id", reserva.id);
-    if (error) return { error: error.message };
+    const client = await createSupabaseAdminClient();
+    const { data, error } = await client.rpc("record_gateway_payment", {
+      p_booking_id: reserva.id, p_status: payload.data.estado,
+      p_transaction_ref: payload.data.trx_id ?? null,
+    });
+    if (error) throw new DataError(error.message, error.code);
+    const confirmada = data?.[0];
     await actualizar("registro_sistema", { resuelto: true }, { id });
     await registrarAuditoria(admin, {
       accion: "sistema.reprocesar_webhook",
@@ -81,6 +74,15 @@ export async function reprocesarWebhookAction(
       entidad_id: reserva.id,
       negocio_id: reserva.negocio_id,
     });
+    if (confirmada?.negocio_slug) {
+      revalidarEmpresa(confirmada.negocio_slug);
+    } else {
+      const negocio = await leerUno("negocios", { eq: { id: reserva.negocio_id } });
+      if (negocio) revalidarEmpresa(negocio.slug);
+    }
+    if (confirmada?.token_gestion) {
+      revalidatePath(`/reserva/${confirmada.token_gestion}`);
+    }
     revalidarAdmin();
     return { ok: "Webhook reprocesado. Los correos no se reenvían." };
   });

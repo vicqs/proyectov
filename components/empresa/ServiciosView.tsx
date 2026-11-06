@@ -24,6 +24,7 @@ import ConfirmDialog from "../ConfirmDialog";
 import { toast } from "../Toast";
 import { esImagenOptimizable } from "../../lib/tipos-publicos";
 import { formatearPrecioUsd } from "@/lib/formato";
+import { mensajeErrorUsuario } from "../../lib/errores";
 
 export interface VistaServicio {
   id: string;
@@ -185,6 +186,7 @@ export default function ServiciosView({
   }
 
   function cerrarDrawer() {
+    if (guardando) return;
     setDrawerAbierto(false);
     onCerrarInicial?.();
   }
@@ -195,6 +197,7 @@ export default function ServiciosView({
 
   async function handleSubmit(evento: React.FormEvent) {
     evento.preventDefault();
+    if (guardando) return;
     const nombreLimpio = form.nombre.trim();
     const precio = Number(form.precioUsd);
     const duracion = Number(form.duracionMin);
@@ -222,37 +225,57 @@ export default function ServiciosView({
     }
 
     setGuardando(true);
-    const error = await onGuardar(editandoId, {
-      nombre: nombreLimpio,
-      descripcion: form.descripcion,
-      precioUsd: precio,
-      duracionMin: duracion,
-      imagenUrl: urlLimpia,
-    });
-    setGuardando(false);
-    if (error) {
-      toast.error(error);
-      return;
+    try {
+      const error = await onGuardar(editandoId, {
+        nombre: nombreLimpio,
+        descripcion: form.descripcion,
+        precioUsd: precio,
+        duracionMin: duracion,
+        imagenUrl: urlLimpia,
+      });
+      if (error) {
+        toast.error(error);
+        return;
+      }
+      toast.success(
+        editandoId
+          ? "Servicio actualizado con éxito"
+          : "Servicio creado con éxito",
+      );
+      setDrawerAbierto(false);
+    } catch (e) {
+      toast.error(
+        mensajeErrorUsuario(
+          e,
+          "No se pudo guardar el servicio. Intenta de nuevo.",
+        ),
+      );
+    } finally {
+      setGuardando(false);
     }
-    toast.success(
-      editandoId
-        ? "Servicio actualizado con éxito"
-        : "Servicio creado con éxito",
-    );
-    setDrawerAbierto(false);
   }
 
   async function handleEliminar() {
     if (!porEliminar || eliminando) return;
     setEliminando(true);
-    const error = await onEliminar(porEliminar.id);
-    setEliminando(false);
-    if (error) {
-      toast.error(error);
-    } else {
-      toast.success(`"${porEliminar.nombre}" eliminado`);
+    try {
+      const error = await onEliminar(porEliminar.id);
+      if (error) {
+        toast.error(error);
+      } else {
+        toast.success(`"${porEliminar.nombre}" eliminado`);
+      }
+      setPorEliminar(null);
+    } catch (e) {
+      toast.error(
+        mensajeErrorUsuario(
+          e,
+          "No se pudo eliminar el servicio. Intenta de nuevo.",
+        ),
+      );
+    } finally {
+      setEliminando(false);
     }
-    setPorEliminar(null);
   }
 
   const urlFormLimpia = form.imagenUrl.trim();
@@ -283,7 +306,7 @@ export default function ServiciosView({
             type="button"
             onClick={abrirNuevo}
             whileTap={{ scale: 0.96 }}
-            className="vuki-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-vuki-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 sm:flex-none"
+            className="vuki-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-vuki-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 sm:flex-none"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Nuevo servicio
@@ -587,7 +610,7 @@ export default function ServiciosView({
                   setForm({ ...form, descripcion: e.target.value })
                 }
                 placeholder="Cuenta qué incluye, nivel requerido o punto de encuentro..."
-                className={INPUT}
+                className="vuki-textarea"
               />
             </div>
           )}
@@ -620,7 +643,7 @@ export default function ServiciosView({
                       setForm({ ...form, precioUsd: e.target.value })
                     }
                     placeholder="35.00"
-                    className={`${INPUT} !pl-8.5`}
+                    className={`${INPUT} vuki-input-currency`}
                   />
                 </div>
               </div>
@@ -752,7 +775,7 @@ export default function ServiciosView({
             type="submit"
             disabled={guardando}
             whileTap={{ scale: 0.97 }}
-            className="vuki-focus mt-1 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="vuki-focus mt-1 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {guardando ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -774,10 +797,14 @@ export default function ServiciosView({
             ? `"${porEliminar.nombre}" y sus horarios sin reservas dejarán de mostrarse en tu enlace público. Esta acción no se puede deshacer.`
             : ""
         }
+        cargando={eliminando}
+        textoCargando="Eliminando..."
         onConfirmar={() => {
           if (!eliminando) void handleEliminar();
         }}
-        onCancelar={() => setPorEliminar(null)}
+        onCancelar={() => {
+          if (!eliminando) setPorEliminar(null);
+        }}
       />
     </EmpresaPage>
   );

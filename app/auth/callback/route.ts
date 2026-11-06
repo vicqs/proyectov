@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isMockMode } from "@/lib/mock/client";
+import { obtenerPerfil } from "@/lib/sesion";
 
 /**
  * Destino del enlace del correo de recuperación. Canjea el código por una
@@ -9,21 +9,18 @@ import { isMockMode } from "@/lib/mock/client";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const fallo = NextResponse.redirect(`${origin}/recuperar?error=enlace`);
-  const supabase = await createSupabaseServerClient();
-
-  if (isMockMode) {
-    const correo = searchParams.get("mock_recovery");
-    if (!correo || process.env.NODE_ENV === "production") return fallo;
-    const auth = supabase.auth as unknown as {
-      iniciarRecuperacionMock(correo: string): Promise<boolean>;
-    };
-    return (await auth.iniciarRecuperacionMock(correo))
-      ? NextResponse.redirect(`${origin}/restablecer`)
-      : fallo;
-  }
-
   const code = searchParams.get("code");
   if (!code) return fallo;
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-  return error ? fallo : NextResponse.redirect(`${origin}/restablecer`);
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error || !data.user) return fallo;
+
+  const perfil = await obtenerPerfil(data.user.id);
+  if (perfil?.bloqueado) {
+    await supabase.auth.signOut();
+    return NextResponse.redirect(`${origin}/login`);
+  }
+
+  return NextResponse.redirect(`${origin}/restablecer`);
 }

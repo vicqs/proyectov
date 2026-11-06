@@ -1,10 +1,15 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import ConfirmDialog from "../ConfirmDialog";
 import { toast } from "../Toast";
+import {
+  extraerContrasenaTemporal,
+  mostrarContrasenaTemporal,
+} from "./ContrasenaTemporalModal";
 import { cn } from "../../lib/cn";
+import { conResilienciaRed } from "../../lib/errores";
 import type { ResultadoAccion } from "../../lib/admin/auth";
 
 type Accion = (
@@ -63,21 +68,24 @@ export function AccionForm({
   className = "",
   pie,
 }: Props) {
-  const [estado, enviar, pendiente] = useActionState(accion, ESTADO_INICIAL);
+  const accionResiliente = useMemo(() => conResilienciaRed(accion), [accion]);
+  const [estado, enviar, pendiente] = useActionState(
+    accionResiliente,
+    ESTADO_INICIAL,
+  );
   const [dialogoAbierto, setDialogoAbierto] = useState(false);
   const ref = useRef<HTMLFormElement>(null);
   const confirmadoRef = useRef(false);
 
   useEffect(() => {
-    if (estado.ok) {
+    if (estado.ok || estado.contrasenaTemporal) {
       if (limpiarAlOk) ref.current?.reset();
-      const matchPassword = estado.ok.match(
-        /(?:contraseña temporal:?|temporal:?)\s*([^\s(),.]+)/i,
-      );
-      if (matchPassword && matchPassword[1]) {
-        navigator?.clipboard?.writeText(matchPassword[1]).catch(() => {});
+      const temporalInfo = extraerContrasenaTemporal(estado);
+      if (temporalInfo) {
+        mostrarContrasenaTemporal(temporalInfo);
+      } else if (estado.ok) {
+        toast.success(estado.ok);
       }
-      toast.success(estado.ok);
     } else if (estado.error) {
       toast.error(estado.error);
     }

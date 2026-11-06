@@ -19,7 +19,19 @@ import EmpresaPage, { ItemLista, Lista } from "../EmpresaPage";
 import Drawer from "../Drawer";
 import ConfirmDialog from "../ConfirmDialog";
 import { toast } from "../Toast";
-import { localCRaIso } from "../../lib/zona-horaria";
+import {
+  CR_OFFSET_MS,
+  DIA_MS,
+  DIAS_CORTOS,
+  DIAS_LARGOS,
+  formatoHora12,
+  localCRaIso,
+  MESES_CORTOS,
+  MESES_LARGOS,
+  normalizarIsoCR,
+  partesCR,
+} from "../../lib/zona-horaria";
+import { mensajeErrorUsuario } from "../../lib/errores";
 
 export interface VistaBloqueo {
   id: string;
@@ -66,48 +78,6 @@ interface AgendaViewProps {
   onCerrarInicial?: () => void;
 }
 
-const CR_OFFSET_MS = -6 * 3_600_000;
-const DIA_MS = 86_400_000;
-
-const DIAS_CORTOS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const DIAS_LARGOS = [
-  "Domingo",
-  "Lunes",
-  "Martes",
-  "Miércoles",
-  "Jueves",
-  "Viernes",
-  "Sábado",
-];
-const MESES_CORTOS = [
-  "ene",
-  "feb",
-  "mar",
-  "abr",
-  "may",
-  "jun",
-  "jul",
-  "ago",
-  "sep",
-  "oct",
-  "nov",
-  "dic",
-];
-const MESES_LARGOS = [
-  "enero",
-  "febrero",
-  "marzo",
-  "abril",
-  "mayo",
-  "junio",
-  "julio",
-  "agosto",
-  "septiembre",
-  "octubre",
-  "noviembre",
-  "diciembre",
-];
-
 const MOTIVOS_RAPIDOS = [
   "Mantenimiento",
   "Mal clima / Marea",
@@ -126,41 +96,12 @@ const FRANJAS_RAPIDAS: {
   { etiqueta: "Jornada (8 a.m. – 5 p.m.)", desde: "08:00", hasta: "17:00" },
 ];
 
-const INPUT =
-  "vuki-focus min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-500";
-
-const LOCAL_SIN_ZONA = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
-
-function normalizarIsoCR(valor: string): string {
-  if (!valor) return "";
-  const texto = valor.trim();
-  if (LOCAL_SIN_ZONA.test(texto)) return localCRaIso(texto);
-  return texto;
-}
-
-function partesCR(iso: string) {
-  const normalizado = normalizarIsoCR(iso);
-  const cr = new Date(new Date(normalizado).getTime() + CR_OFFSET_MS);
-  return {
-    anio: cr.getUTCFullYear(),
-    mes: cr.getUTCMonth(),
-    dia: cr.getUTCDate(),
-    diaSemana: cr.getUTCDay(),
-    hora: cr.getUTCHours(),
-    minuto: cr.getUTCMinutes(),
-  };
-}
+const INPUT = "vuki-input min-h-11";
 
 function parsearMinutos(horaStr: string): number {
   if (!horaStr) return 0;
   const [h, m] = horaStr.split(":").map(Number);
   return (Number.isNaN(h) ? 0 : h) * 60 + (Number.isNaN(m) ? 0 : m);
-}
-
-function formatoHora12(hora: number, minuto: number): string {
-  const h = hora % 12 === 0 ? 12 : hora % 12;
-  const m = String(minuto).padStart(2, "0");
-  return `${h}:${m} ${hora < 12 ? "a.m." : "p.m."}`;
 }
 
 function describirBloqueo(inicioIso: string, finIso: string): {
@@ -428,6 +369,7 @@ export default function AgendaView({
   }
 
   function cerrarDrawer() {
+    if (guardando) return;
     setAbierto(false);
     onCerrarInicial?.();
   }
@@ -441,6 +383,7 @@ export default function AgendaView({
 
   async function handleSubmit(evento: React.FormEvent) {
     evento.preventDefault();
+    if (guardando) return;
     if (!rangoActual.valido) {
       toast.error("La fecha u hora de fin no puede ser anterior a la de inicio.");
       return;
@@ -450,28 +393,48 @@ export default function AgendaView({
       return;
     }
     setGuardando(true);
-    const error = await onCrear({
-      inicio: rangoActual.inicioLocal,
-      fin: rangoActual.finLocal,
-      motivo: motivo.trim(),
-    });
-    setGuardando(false);
-    if (error) {
-      toast.error(error);
-      return;
+    try {
+      const error = await onCrear({
+        inicio: rangoActual.inicioLocal,
+        fin: rangoActual.finLocal,
+        motivo: motivo.trim(),
+      });
+      if (error) {
+        toast.error(error);
+        return;
+      }
+      toast.success("Bloqueo guardado con éxito");
+      setAbierto(false);
+    } catch (e) {
+      toast.error(
+        mensajeErrorUsuario(
+          e,
+          "No se pudo guardar el bloqueo. Intenta de nuevo.",
+        ),
+      );
+    } finally {
+      setGuardando(false);
     }
-    toast.success("Bloqueo guardado con éxito");
-    setAbierto(false);
   }
 
   async function handleEliminar() {
     if (!porEliminar || eliminando) return;
     setEliminando(true);
-    const error = await onEliminar(porEliminar.id);
-    setEliminando(false);
-    if (error) toast.error(error);
-    else toast.success("Bloqueo eliminado. Las fechas volvieron a abrirse.");
-    setPorEliminar(null);
+    try {
+      const error = await onEliminar(porEliminar.id);
+      if (error) toast.error(error);
+      else toast.success("Bloqueo eliminado. Las fechas volvieron a abrirse.");
+      setPorEliminar(null);
+    } catch (e) {
+      toast.error(
+        mensajeErrorUsuario(
+          e,
+          "No se pudo eliminar el bloqueo. Intenta de nuevo.",
+        ),
+      );
+    } finally {
+      setEliminando(false);
+    }
   }
 
   return (
@@ -493,7 +456,7 @@ export default function AgendaView({
             type="button"
             onClick={() => abrirNuevo()}
             whileTap={{ scale: 0.96 }}
-            className="vuki-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-vuki-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 sm:flex-none"
+            className="vuki-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-vuki-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 sm:flex-none"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Nuevo bloqueo
@@ -1040,7 +1003,7 @@ export default function AgendaView({
               rangoActual.reservasConflicto > 0
             }
             whileTap={{ scale: 0.97 }}
-            className="vuki-focus flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="vuki-focus flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {guardando ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1056,8 +1019,12 @@ export default function AgendaView({
         abierto={porEliminar !== null}
         titulo="¿Quitar este bloqueo?"
         descripcion="Las fechas y horarios dentro de ese período volverán a estar disponibles en tu enlace público."
+        cargando={eliminando}
+        textoCargando="Quitando..."
         onConfirmar={() => void handleEliminar()}
-        onCancelar={() => setPorEliminar(null)}
+        onCancelar={() => {
+          if (!eliminando) setPorEliminar(null);
+        }}
       />
     </EmpresaPage>
   );

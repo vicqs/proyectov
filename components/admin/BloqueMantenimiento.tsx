@@ -30,7 +30,7 @@ export function BloqueMantenimiento({
       </label>
 
       {/* Input deshabilitado u oculto mientras el checkbox no esté marcado */}
-      <div className={`transition-all duration-200 ${activo ? "block pt-1" : "hidden"}`}>
+      <div className={activo ? "block pt-1" : "hidden"}>
         <label htmlFor="mensaje_mantenimiento" className="sr-only">
           Mensaje explicativo para los usuarios
         </label>

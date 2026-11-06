@@ -50,7 +50,7 @@ export function PlanesAdminSection({
           <button
             type="button"
             onClick={abrirCrear}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 cursor-pointer"
+            className="vuki-btn-primary inline-flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             <span>Nuevo plan</span>
@@ -69,7 +69,7 @@ export function PlanesAdminSection({
             <button
               type="button"
               onClick={abrirCrear}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 cursor-pointer"
+              className="vuki-btn-primary mt-4 inline-flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="h-4 w-4" />
               <span>Crear primer plan</span>
@@ -82,7 +82,7 @@ export function PlanesAdminSection({
               return (
                 <div
                   key={p.id}
-                  className={`group relative flex flex-col justify-between rounded-2xl border p-5 transition-all hover:shadow-md ${
+                  className={`group relative flex flex-col justify-between rounded-2xl border p-5 transition-[border-color,box-shadow] hover:shadow-md ${
                     esDefecto
                       ? "border-sky-300 bg-gradient-to-b from-sky-50/40 via-white to-white ring-1 ring-sky-200/80 shadow-sm"
                       : "border-slate-200/90 bg-white hover:border-slate-300"

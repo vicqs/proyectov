@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { render } from "@react-email/components";
 import { requerirAdmin } from "../../../lib/admin/auth";
 import { FLAGS_CONOCIDOS, obtenerConfiguracion } from "../../../lib/plataforma";
@@ -31,8 +32,11 @@ export default async function ConfiguracionPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requerirAdmin("configuracion");
-  const sp = searchParams ? await searchParams : {};
+  const [, c, sp] = await Promise.all([
+    requerirAdmin("configuracion"),
+    obtenerConfiguracion(),
+    searchParams ?? Promise.resolve({} as Record<string, string | string[] | undefined>),
+  ]);
   const tabParam = parametro(sp?.tab);
   const tabInicial: TabConfiguracion =
     tabParam === "plantillas"
@@ -41,44 +45,8 @@ export default async function ConfiguracionPage({
         ? "legales"
         : "general";
 
-  const c = await obtenerConfiguracion();
-  const vars = {
-    negocio: "Escuela de Surf Pura Vida",
-    servicio: "Clase de surf 1h",
-  };
   const pr = c.plantillas_correo.recibo ?? {};
   const pa = c.plantillas_correo.alerta ?? {};
-  const fecha = new Date(Date.now() + 3 * 86_400_000).toISOString();
-
-  const [htmlRecibo, htmlAlerta] = await Promise.all([
-    render(
-      ReciboTurista({
-        negocioNombre: vars.negocio,
-        servicioNombre: vars.servicio,
-        fechaHora: fecha,
-        montoUsd: 45,
-        trxId: "trx_ejemplo_123",
-        emailCliente: "turista@example.com",
-        encabezado: pr.encabezado
-          ? aplicarVariables(pr.encabezado, vars)
-          : undefined,
-        pie: pr.pie ? aplicarVariables(pr.pie, vars) : undefined,
-      }),
-    ),
-    render(
-      AlertaPyme({
-        negocioNombre: vars.negocio,
-        servicioNombre: vars.servicio,
-        fechaHora: fecha,
-        emailCliente: "turista@example.com",
-        montoUsd: 45,
-        encabezado: pa.encabezado
-          ? aplicarVariables(pa.encabezado, vars)
-          : undefined,
-        pie: pa.pie ? aplicarVariables(pa.pie, vars) : undefined,
-      }),
-    ),
-  ]);
 
   const generalContent = (
     <Tarjeta
@@ -159,6 +127,21 @@ export default async function ConfiguracionPage({
             ))}
           </div>
         </div>
+        <label className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3.5">
+          <input
+            type="checkbox"
+            name="pagos_simulados"
+            defaultChecked={c.pagos_simulados}
+            className={`${CLASE_CHECKBOX} mt-0.5`}
+          />
+          <div>
+            <span className="block text-sm font-semibold text-slate-800">Pagos de demostración</span>
+            <span className="block text-xs text-slate-600">
+              Permite reservas y suscripciones simuladas. No cobra dinero ni emite comprobantes ante Hacienda.
+              Desactívalo antes de operar con pagos reales.
+            </span>
+          </div>
+        </label>
         <BloqueMantenimiento
           modoMantenimientoInicial={c.modo_mantenimiento}
           mensajeInicial={c.mensaje_mantenimiento}
@@ -177,10 +160,10 @@ export default async function ConfiguracionPage({
         <div className="grid gap-6 xl:grid-cols-2">
           {(
             [
-              ["recibo", "Recibo al turista", pr, htmlRecibo],
-              ["alerta", "Alerta a la empresa", pa, htmlAlerta],
+              ["recibo", "Recibo al turista", pr],
+              ["alerta", "Alerta a la empresa", pa],
             ] as const
-          ).map(([clave, titulo, p, html]) => (
+          ).map(([clave, titulo, p]) => (
             <div key={clave} className="space-y-3">
               <h3 className="text-sm font-semibold text-slate-800">
                 {titulo}
@@ -212,7 +195,18 @@ export default async function ConfiguracionPage({
               <p className="text-xs text-slate-400">
                 Vista previa con los valores guardados:
               </p>
-              <VistaPreviaEmail titulo={titulo} html={html} />
+              <Suspense
+                fallback={
+                  <div className="vuki-skeleton min-h-[720px] w-full rounded-xl border border-slate-200" />
+                }
+              >
+                <VistaPreviaPlantillaAsync
+                  clave={clave}
+                  titulo={titulo}
+                  encabezado={p.encabezado}
+                  pie={p.pie}
+                />
+              </Suspense>
             </div>
           ))}
         </div>
@@ -262,4 +256,49 @@ export default async function ConfiguracionPage({
       />
     </PaginaAdmin>
   );
+}
+
+async function VistaPreviaPlantillaAsync({
+  clave,
+  titulo,
+  encabezado,
+  pie,
+}: {
+  clave: "recibo" | "alerta";
+  titulo: string;
+  encabezado?: string;
+  pie?: string;
+}) {
+  const vars = {
+    negocio: "Escuela de Surf Pura Vida",
+    servicio: "Clase de surf 1h",
+  };
+  const fecha = new Date(Date.now() + 3 * 86_400_000).toISOString();
+  const enc = encabezado ? aplicarVariables(encabezado, vars) : undefined;
+  const p = pie ? aplicarVariables(pie, vars) : undefined;
+
+  const html = await render(
+    clave === "recibo"
+      ? ReciboTurista({
+          negocioNombre: vars.negocio,
+          servicioNombre: vars.servicio,
+          fechaHora: fecha,
+          montoUsd: 45,
+          trxId: "trx_ejemplo_123",
+          emailCliente: "turista@example.com",
+          encabezado: enc,
+          pie: p,
+        })
+      : AlertaPyme({
+          negocioNombre: vars.negocio,
+          servicioNombre: vars.servicio,
+          fechaHora: fecha,
+          emailCliente: "turista@example.com",
+          montoUsd: 45,
+          encabezado: enc,
+          pie: p,
+        }),
+  );
+
+  return <VistaPreviaEmail titulo={titulo} html={html} />;
 }

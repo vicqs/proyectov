@@ -34,9 +34,11 @@ export function ComunicacionTabs({
         className="flex flex-wrap items-center gap-2 border-b border-sky-100 pb-4"
       >
         <button
+          id="tab-anuncios"
           type="button"
           role="tab"
           aria-selected={tab === "anuncios"}
+          aria-controls="panel-comunicacion"
           onClick={() => cambiarTab("anuncios")}
           className={`vuki-tab-pill !min-h-10 px-4 py-2 text-sm font-semibold transition ${
             tab === "anuncios" ? "vuki-tab-pill-active" : ""
@@ -57,9 +59,11 @@ export function ComunicacionTabs({
         </button>
 
         <button
+          id="tab-comunicados"
           type="button"
           role="tab"
           aria-selected={tab === "comunicados"}
+          aria-controls="panel-comunicacion"
           onClick={() => cambiarTab("comunicados")}
           className={`vuki-tab-pill !min-h-10 px-4 py-2 text-sm font-semibold transition ${
             tab === "comunicados" ? "vuki-tab-pill-active" : ""
@@ -80,7 +84,11 @@ export function ComunicacionTabs({
         </button>
       </div>
 
-      <div role="tabpanel">
+      <div
+        id="panel-comunicacion"
+        role="tabpanel"
+        aria-labelledby={tab === "anuncios" ? "tab-anuncios" : "tab-comunicados"}
+      >
         {tab === "anuncios" ? anunciosContent : comunicadosContent}
       </div>
     </div>

@@ -19,8 +19,18 @@ import EmpresaPage, { ItemLista, Lista } from "../EmpresaPage";
 import Drawer from "../Drawer";
 import ConfirmDialog from "../ConfirmDialog";
 import { toast } from "../Toast";
-import { etiquetaDia } from "../../lib/horarios";
+import { etiquetaDia, generarFechasRepeticion } from "../../lib/horarios";
+import {
+  aClaveFecha,
+  DIAS_LARGOS as NOMBRES_DIAS_LARGOS,
+  DIAS_MIN as NOMBRES_DIAS_CORTOS,
+  DIAS_SEMANA_LETRA as DIAS_SEMANA,
+  MESES_CORTOS as NOMBRES_MESES_CORTOS,
+  MESES_LARGOS as NOMBRES_MESES_LARGOS,
+  parseClaveFecha,
+} from "../../lib/zona-horaria";
 import { formatearPrecioUsd } from "../../lib/formato";
+import { mensajeErrorUsuario } from "../../lib/errores";
 
 export interface VistaHorario {
   id: string;
@@ -48,46 +58,6 @@ export interface SugerenciaHorarioInicial {
 
 type Resultado = string | void | Promise<string | void>;
 
-const DIAS_SEMANA = ["D", "L", "M", "X", "J", "V", "S"];
-const NOMBRES_DIAS_CORTOS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
-const NOMBRES_DIAS_LARGOS = [
-  "Domingo",
-  "Lunes",
-  "Martes",
-  "Miércoles",
-  "Jueves",
-  "Viernes",
-  "Sábado",
-];
-const NOMBRES_MESES_CORTOS = [
-  "ene",
-  "feb",
-  "mar",
-  "abr",
-  "may",
-  "jun",
-  "jul",
-  "ago",
-  "sep",
-  "oct",
-  "nov",
-  "dic",
-];
-const NOMBRES_MESES_LARGOS = [
-  "enero",
-  "febrero",
-  "marzo",
-  "abril",
-  "mayo",
-  "junio",
-  "julio",
-  "agosto",
-  "septiembre",
-  "octubre",
-  "noviembre",
-  "diciembre",
-];
-
 const HORAS_RAPIDAS: { valor: string; etiqueta: string }[] = [
   { valor: "06:00", etiqueta: "6:00 a.m." },
   { valor: "08:00", etiqueta: "8:00 a.m." },
@@ -101,20 +71,9 @@ const CUPOS_RAPIDOS = ["4", "6", "8", "10", "12"];
 const SEMANAS_RAPIDAS = [2, 4, 8, 12];
 const MAX_LOTE = 100;
 
-function aClaveFecha(fecha: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${fecha.getFullYear()}-${p(fecha.getMonth() + 1)}-${p(fecha.getDate())}`;
-}
-
 function aLocalInput(fecha: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${aClaveFecha(fecha)}T${p(fecha.getHours())}:${p(fecha.getMinutes())}`;
-}
-
-function parseClaveFecha(clave: string): Date | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(clave)) return null;
-  const [y, m, d] = clave.split("-").map(Number);
-  return new Date(y, m - 1, d);
 }
 
 function sumarDiasClave(claveBase: string, diasExtra: number): string {
@@ -172,18 +131,7 @@ function generarFechas(
   dias: number[],
   semanas: number,
 ): string[] {
-  if (!inicio || !hora || dias.length === 0 || semanas < 1) return [];
-  const [y, m, d] = inicio.split("-").map(Number);
-  const [hh, mm] = hora.split(":").map(Number);
-  const ahora = Date.now();
-  const fechas: string[] = [];
-  for (let i = 0; i < semanas * 7; i++) {
-    const f = new Date(y, m - 1, d + i, hh, mm);
-    if (dias.includes(f.getDay()) && f.getTime() > ahora) {
-      fechas.push(aLocalInput(f));
-    }
-  }
-  return fechas;
+  return generarFechasRepeticion(inicio, hora, dias, semanas, MAX_LOTE);
 }
 
 export function formatearDuracionMin(duracionMin?: number): string {
@@ -393,6 +341,7 @@ export default function HorariosView({
   }
 
   function cerrarDrawer() {
+    if (guardando) return;
     setAbierto(false);
     onCerrarInicial?.();
   }
@@ -421,6 +370,7 @@ export default function HorariosView({
 
   async function handleSubmit(evento: React.FormEvent) {
     evento.preventDefault();
+    if (guardando) return;
     if (!servicioId || !cupos || Number(cupos) < 1) return;
 
     const horaLimpia = hora.slice(0, 5);
@@ -447,50 +397,70 @@ export default function HorariosView({
     }
 
     setGuardando(true);
-    let error: string | void = undefined;
-    if (modo === "uno") {
-      error = await onCrear({
-        servicioId,
-        fechaHora: fechaHoraUnica,
-        cupos: Number(cupos),
-      });
-    } else if (onCrearLote) {
-      error = await onCrearLote({
-        servicioId,
-        fechasHora: fechasLote,
-        cupos: Number(cupos),
-      });
-    } else {
-      for (const f of fechasLote) {
+    try {
+      let error: string | void = undefined;
+      if (modo === "uno") {
         error = await onCrear({
           servicioId,
-          fechaHora: f,
+          fechaHora: fechaHoraUnica,
           cupos: Number(cupos),
         });
-        if (error) break;
+      } else if (onCrearLote) {
+        error = await onCrearLote({
+          servicioId,
+          fechasHora: fechasLote,
+          cupos: Number(cupos),
+        });
+      } else {
+        for (const f of fechasLote) {
+          error = await onCrear({
+            servicioId,
+            fechaHora: f,
+            cupos: Number(cupos),
+          });
+          if (error) break;
+        }
       }
+      if (error) {
+        toast.error(error);
+        return;
+      }
+      toast.success(
+        modo === "uno"
+          ? "Horario agregado con éxito"
+          : `${fechasLote.length} horarios agregados`,
+      );
+      setAbierto(false);
+    } catch (e) {
+      toast.error(
+        mensajeErrorUsuario(
+          e,
+          "No se pudo guardar el horario. Intenta de nuevo.",
+        ),
+      );
+    } finally {
+      setGuardando(false);
     }
-    setGuardando(false);
-    if (error) {
-      toast.error(error);
-      return;
-    }
-    toast.success(
-      modo === "uno"
-        ? "Horario agregado con éxito"
-        : `${fechasLote.length} horarios agregados`,
-    );
-    setAbierto(false);
   }
 
   async function handleEliminar() {
     if (!porEliminar || eliminando) return;
     setEliminando(true);
-    const error = await onEliminar(porEliminar.id);
-    setEliminando(false);
-    if (error) toast.error(error);
-    else toast.success(`Horario "${porEliminar.label}" eliminado`);
-    setPorEliminar(null);
+    try {
+      const error = await onEliminar(porEliminar.id);
+      if (error) toast.error(error);
+      else toast.success(`Horario "${porEliminar.label}" eliminado`);
+      setPorEliminar(null);
+    } catch (e) {
+      toast.error(
+        mensajeErrorUsuario(
+          e,
+          "No se pudo eliminar el horario. Intenta de nuevo.",
+        ),
+      );
+    } finally {
+      setEliminando(false);
+    }
   }
 
   function nombreServicio(id: string) {
@@ -587,7 +557,7 @@ export default function HorariosView({
             onClick={() => abrirNuevo()}
             disabled={servicios.length === 0}
             whileTap={{ scale: 0.96 }}
-            className="vuki-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-vuki-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
+            className="vuki-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-vuki-ink px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Nuevo horario
@@ -1415,7 +1385,7 @@ export default function HorariosView({
             type="submit"
             disabled={guardando}
             whileTap={{ scale: 0.97 }}
-            className="vuki-focus flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="vuki-focus flex min-h-12 items-center justify-center gap-2 rounded-xl bg-vuki-ink px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {guardando ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1435,8 +1405,12 @@ export default function HorariosView({
         abierto={porEliminar !== null}
         titulo="¿Quitar este horario?"
         descripcion="Dejará de estar disponible para reservar en tu enlace público."
+        cargando={eliminando}
+        textoCargando="Quitando..."
         onConfirmar={() => void handleEliminar()}
-        onCancelar={() => setPorEliminar(null)}
+        onCancelar={() => {
+          if (!eliminando) setPorEliminar(null);
+        }}
       />
     </EmpresaPage>
   );

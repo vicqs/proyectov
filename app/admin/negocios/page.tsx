@@ -1,5 +1,6 @@
 import { requerirAdmin } from "../../../lib/admin/auth";
 import { leer } from "../../../lib/admin/db";
+import { COLUMNAS_NEGOCIO_LISTADO } from "../../../lib/data/columnas";
 import { tienePermiso } from "../../../lib/roles";
 import { parametro } from "../../../lib/admin/formato";
 import { NegociosAdminClient } from "../../../components/admin/NegociosAdminClient";
@@ -11,17 +12,18 @@ export default async function NegociosPage({
 }: {
   searchParams: Busqueda;
 }) {
-  const admin = await requerirAdmin("negocios_ver");
-  const sp = await searchParams;
+  // Solo las columnas del listado: IBAN, cliente Stripe y user_id no deben viajar al navegador.
+  // Para el conteo de reservas basta una columna por fila.
+  const [admin, sp, negocios, reservas] = await Promise.all([
+    requerirAdmin("negocios_ver"),
+    searchParams,
+    leer("negocios", { columnas: COLUMNAS_NEGOCIO_LISTADO }),
+    leer("reservas", { columnas: ["negocio_id"] }),
+  ]);
   const q = (parametro(sp.q) ?? "").trim();
   const estado = parametro(sp.estado) ?? "";
   const pagina = Number.parseInt(parametro(sp.pagina) ?? "1", 10);
   const abrirNuevo = parametro(sp.nuevo) === "1";
-
-  const [negocios, reservas] = await Promise.all([
-    leer("negocios"),
-    leer("reservas"),
-  ]);
 
   const reservasPorNegocio: Record<string, number> = {};
   for (const r of reservas) {

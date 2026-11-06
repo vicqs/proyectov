@@ -1,15 +1,17 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { accionAdmin, type ResultadoAccion } from "../../lib/admin/auth";
 import { registrarAuditoria } from "../../lib/admin/auditoria";
 import { actualizar, insertar, leer, leerUno } from "../../lib/admin/db";
-import { campo, fechaEnDias, revalidarAdmin } from "../../lib/admin/util";
+import { campo, esUuid, fechaEnDias, revalidarAdmin } from "../../lib/admin/util";
 import { revalidarEmpresa } from "../../lib/empresa";
 import { FLAGS_POR_NEGOCIO } from "../../lib/plataforma";
 import { isStripeMockMode, stripe } from "../../lib/stripe";
 
 async function negocioODetener(id: string) {
+  if (!esUuid(id)) throw new Error("Identificador de negocio inválido.");
   const negocio = await leerUno("negocios", { eq: { id } });
   if (!negocio) throw new Error("Negocio no encontrado.");
   return negocio;
@@ -60,9 +62,12 @@ export async function asignarPlanAction(
 ): Promise<ResultadoAccion> {
   return accionAdmin("facturacion", async (admin) => {
     const planId = campo(datos, "plan_id");
+    if (planId && !esUuid(planId)) return { error: "Plan inválido." };
     const negocio = await negocioODetener(id);
-    if (planId && !(await leerUno("planes", { eq: { id: planId } }))) {
-      return { error: "Plan no encontrado." };
+    if (planId) {
+      const plan = await leerUno("planes", { eq: { id: planId } });
+      if (!plan) return { error: "Plan no encontrado." };
+      if (!plan.activo) return { error: "No puedes asignar un plan inactivo." };
     }
     await actualizar("negocios", { plan_id: planId || null }, { id });
     await registrarAuditoria(admin, {
@@ -192,6 +197,7 @@ export async function reintentarCobroAction(
       detalle: { cobradas, fallos },
     });
     revalidarAdmin();
+    revalidarEmpresa(negocio.slug);
     if (cobradas === 0)
       return { error: `No se pudo cobrar: ${fallos[0] ?? "sin detalle"}` };
     return {
@@ -270,6 +276,7 @@ export async function crearPlanAction(
       detalle: { nombre: plan.nombre, precio_usd: plan.precio_usd },
     });
     revalidarAdmin();
+    revalidatePath("/", "layout");
     return { ok: "Plan creado." };
   });
 }
@@ -280,6 +287,7 @@ export async function actualizarPlanAction(
   datos: FormData,
 ): Promise<ResultadoAccion> {
   return accionAdmin("facturacion", async (admin) => {
+    if (!esUuid(id)) return { error: "Identificador de plan inválido." };
     const parsed = esquemaPlan.safeParse({
       nombre: campo(datos, "nombre"),
       precio_usd: campo(datos, "precio_usd"),
@@ -314,6 +322,7 @@ export async function actualizarPlanAction(
       },
     });
     revalidarAdmin();
+    revalidatePath("/", "layout");
     return { ok: "Plan actualizado (afecta a los próximos cobros)." };
   });
 }
@@ -324,6 +333,7 @@ export async function marcarPlanDefectoAction(
   _datos: FormData,
 ): Promise<ResultadoAccion> {
   return accionAdmin("facturacion", async (admin) => {
+    if (!esUuid(id)) return { error: "Identificador de plan inválido." };
     const plan = await leerUno("planes", { eq: { id } });
     if (!plan) return { error: "Plan no encontrado." };
     if (!plan.activo)
@@ -339,6 +349,7 @@ export async function marcarPlanDefectoAction(
       entidad_id: id,
     });
     revalidarAdmin();
+    revalidatePath("/", "layout");
     return { ok: "Plan predeterminado actualizado." };
   });
 }

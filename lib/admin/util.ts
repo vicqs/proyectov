@@ -2,6 +2,14 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+const uuidSchema = z.string().uuid();
+
+/** Verifica que un identificador externo tenga formato UUID antes de consultar la BD. */
+export function esUuid(valor: unknown): valor is string {
+  return uuidSchema.safeParse(valor).success;
+}
 
 /** Texto recortado de un campo de formulario (nunca `null`). */
 export function campo(datos: FormData, nombre: string): string {

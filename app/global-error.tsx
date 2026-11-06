@@ -33,7 +33,7 @@ export default function GlobalError({
                 aria-hidden="true"
               />
             </div>
-            <h1 className="text-lg font-semibold text-slate-900">
+            <h1 className="font-display text-lg font-bold text-vuki-ink">
               Algo salió mal
             </h1>
             <p className="mt-2 text-sm text-slate-500">
@@ -48,7 +48,7 @@ export default function GlobalError({
             <button
               type="button"
               onClick={() => reset()}
-              className="vuki-focus mt-6 min-h-12 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="vuki-btn-primary mt-6 min-h-12 w-full py-3"
             >
               Intentar de nuevo
             </button>

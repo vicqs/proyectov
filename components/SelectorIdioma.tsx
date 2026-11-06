@@ -25,7 +25,7 @@ export default function SelectorIdioma({ className }: { className?: string }) {
             type="button"
             aria-pressed={activo}
             onClick={() => setLocale(idioma)}
-            className={`relative rounded-full px-3 py-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-slate-900 ${
+            className={`vuki-focus relative cursor-pointer rounded-full px-3 py-1.5 transition-colors ${
               activo ? "text-white" : "text-slate-700 hover:text-slate-900"
             }`}
           >
@@ -33,7 +33,7 @@ export default function SelectorIdioma({ className }: { className?: string }) {
               <motion.span
                 layoutId="idioma-publico"
                 aria-hidden="true"
-                className="absolute inset-0 rounded-full bg-slate-900 shadow-xs"
+                className="absolute inset-0 rounded-full bg-vuki-ink shadow-xs"
                 transition={{ type: "spring", stiffness: 400, damping: 30 }}
               />
             )}

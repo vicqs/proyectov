@@ -41,8 +41,6 @@ export default function ServiciosEmpresaClient({
   function sincronizarCambios() {
     if (tieneQueryNuevo()) {
       router.replace(pathname, { scroll: false });
-    } else {
-      router.refresh();
     }
   }
 

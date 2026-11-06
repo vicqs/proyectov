@@ -119,7 +119,7 @@ export default async function ModeracionPage({
                       href={`/admin/negocios/${n.id}`}
                       className="font-medium text-sky-700 hover:underline"
                     >
-                      {"Abrir ficha ->"}
+                      Abrir ficha →
                     </Link>
                   </p>
                 )}

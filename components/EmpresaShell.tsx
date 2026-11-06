@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -116,19 +116,61 @@ export default function EmpresaShell({
     "--marca-2-texto": "color-mix(in srgb, var(--marca-2) 40%, #0f172a)",
   } as React.CSSProperties;
   const pathname = usePathname();
-  const [montado, setMontado] = useState(false);
-  const [menuAbierto, setMenuAbierto] = useState(false);
 
-  useEffect(() => {
-    setMontado(true);
-  }, []);
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const drawerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     setMenuAbierto(false);
   }, [pathname]);
 
+  useEffect(() => {
+    if (!menuAbierto) return;
+    const anterior = document.activeElement as HTMLElement | null;
+    const scrollAnterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const timer = window.setTimeout(() => {
+      drawerRef.current
+        ?.querySelector<HTMLElement>("button:not([disabled]), a[href]")
+        ?.focus();
+    }, 80);
+
+    function alPresionarTecla(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMenuAbierto(false);
+        return;
+      }
+      if (e.key === "Tab" && drawerRef.current) {
+        const enfocables = Array.from(
+          drawerRef.current.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        );
+        if (enfocables.length === 0) return;
+        const primero = enfocables[0];
+        const ultimo = enfocables[enfocables.length - 1];
+        if (e.shiftKey && document.activeElement === primero) {
+          e.preventDefault();
+          ultimo.focus();
+        } else if (!e.shiftKey && document.activeElement === ultimo) {
+          e.preventDefault();
+          primero.focus();
+        }
+      }
+    }
+
+    document.addEventListener("keydown", alPresionarTecla);
+    return () => {
+      document.body.style.overflow = scrollAnterior;
+      window.clearTimeout(timer);
+      document.removeEventListener("keydown", alPresionarTecla);
+      anterior?.focus?.();
+    };
+  }, [menuAbierto]);
+
   const esPaginaSuscripcion = pathname.startsWith(hrefSuscripcion);
-  const mostrarBloqueo = bloqueado && !esPaginaSuscripcion && montado;
+  const mostrarBloqueo = bloqueado && !esPaginaSuscripcion;
 
   const pieMenu = (
     <div className="flex flex-col gap-1 pb-8">
@@ -147,9 +189,15 @@ export default function EmpresaShell({
       style={estiloMarca}
       className="flex min-h-screen flex-col bg-vuki-surface lg:flex-row"
     >
+      <a
+        href="#contenido-principal"
+        className="vuki-focus sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[110] focus:rounded-xl focus:bg-vuki-ink focus:px-4 focus:py-2.5 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg"
+      >
+        Saltar al contenido principal
+      </a>
       <ToastViewport />
 
-      <aside className="relative hidden w-64 shrink-0 flex-col border-r border-sky-100 bg-white p-5 lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sky-100 bg-white p-5 lg:flex">
         <div
           aria-hidden="true"
           className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-vuki-ocean to-vuki-emerald"
@@ -182,7 +230,7 @@ export default function EmpresaShell({
         </p>
         <nav
           aria-label="Navegación de empresa"
-          className="flex flex-1 flex-col gap-1"
+          className="flex flex-1 flex-col gap-1 overflow-y-auto"
         >
           {links.map(({ href, label, icon }) => {
             const Icon = ICONOS[icon];
@@ -200,7 +248,7 @@ export default function EmpresaShell({
               >
                 {activo && (
                   <motion.span
-                    layoutId="nav-activo"
+                    layoutId="empresa-nav-activo"
                     transition={{ type: "spring", stiffness: 400, damping: 32 }}
                     className={`absolute inset-0 rounded-xl ${NAV_ACTIVO_FONDO}`}
                   />
@@ -253,6 +301,7 @@ export default function EmpresaShell({
             />
             <motion.aside
               key="drawer"
+              ref={drawerRef}
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
@@ -288,7 +337,7 @@ export default function EmpresaShell({
               </div>
               <nav
                 aria-label="Navegación de empresa"
-                className="flex flex-1 flex-col gap-1"
+                className="flex flex-1 flex-col gap-1 overflow-y-auto"
               >
                 {links.map(({ href, label, icon }) => {
                   const Icon = ICONOS[icon];
@@ -318,23 +367,27 @@ export default function EmpresaShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {mostrarBloqueo ? (
-          <main className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
+          <main
+            id="contenido-principal"
+            tabIndex={-1}
+            className="flex min-h-screen flex-col items-center justify-center px-6 text-center outline-none"
+          >
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
               <ShieldAlert
                 className="h-8 w-8 text-amber-600"
                 aria-hidden="true"
               />
             </div>
-            <h1 className="mt-6 text-2xl font-bold tracking-tight text-slate-900">
+            <h1 className="mt-6 font-display text-2xl font-bold tracking-tight text-vuki-ink">
               Activa tu suscripción para continuar
             </h1>
-            <p className="mt-2 max-w-sm text-sm leading-relaxed text-gray-500">
+            <p className="mt-2 max-w-sm text-sm leading-relaxed text-slate-500">
               Necesitas una suscripción activa para acceder al panel de tu
               empresa.
             </p>
             <Link
               href={hrefSuscripcion}
-              className="mt-6 inline-flex h-12 items-center justify-center rounded-2xl bg-slate-900 px-6 text-sm font-semibold text-white outline-none transition hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+              className="vuki-btn-primary mt-6 min-h-12 px-6"
             >
               Ir a Suscripción
             </Link>

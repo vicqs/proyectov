@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { obtenerAdminAutenticado } from "../../../../lib/admin/auth";
+import { z } from "zod";
+import { obtenerAdminAutenticado, rolEfectivo } from "../../../../lib/admin/auth";
 import { registrarAuditoria } from "../../../../lib/admin/auditoria";
 import { leer, listarUsuariosAuth } from "../../../../lib/admin/db";
 import { indexar, montoReserva } from "../../../../lib/admin/datos";
@@ -10,7 +11,15 @@ import { tienePermiso, type Permiso } from "../../../../lib/roles";
 
 export const dynamic = "force-dynamic";
 
-const PERMISO: Record<string, Permiso> = {
+const tipoExportacionSchema = z.enum([
+  "negocios",
+  "reservas",
+  "finanzas",
+  "auditoria",
+  "usuarios",
+]);
+
+const PERMISO: Record<z.infer<typeof tipoExportacionSchema>, Permiso> = {
   negocios: "negocios_ver",
   reservas: "reservas",
   finanzas: "finanzas",
@@ -28,11 +37,15 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ tipo: string }> },
 ) {
-  const { tipo } = await params;
+  const { tipo: tipoCrudo } = await params;
   const admin = await obtenerAdminAutenticado();
   if (!admin) return new NextResponse("No encontrado", { status: 404 });
+  const tipoParsed = tipoExportacionSchema.safeParse(tipoCrudo);
+  if (!tipoParsed.success) {
+    return new NextResponse("No encontrado", { status: 404 });
+  }
+  const tipo = tipoParsed.data;
   const permiso = PERMISO[tipo];
-  if (!permiso) return new NextResponse("No encontrado", { status: 404 });
   if (!tienePermiso(admin.rol, permiso)) {
     return new NextResponse("Sin permiso", { status: 403 });
   }
@@ -129,7 +142,7 @@ export async function GET(
       usuarios.map((u) => [
         u.id,
         u.email ?? "",
-        perfil.get(u.id)?.rol_admin ?? "",
+        rolEfectivo(u.email, perfil.get(u.id)?.rol_admin) ?? "empresa",
         perfil.get(u.id)?.bloqueado ? "si" : "no",
         negocioDe.get(u.id) ?? "",
         u.last_sign_in_at ?? "",

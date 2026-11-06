@@ -5,73 +5,53 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
-  CheckCircle2,
   Clock,
   CreditCard,
   DollarSign,
   Download,
-  FileCheck2,
-  FileText,
   HandCoins,
   Info,
   Percent,
   ShieldCheck,
-  Sparkles,
-  Users,
   Wallet,
-  X,
 } from "lucide-react";
-import EmpresaPage, { ItemLista, KpiCard, Lista } from "../EmpresaPage";
+import EmpresaPage, { KpiCard, Lista } from "../EmpresaPage";
 import { toast } from "../Toast";
 import { descargarCsv } from "../../lib/csv";
 import { formatearPrecioUsd } from "@/lib/formato";
+import { mensajeErrorUsuario } from "../../lib/errores";
 import {
-  EXCHANGE_RATE_BCCR_DEFAULT,
-  etiquetaTarifaIva,
-  etiquetaTipoIdentificacion,
+  calcularResumenKpiFinanciero,
+  COLUMNAS_CSV_D104,
+  filasCsvD104,
   generarConsecutivoHaciendaMock,
-  montoEnCrc,
-  montoEnUsd,
-  redondearMoneda,
   resumirServiciosFiscales,
 } from "../../lib/finanzas";
+import {
+  desplazarClave,
+  diaCR,
+  fechaHoraCR,
+  rangoMesActual,
+} from "../../lib/zona-horaria";
 import type {
-  ClientIdType,
   FinancialTransaction,
-  FiscalCurrency,
   ServiceFiscalSummary,
-  VoucherType,
 } from "../../types/finanzas";
+import type {
+  ComprobanteInput,
+  ComprobanteResultado,
+} from "@/actions/facturacion";
+import DesgloseServiciosTabla from "./finanzas/DesgloseServiciosTabla";
+import ModalComprobanteHacienda, {
+  type ModalFacturaState,
+} from "./finanzas/ModalComprobanteHacienda";
+import TablaPagosPasarela from "./finanzas/TablaPagosPasarela";
 
 export type { FinancialTransaction, ServiceFiscalSummary };
 
-const CR_OFFSET_MS = -6 * 3_600_000;
-const DIAS_CORTOS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const MESES_CORTOS = [
-  "ene",
-  "feb",
-  "mar",
-  "abr",
-  "may",
-  "jun",
-  "jul",
-  "ago",
-  "sep",
-  "oct",
-  "nov",
-  "dic",
-];
-
-const TIPOS_ID_OPCIONES: { valor: Exclude<ClientIdType, null>; etiqueta: string }[] = [
-  { valor: "fisica", etiqueta: "Cédula Física (9 dígitos)" },
-  { valor: "juridica", etiqueta: "Cédula Jurídica (10 dígitos)" },
-  { valor: "dimex", etiqueta: "DIMEX (11-12 dígitos)" },
-  { valor: "nite", etiqueta: "NITE (10 dígitos)" },
-  { valor: "extranjero", etiqueta: "Extranjero No Domiciliado" },
-];
-
 const formatoUsd = {
-  format: (monto: number | null | undefined): string => formatearPrecioUsd(monto),
+  format: (monto: number | null | undefined): string =>
+    formatearPrecioUsd(monto),
 };
 
 const formatoNumeroCr = new Intl.NumberFormat("es-CR", {
@@ -79,75 +59,11 @@ const formatoNumeroCr = new Intl.NumberFormat("es-CR", {
   maximumFractionDigits: 2,
 });
 
-function formatoMoneda(monto: number, currency: FiscalCurrency): string {
-  if (currency === "CRC") {
-    return `₡${formatoNumeroCr.format(monto)}`;
-  }
-  return formatoUsd.format(monto);
-}
-
-function partesCR(iso: string) {
-  const cr = new Date(new Date(iso).getTime() + CR_OFFSET_MS);
-  const p = (n: number) => String(n).padStart(2, "0");
-  const anio = cr.getUTCFullYear();
-  const mes = cr.getUTCMonth();
-  const dia = cr.getUTCDate();
-  return {
-    anio,
-    mes,
-    dia,
-    diaSemana: cr.getUTCDay(),
-    hora: cr.getUTCHours(),
-    minuto: cr.getUTCMinutes(),
-    clave: `${anio}-${p(mes + 1)}-${p(dia)}`,
-  };
-}
-
-function diaCR(iso: string): string {
-  return partesCR(iso).clave;
-}
-
-function fechaHoraCR(iso: string): string {
-  const { anio, mes, dia, diaSemana, hora, minuto } = partesCR(iso);
-  const h12 = hora % 12 === 0 ? 12 : hora % 12;
-  const min = String(minuto).padStart(2, "0");
-  const sufijo = hora < 12 ? "a.m." : "p.m.";
-  return `${DIAS_CORTOS[diaSemana]} ${dia} ${MESES_CORTOS[mes]} ${anio} · ${h12}:${min} ${sufijo}`;
-}
-
-function desplazarClave(clave: string, dias: number): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(clave)) return "";
-  const [y, m, d] = clave.split("-").map(Number);
-  const f = new Date(y, m - 1, d + dias);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${f.getFullYear()}-${p(f.getMonth() + 1)}-${p(f.getDate())}`;
-}
-
-function rangoMesActual(clave: string): { desde: string; hasta: string } {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(clave)) return { desde: "", hasta: "" };
-  const [y, m] = clave.split("-").map(Number);
-  const ultimoDia = new Date(y, m, 0).getDate();
-  const p = (n: number) => String(n).padStart(2, "0");
-  return {
-    desde: `${y}-${p(m)}-01`,
-    hasta: `${y}-${p(m)}-${p(ultimoDia)}`,
-  };
-}
-
 function formatearIban(iban?: string | null): string | null {
   const limpio = (iban ?? "").replace(/\s+/g, "").trim();
   if (!limpio) return null;
   if (limpio.length <= 8) return limpio;
   return `${limpio.slice(0, 4)} •••• •••• ${limpio.slice(-4)}`;
-}
-
-interface ModalFacturaState {
-  trxId: string;
-  voucherType: VoucherType;
-  clientName: string;
-  clientIdType: Exclude<ClientIdType, null>;
-  clientTaxId: string;
-  consecutive: string;
 }
 
 /** Dashboard financiero con trazabilidad fiscal (Hacienda CR) para `/[slug]/admin/finanzas`. */
@@ -162,6 +78,8 @@ export default function FinanzasView({
   hoyClave,
   hrefReservas,
   hrefPersonalizacion,
+  modoDemo = false,
+  onGuardarComprobante,
 }: {
   transacciones: FinancialTransaction[];
   error?: string | null;
@@ -179,6 +97,10 @@ export default function FinanzasView({
   hoyClave?: string;
   hrefReservas?: string;
   hrefPersonalizacion?: string;
+  modoDemo?: boolean;
+  onGuardarComprobante: (
+    input: ComprobanteInput,
+  ) => Promise<ComprobanteResultado>;
 }) {
   const [listaTransacciones, setListaTransacciones] = useState<
     FinancialTransaction[]
@@ -186,29 +108,15 @@ export default function FinanzasView({
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [verTodos, setVerTodos] = useState(false);
-  const [receptorAbiertoId, setReceptorAbiertoId] = useState<string | null>(
-    null,
-  );
   const [modalFactura, setModalFactura] = useState<ModalFacturaState | null>(
     null,
   );
   const [errorModal, setErrorModal] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     setListaTransacciones(transaccionesIniciales);
   }, [transaccionesIniciales]);
-
-  useEffect(() => {
-    if (!modalFactura) return;
-    function alPresionarEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setModalFactura(null);
-        setErrorModal(null);
-      }
-    }
-    window.addEventListener("keydown", alPresionarEscape);
-    return () => window.removeEventListener("keydown", alPresionarEscape);
-  }, [modalFactura]);
 
   const filtrando = Boolean(desde || hasta);
 
@@ -235,56 +143,11 @@ export default function FinanzasView({
     return pagosManuales ?? { cantidad: 0, monto: 0 };
   }, [detalleManuales, pagosManuales, desde, hasta]);
 
-  const resumenKpi = useMemo(() => {
-    let subtotalUsd = 0;
-    let ivaUsd = 0;
-    let brutoUsd = 0;
-    let comisionesUsd = 0;
-    let netoUsd = 0;
-    let brutoCrc = 0;
-    let netoCrc = 0;
-    let cupos = 0;
-    let facturadas = 0;
-
-    for (const t of transaccionesFiltradas) {
-      subtotalUsd += montoEnUsd(
-        t.subtotal_amount,
-        t.currency,
-        t.exchange_rate_bccr,
-      );
-      ivaUsd += montoEnUsd(t.iva_amount, t.currency, t.exchange_rate_bccr);
-      brutoUsd += montoEnUsd(t.gross_amount, t.currency, t.exchange_rate_bccr);
-      comisionesUsd += montoEnUsd(
-        t.gateway_fee_amount,
-        t.currency,
-        t.exchange_rate_bccr,
-      );
-      netoUsd += montoEnUsd(t.net_amount, t.currency, t.exchange_rate_bccr);
-      brutoCrc += montoEnCrc(t.gross_amount, t.currency, t.exchange_rate_bccr);
-      netoCrc += montoEnCrc(t.net_amount, t.currency, t.exchange_rate_bccr);
-      cupos += t.cupos ?? 1;
-      if (t.invoice_status === "issued") facturadas += 1;
-    }
-
-    const tipoCambioRef =
-      transaccionesFiltradas[0]?.exchange_rate_bccr ??
-      listaTransacciones[0]?.exchange_rate_bccr ??
-      EXCHANGE_RATE_BCCR_DEFAULT;
-
-    return {
-      subtotalUsd: redondearMoneda(subtotalUsd),
-      ivaUsd: redondearMoneda(ivaUsd),
-      brutoUsd: redondearMoneda(brutoUsd),
-      comisionesUsd: redondearMoneda(comisionesUsd),
-      netoUsd: redondearMoneda(netoUsd),
-      brutoCrc: redondearMoneda(brutoCrc),
-      netoCrc: redondearMoneda(netoCrc),
-      tipoCambioRef,
-      cupos,
-      facturadas,
-      pendientesFactura: transaccionesFiltradas.length - facturadas,
-    };
-  }, [transaccionesFiltradas, listaTransacciones]);
+  const resumenKpi = useMemo(
+    () =>
+      calcularResumenKpiFinanciero(transaccionesFiltradas, listaTransacciones),
+    [transaccionesFiltradas, listaTransacciones],
+  );
 
   const desgloseServicios: ServiceFiscalSummary[] = useMemo(
     () => resumirServiciosFiscales(transaccionesFiltradas),
@@ -335,7 +198,7 @@ export default function FinanzasView({
   }
 
   function autocompletarConsecutivoPrueba() {
-    if (!modalFactura) return;
+    if (!modalFactura || !modoDemo || guardando) return;
     const indice =
       listaTransacciones.findIndex((t) => t.id === modalFactura.trxId) + 1;
     const sugerido = generarConsecutivoHaciendaMock(
@@ -345,8 +208,8 @@ export default function FinanzasView({
     setModalFactura({ ...modalFactura, consecutive: sugerido });
   }
 
-  function guardarComprobante(nuevoEstado: "pending" | "issued") {
-    if (!modalFactura) return;
+  async function guardarComprobante(nuevoEstado: "pending" | "issued") {
+    if (!modalFactura || guardando || !trxEnModal) return;
     const esFE = modalFactura.voucherType === "FE";
     const nombreLimpio = modalFactura.clientName.trim();
     const idFiscalLimpio = modalFactura.clientTaxId.trim();
@@ -359,35 +222,45 @@ export default function FinanzasView({
       return;
     }
 
-    setListaTransacciones((prev) =>
-      prev.map((item) => {
-        if (item.id !== modalFactura.trxId) return item;
-        return {
-          ...item,
-          voucher_type: modalFactura.voucherType,
-          client_name: esFE
-            ? nombreLimpio
-            : nombreLimpio || item.client_name || null,
-          client_id_type: esFE ? modalFactura.clientIdType : null,
-          client_tax_id: esFE ? idFiscalLimpio : null,
-          invoice_status: nuevoEstado,
-          invoice_consecutive:
-            nuevoEstado === "issued" ? consecutivoLimpio || null : null,
-        };
-      }),
-    );
-
-    setModalFactura(null);
+    setGuardando(true);
     setErrorModal(null);
-
-    if (nuevoEstado === "issued") {
-      toast.success(
-        consecutivoLimpio
-          ? `Comprobante marcado como Facturado (${consecutivoLimpio})`
-          : "Comprobante marcado como Facturado",
+    try {
+      const result = await onGuardarComprobante({
+        id: modalFactura.trxId,
+        voucher_type: modalFactura.voucherType,
+        client_name: esFE
+          ? nombreLimpio
+          : nombreLimpio || trxEnModal.client_name || null,
+        client_id_type: esFE ? modalFactura.clientIdType : null,
+        client_tax_id: esFE ? idFiscalLimpio : null,
+        invoice_status: nuevoEstado,
+        invoice_consecutive:
+          nuevoEstado === "issued" ? consecutivoLimpio || null : null,
+      });
+      if ("error" in result) {
+        setErrorModal(result.error);
+        return;
+      }
+      const saved = result.transaccion;
+      setListaTransacciones((prev) =>
+        prev.map((item) => (item.id === saved.id ? saved : item)),
       );
-    } else {
-      toast.success("Estado de factura actualizado a Pendiente");
+      setModalFactura(null);
+      toast.success(
+        saved.invoice_status === "issued"
+          ? "Comprobante guardado como Facturado"
+          : "Estado de factura actualizado a Pendiente",
+      );
+    } catch (error) {
+      console.error("[facturación] No se pudo guardar el comprobante.", error);
+      setErrorModal(
+        mensajeErrorUsuario(
+          error,
+          "No se pudo guardar el comprobante. Intenta de nuevo.",
+        ),
+      );
+    } finally {
+      setGuardando(false);
     }
   }
 
@@ -395,48 +268,8 @@ export default function FinanzasView({
     const sufijo = hoyClave || diaCR(new Date().toISOString());
     descargarCsv(
       `declaracion-d104-pagos-${sufijo}.csv`,
-      [
-        "Fecha_Servicio",
-        "ID_Transaccion",
-        "Servicio",
-        "Codigo_CABYS",
-        "Tipo_Comprobante",
-        "Tipo_ID_Cliente",
-        "Identificacion_Cliente",
-        "Nombre_Cliente",
-        "Correo_Cliente",
-        "Moneda",
-        "Tipo_Cambio_BCCR",
-        "Subtotal_Sin_IVA",
-        "Tarifa_IVA",
-        "Monto_IVA",
-        "Total_Bruto_Facturado",
-        "Comision_Pasarela_Gasto",
-        "Neto_Liquidado",
-        "Estado_Factura",
-        "Consecutivo_Hacienda",
-      ],
-      transaccionesFiltradas.map((t) => [
-        fechaHoraCR(t.service_date),
-        t.transaction_ref,
-        t.service_name,
-        t.cabys_code,
-        t.voucher_type,
-        t.client_id_type ?? "",
-        t.client_tax_id ?? "",
-        t.client_name ?? "",
-        t.client_email,
-        t.currency,
-        t.exchange_rate_bccr.toFixed(2),
-        t.subtotal_amount.toFixed(2),
-        t.iva_rate.toFixed(2),
-        t.iva_amount.toFixed(2),
-        t.gross_amount.toFixed(2),
-        t.gateway_fee_amount.toFixed(2),
-        t.net_amount.toFixed(2),
-        t.invoice_status === "issued" ? "Facturado" : "Pendiente",
-        t.invoice_consecutive ?? "",
-      ]),
+      COLUMNAS_CSV_D104,
+      filasCsvD104(transaccionesFiltradas, fechaHoraCR),
     );
   }
 
@@ -497,10 +330,8 @@ export default function FinanzasView({
                           setDesde(op.desde);
                           setHasta(op.hasta);
                         }}
-                        className={`vuki-focus inline-flex min-h-9 items-center rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                          activo
-                            ? "bg-vuki-ink text-white shadow-sm"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900"
+                        className={`vuki-tab-pill ${
+                          activo ? "vuki-tab-pill-active" : ""
                         }`}
                       >
                         {op.etiqueta}
@@ -519,7 +350,7 @@ export default function FinanzasView({
                     value={desde}
                     max={hasta || undefined}
                     onChange={(e) => setDesde(e.target.value)}
-                    className="vuki-focus min-h-9 rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-sky-500"
+                    className="vuki-input-sm w-auto px-2.5"
                   />
                 </label>
                 <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
@@ -530,7 +361,7 @@ export default function FinanzasView({
                     value={hasta}
                     min={desde || undefined}
                     onChange={(e) => setHasta(e.target.value)}
-                    className="vuki-focus min-h-9 rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-sky-500"
+                    className="vuki-input-sm w-auto px-2.5"
                   />
                 </label>
                 {filtrando && (
@@ -573,7 +404,8 @@ export default function FinanzasView({
                       CRC ₡{formatoNumeroCr.format(resumenKpi.brutoCrc)}
                     </span>{" "}
                     <span className="text-[11px] text-slate-400">
-                      (T.C. BCCR ₡{formatoNumeroCr.format(resumenKpi.tipoCambioRef)})
+                      (T.C. BCCR ₡
+                      {formatoNumeroCr.format(resumenKpi.tipoCambioRef)})
                     </span>
                   </p>
                 </>
@@ -701,8 +533,7 @@ export default function FinanzasView({
                         className="h-4 w-4 shrink-0 text-amber-600"
                         aria-hidden="true"
                       />
-                      Reembolsos por gestionar (
-                      {reembolsosPendientes.cantidad})
+                      Reembolsos por gestionar ({reembolsosPendientes.cantidad})
                     </p>
                     <p className="mt-1.5 font-display text-lg font-bold text-amber-950">
                       {formatoUsd.format(reembolsosPendientes.monto)}
@@ -787,85 +618,10 @@ export default function FinanzasView({
           )}
 
           {/* Desglose de ingresos por servicio con configuración fiscal */}
-          {desgloseServicios.length > 0 && (
-            <section className="mt-8">
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
-                Ingresos por servicio
-              </h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {desgloseServicios.map((item) => {
-                  const mostrarParticipacion =
-                    desgloseServicios.length > 1 && resumenKpi.brutoUsd > 0;
-                  const pct = mostrarParticipacion
-                    ? Math.round((item.gross_amount / resumenKpi.brutoUsd) * 100)
-                    : 0;
-                  return (
-                    <div
-                      key={`${item.servicio_id ?? item.service_name}-${item.cabys_code}`}
-                      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate font-display text-sm font-bold text-vuki-ink">
-                            {item.service_name}
-                          </p>
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {item.transactions_count}{" "}
-                            {item.transactions_count === 1 ? "pago" : "pagos"} ·{" "}
-                            {item.total_cupos}{" "}
-                            {item.total_cupos === 1 ? "cupo" : "cupos"}
-                          </p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <p className="font-display text-sm font-bold text-vuki-ink">
-                            {formatoUsd.format(item.gross_amount)}
-                          </p>
-                          <p className="text-[11px] font-medium text-emerald-700">
-                            Neto {formatoUsd.format(item.net_amount)}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Badges discretos de configuración fiscal (CABYS + Tarifa IVA) */}
-                      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                        <span
-                          title="Código del Catálogo de Bienes y Servicios (BCCR / Hacienda)"
-                          className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-medium text-slate-600"
-                        >
-                          CABYS: {item.cabys_code}
-                        </span>
-                        <span
-                          title="Tarifa del Impuesto al Valor Agregado configurada para el servicio"
-                          className="inline-flex items-center rounded-lg border border-sky-200/80 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-800"
-                        >
-                          {etiquetaTarifaIva(item.iva_rate)}
-                        </span>
-                      </div>
-
-                      <p className="mt-2 text-[11px] text-slate-500">
-                        Subtotal {formatoUsd.format(item.subtotal_amount)} + IVA{" "}
-                        {formatoUsd.format(item.iva_amount)}
-                      </p>
-
-                      {mostrarParticipacion && (
-                        <div className="mt-3 flex items-center gap-2">
-                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                            <div
-                              style={{ width: `${Math.max(6, pct)}%` }}
-                              className="h-full rounded-full bg-(--marca)"
-                            />
-                          </div>
-                          <span className="text-[11px] font-semibold text-slate-500">
-                            {pct}%
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
+          <DesgloseServiciosTabla
+            desgloseServicios={desgloseServicios}
+            brutoTotalUsd={resumenKpi.brutoUsd}
+          />
 
           {/* Historial detallado de pagos procesados por pasarela */}
           <section className="mt-8">
@@ -917,627 +673,29 @@ export default function FinanzasView({
                 )}
               </div>
             ) : (
-              <>
-                {/* Tabla en escritorio / tablet */}
-                <div
-                  role="region"
-                  aria-label="Pagos procesados"
-                  tabIndex={0}
-                  className="vuki-focus hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm sm:block"
-                >
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      <tr>
-                        <th className="px-4 py-3.5 whitespace-nowrap">
-                          Fecha del servicio
-                        </th>
-                        <th className="min-w-[160px] px-4 py-3.5">Servicio</th>
-                        <th className="px-4 py-3.5">Cliente</th>
-                        <th className="px-4 py-3.5 text-right whitespace-nowrap">
-                          Impuestos
-                        </th>
-                        <th className="px-4 py-3.5 text-right whitespace-nowrap">
-                          Bruto
-                        </th>
-                        <th className="px-4 py-3.5 text-right whitespace-nowrap">
-                          Comisión (4.25%)
-                        </th>
-                        <th className="px-4 py-3.5 text-right whitespace-nowrap">
-                          Neto
-                        </th>
-                        <th className="px-4 py-3.5 text-right whitespace-nowrap">
-                          Hacienda / Factura
-                        </th>
-                      </tr>
-                    </thead>
-                    <Lista key={`${desde}-${hasta}-${verTodos}`} as="tbody">
-                      {ultimos.map((pago) => {
-                        const esFE = pago.voucher_type === "FE";
-                        const receptorExpandido =
-                          receptorAbiertoId === pago.id;
-                        const mostrarDetalleReceptor =
-                          esFE || receptorExpandido;
-                        const esFacturado = pago.invoice_status === "issued";
-                        const tituloComprobante = esFE
-                          ? `Factura Electrónica (FE) · Receptor: ${pago.client_name ?? "Sin nombre"} (${etiquetaTipoIdentificacion(pago.client_id_type)}: ${pago.client_tax_id ?? "—"})`
-                          : `Tiquete Electrónico (TE) · Receptor: ${pago.client_name ?? "Consumidor final / Turista"} (${pago.client_tax_id ?? "sin cédula requerida"}). Clic para ver detalle.`;
-
-                        return (
-                          <ItemLista
-                            as="tr"
-                            key={pago.id}
-                            className="border-b border-slate-100 align-top last:border-0"
-                          >
-                            <td className="px-4 py-3.5 whitespace-nowrap text-slate-700">
-                              <p className="font-medium">
-                                {fechaHoraCR(pago.service_date)}
-                              </p>
-                              {pago.transaction_ref && (
-                                <p className="font-mono text-[11px] text-slate-400">
-                                  {pago.transaction_ref}
-                                </p>
-                              )}
-                            </td>
-
-                            <td className="min-w-[160px] px-4 py-3.5">
-                              <p className="font-medium text-slate-800">
-                                {pago.service_name}
-                              </p>
-                              <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                                {pago.cupos !== undefined && (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-slate-600">
-                                    <Users
-                                      className="h-3 w-3"
-                                      aria-hidden="true"
-                                    />
-                                    {pago.cupos}{" "}
-                                    {pago.cupos === 1 ? "persona" : "personas"}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-
-                            {/* Columna CLIENTE + badge TE/FE + datos del receptor */}
-                            <td className="px-4 py-3.5">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <span className="font-medium text-slate-900">
-                                  {pago.client_email}
-                                </span>
-                                <button
-                                  type="button"
-                                  title={tituloComprobante}
-                                  aria-expanded={receptorExpandido}
-                                  onClick={() =>
-                                    setReceptorAbiertoId((prev) =>
-                                      prev === pago.id ? null : pago.id,
-                                    )
-                                  }
-                                  className={`vuki-focus inline-flex items-center rounded-md px-1.5 py-0.5 font-mono text-[11px] font-bold tracking-wide transition ${
-                                    esFE
-                                      ? "bg-sky-50 text-sky-800 ring-1 ring-sky-200 hover:bg-sky-100"
-                                      : "bg-slate-100 text-slate-700 ring-1 ring-slate-200/90 hover:bg-slate-200/70"
-                                  }`}
-                                >
-                                  {pago.voucher_type}
-                                </button>
-                              </div>
-
-                              {mostrarDetalleReceptor && (
-                                <div className="mt-1.5 rounded-xl border border-slate-200/80 bg-slate-50/90 px-2.5 py-1.5 text-xs text-slate-600">
-                                  <p className="font-medium text-slate-800">
-                                    {pago.client_name ||
-                                      "Consumidor final (Turista)"}
-                                  </p>
-                                  <p className="font-mono text-[11px] text-slate-500">
-                                    {pago.client_tax_id
-                                      ? `${etiquetaTipoIdentificacion(pago.client_id_type)}: ${pago.client_tax_id}`
-                                      : "Tiquete Electrónico · Sin cédula requerida"}
-                                  </p>
-                                  {receptorExpandido && (
-                                    <button
-                                      type="button"
-                                      onClick={() => abrirModalFactura(pago)}
-                                      className="vuki-focus mt-1 text-[11px] font-semibold text-sky-700 hover:underline"
-                                    >
-                                      {esFE
-                                        ? "Editar receptor fiscal"
-                                        : "Configurar receptor (FE)"}
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-
-                            {/* Nueva columna IMPUESTOS (entre CLIENTE y BRUTO) */}
-                            <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                              <p className="text-xs font-medium text-slate-700">
-                                Sub:{" "}
-                                {formatoMoneda(
-                                  pago.subtotal_amount,
-                                  pago.currency,
-                                )}
-                              </p>
-                              <p className="mt-0.5 text-[11px] text-slate-500">
-                                IVA ({Math.round(pago.iva_rate * 100)}%):{" "}
-                                {formatoMoneda(pago.iva_amount, pago.currency)}
-                              </p>
-                            </td>
-
-                            <td className="px-4 py-3.5 text-right whitespace-nowrap font-medium text-slate-800">
-                              <span className="whitespace-nowrap">
-                                {formatoMoneda(pago.gross_amount, pago.currency)}
-                              </span>
-                            </td>
-
-                            <td className="px-4 py-3.5 text-right whitespace-nowrap text-xs text-slate-500">
-                              <span className="whitespace-nowrap">
-                                −{formatoMoneda(
-                                  pago.gateway_fee_amount,
-                                  pago.currency,
-                                )}
-                              </span>
-                            </td>
-
-                            <td className="px-4 py-3.5 text-right whitespace-nowrap font-display font-bold text-emerald-800">
-                              <span className="whitespace-nowrap">
-                                {formatoMoneda(pago.net_amount, pago.currency)}
-                              </span>
-                            </td>
-
-                            {/* Nueva columna HACIENDA / FACTURA (al final de la fila) */}
-                            <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                              <button
-                                type="button"
-                                onClick={() => abrirModalFactura(pago)}
-                                title={
-                                  esFacturado
-                                    ? "Comprobante emitido · Clic para ver o editar consecutivo"
-                                    : "Clic para marcar como Facturado o ingresar consecutivo de Hacienda"
-                                }
-                                className={`vuki-focus inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition ${
-                                  esFacturado
-                                    ? "bg-[#10B981]/12 text-emerald-900 ring-1 ring-[#10B981]/35 hover:bg-[#10B981]/20"
-                                    : "bg-amber-50 text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100"
-                                }`}
-                              >
-                                {esFacturado ? (
-                                  <CheckCircle2
-                                    className="h-3.5 w-3.5 text-[#10B981]"
-                                    aria-hidden="true"
-                                  />
-                                ) : (
-                                  <span
-                                    aria-hidden="true"
-                                    className="h-1.5 w-1.5 rounded-full bg-amber-500"
-                                  />
-                                )}
-                                {esFacturado ? "Facturado" : "Pendiente"}
-                              </button>
-                              {esFacturado && pago.invoice_consecutive && (
-                                <p
-                                  title="Consecutivo Ministerio de Hacienda"
-                                  className="mt-1 font-mono text-[11px] text-slate-500"
-                                >
-                                  {pago.invoice_consecutive}
-                                </p>
-                              )}
-                            </td>
-                          </ItemLista>
-                        );
-                      })}
-                    </Lista>
-                  </table>
-                </div>
-
-                {/* Tarjetas responsivas en móvil (< sm) */}
-                <Lista
-                  key={`movil-${desde}-${hasta}-${verTodos}`}
-                  as="ul"
-                  className="space-y-3 sm:hidden"
-                >
-                  {ultimos.map((pago) => {
-                    const esFE = pago.voucher_type === "FE";
-                    const esFacturado = pago.invoice_status === "issued";
-                    const receptorExpandido = receptorAbiertoId === pago.id;
-
-                    return (
-                      <ItemLista
-                        as="li"
-                        key={pago.id}
-                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-display text-sm font-bold text-vuki-ink">
-                              {pago.service_name}
-                            </p>
-                            <p className="mt-0.5 text-xs text-slate-500">
-                              {fechaHoraCR(pago.service_date)}
-                            </p>
-                          </div>
-                          <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 font-display text-sm font-bold text-emerald-800">
-                            {formatoMoneda(pago.net_amount, pago.currency)}
-                          </span>
-                        </div>
-
-                        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
-                          <div className="flex min-w-0 items-center gap-1.5">
-                            <span className="truncate font-medium text-slate-800">
-                              {pago.client_email}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setReceptorAbiertoId((prev) =>
-                                  prev === pago.id ? null : pago.id,
-                                )
-                              }
-                              className={`vuki-focus shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[11px] font-bold ${
-                                esFE
-                                  ? "bg-sky-50 text-sky-800 ring-1 ring-sky-200"
-                                  : "bg-slate-100 text-slate-700 ring-1 ring-slate-200"
-                              }`}
-                            >
-                              {pago.voucher_type}
-                            </button>
-                          </div>
-
-                          {pago.cupos !== undefined && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] whitespace-nowrap">
-                              <Users className="h-3 w-3" aria-hidden="true" />
-                              {pago.cupos}{" "}
-                              {pago.cupos === 1 ? "persona" : "personas"}
-                            </span>
-                          )}
-                        </div>
-
-                        {(esFE || receptorExpandido) && (
-                          <div className="mt-2 rounded-xl border border-slate-200/80 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600">
-                            <p className="font-medium text-slate-800">
-                              {pago.client_name || "Consumidor final (Turista)"}
-                            </p>
-                            <p className="font-mono text-[11px] text-slate-500">
-                              {pago.client_tax_id
-                                ? `${etiquetaTipoIdentificacion(pago.client_id_type)}: ${pago.client_tax_id}`
-                                : "Tiquete Electrónico · Sin cédula requerida"}
-                            </p>
-                          </div>
-                        )}
-
-                        <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-2.5 text-xs text-slate-500">
-                          <div className="flex items-center justify-between">
-                            <span>
-                              Sub:{" "}
-                              {formatoMoneda(
-                                pago.subtotal_amount,
-                                pago.currency,
-                              )}{" "}
-                              + IVA ({Math.round(pago.iva_rate * 100)}%):{" "}
-                              {formatoMoneda(pago.iva_amount, pago.currency)}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span>
-                              Bruto:{" "}
-                              {formatoMoneda(pago.gross_amount, pago.currency)}
-                            </span>
-                            <span>
-                              Comisión 4.25%: −
-                              {formatoMoneda(
-                                pago.gateway_fee_amount,
-                                pago.currency,
-                              )}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
-                          <span className="font-mono text-[11px] text-slate-400">
-                            {pago.invoice_consecutive || pago.transaction_ref}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => abrirModalFactura(pago)}
-                            className={`vuki-focus inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${
-                              esFacturado
-                                ? "bg-[#10B981]/12 text-emerald-900 ring-1 ring-[#10B981]/35"
-                                : "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
-                            }`}
-                          >
-                            {esFacturado ? (
-                              <CheckCircle2
-                                className="h-3.5 w-3.5 text-[#10B981]"
-                                aria-hidden="true"
-                              />
-                            ) : (
-                              <span
-                                aria-hidden="true"
-                                className="h-1.5 w-1.5 rounded-full bg-amber-500"
-                              />
-                            )}
-                            {esFacturado ? "Facturado" : "Pendiente"}
-                          </button>
-                        </div>
-                      </ItemLista>
-                    );
-                  })}
-                </Lista>
-              </>
+              <TablaPagosPasarela
+                ultimos={ultimos}
+                claveLista={`${desde}-${hasta}-${verTodos}`}
+                onAbrirModalFactura={abrirModalFactura}
+              />
             )}
           </section>
 
-          {/* Modal interactivo de trazabilidad Hacienda / Comprobante Electrónico */}
-          {modalFactura && trxEnModal && (
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="titulo-modal-hacienda"
-              className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
-              onClick={(e) => {
-                if (e.target === e.currentTarget) {
-                  setModalFactura(null);
-                  setErrorModal(null);
-                }
-              }}
-            >
-              <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-vuki-ocean">
-                      <FileCheck2 className="h-5 w-5" aria-hidden="true" />
-                    </span>
-                    <div>
-                      <h3
-                        id="titulo-modal-hacienda"
-                        className="font-display text-base font-bold text-vuki-ink"
-                      >
-                        Comprobante electrónico
-                      </h3>
-                      <p className="text-xs text-slate-500">
-                        Ministerio de Hacienda · Trazabilidad local (mock)
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="Cerrar ventana"
-                    onClick={() => {
-                      setModalFactura(null);
-                      setErrorModal(null);
-                    }}
-                    className="vuki-focus inline-flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                  >
-                    <X className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </div>
-
-                {/* Resumen fiscal del pago */}
-                <div className="mt-4 rounded-2xl border border-slate-200/80 bg-slate-50 p-3.5 text-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-vuki-ink">
-                      {trxEnModal.service_name}
-                    </span>
-                    <span className="font-display text-sm font-bold text-vuki-ink">
-                      {formatoMoneda(
-                        trxEnModal.gross_amount,
-                        trxEnModal.currency,
-                      )}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-slate-500">
-                    <span>
-                      Subtotal{" "}
-                      {formatoMoneda(
-                        trxEnModal.subtotal_amount,
-                        trxEnModal.currency,
-                      )}{" "}
-                      + IVA ({Math.round(trxEnModal.iva_rate * 100)}%){" "}
-                      {formatoMoneda(trxEnModal.iva_amount, trxEnModal.currency)}
-                    </span>
-                    <span className="font-mono text-[11px] text-slate-400">
-                      CABYS {trxEnModal.cabys_code}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-4 space-y-3.5">
-                  {/* Selector TE / FE */}
-                  <div>
-                    <span className="block text-xs font-semibold text-slate-700">
-                      Tipo de comprobante
-                    </span>
-                    <div className="mt-1.5 grid grid-cols-2 gap-2">
-                      {(
-                        [
-                          {
-                            tipo: "TE" as const,
-                            titulo: "TE · Tiquete",
-                            sub: "Turista / consumidor final",
-                          },
-                          {
-                            tipo: "FE" as const,
-                            titulo: "FE · Factura",
-                            sub: "Con cédula del receptor",
-                          },
-                        ] as const
-                      ).map((op) => {
-                        const seleccionado =
-                          modalFactura.voucherType === op.tipo;
-                        return (
-                          <button
-                            key={op.tipo}
-                            type="button"
-                            aria-pressed={seleccionado}
-                            onClick={() => {
-                              setErrorModal(null);
-                              setModalFactura({
-                                ...modalFactura,
-                                voucherType: op.tipo,
-                              });
-                            }}
-                            className={`vuki-focus rounded-2xl border p-2.5 text-left transition ${
-                              seleccionado
-                                ? "border-vuki-ocean bg-sky-50/70 ring-1 ring-vuki-ocean"
-                                : "border-slate-200 bg-white hover:bg-slate-50"
-                            }`}
-                          >
-                            <p className="flex items-center gap-1.5 text-xs font-bold text-vuki-ink">
-                              <FileText
-                                className="h-3.5 w-3.5 text-vuki-ocean"
-                                aria-hidden="true"
-                              />
-                              {op.titulo}
-                            </p>
-                            <p className="mt-0.5 text-[11px] text-slate-500">
-                              {op.sub}
-                            </p>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Datos del receptor si se selecciona FE */}
-                  {modalFactura.voucherType === "FE" && (
-                    <div className="space-y-2.5 rounded-2xl border border-sky-100 bg-sky-50/40 p-3.5">
-                      <label className="block text-xs font-medium text-slate-700">
-                        Nombre o razón social del receptor
-                        <input
-                          type="text"
-                          value={modalFactura.clientName}
-                          onChange={(e) =>
-                            setModalFactura({
-                              ...modalFactura,
-                              clientName: e.target.value,
-                            })
-                          }
-                          placeholder="Ej. Inversiones Arenal S.A."
-                          className="vuki-focus mt-1 min-h-9 w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900"
-                        />
-                      </label>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        <label className="block text-xs font-medium text-slate-700">
-                          Tipo de ID
-                          <select
-                            value={modalFactura.clientIdType}
-                            onChange={(e) =>
-                              setModalFactura({
-                                ...modalFactura,
-                                clientIdType: e.target.value as Exclude<
-                                  ClientIdType,
-                                  null
-                                >,
-                              })
-                            }
-                            className="vuki-select-sm mt-1 w-full"
-                          >
-                            {TIPOS_ID_OPCIONES.map((op) => (
-                              <option key={op.valor} value={op.valor}>
-                                {op.etiqueta}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="block text-xs font-medium text-slate-700">
-                          Identificación / Cédula
-                          <input
-                            type="text"
-                            value={modalFactura.clientTaxId}
-                            onChange={(e) =>
-                              setModalFactura({
-                                ...modalFactura,
-                                clientTaxId: e.target.value,
-                              })
-                            }
-                            placeholder="Ej. 3-101-123456"
-                            className="vuki-focus mt-1 min-h-9 w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 font-mono text-xs text-slate-900"
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Consecutivo Hacienda (opcional) */}
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <label
-                        htmlFor="input-consecutivo-hacienda"
-                        className="text-xs font-semibold text-slate-700"
-                      >
-                        Consecutivo Hacienda{" "}
-                        <span className="font-normal text-slate-400">
-                          (opcional)
-                        </span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={autocompletarConsecutivoPrueba}
-                        className="vuki-focus inline-flex items-center gap-1 text-[11px] font-semibold text-vuki-ocean hover:underline"
-                      >
-                        <Sparkles className="h-3 w-3" aria-hidden="true" />
-                        Generar de prueba
-                      </button>
-                    </div>
-                    <input
-                      id="input-consecutivo-hacienda"
-                      type="text"
-                      maxLength={50}
-                      value={modalFactura.consecutive}
-                      onChange={(e) =>
-                        setModalFactura({
-                          ...modalFactura,
-                          consecutive: e.target.value,
-                        })
-                      }
-                      placeholder="Ej. 00100001040000000001"
-                      className="vuki-focus mt-1.5 min-h-10 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-mono text-xs text-slate-900 placeholder:text-slate-400"
-                    />
-                  </div>
-
-                  {errorModal && (
-                    <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                      {errorModal}
-                    </p>
-                  )}
-                </div>
-
-                <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
-                  {trxEnModal.invoice_status === "issued" && (
-                    <button
-                      type="button"
-                      onClick={() => guardarComprobante("pending")}
-                      className="vuki-focus mr-auto inline-flex min-h-10 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-3.5 text-xs font-semibold text-amber-900 transition hover:bg-amber-100"
-                    >
-                      Volver a Pendiente
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setModalFactura(null);
-                      setErrorModal(null);
-                    }}
-                    className="vuki-focus inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => guardarComprobante("issued")}
-                    className="vuki-focus inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-vuki-ink px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
-                  >
-                    <CheckCircle2
-                      className="h-4 w-4 text-[#10B981]"
-                      aria-hidden="true"
-                    />
-                    {trxEnModal.invoice_status === "issued"
-                      ? "Guardar cambios"
-                      : "Marcar como Facturado"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <ModalComprobanteHacienda
+            modalFactura={modalFactura}
+            trxEnModal={trxEnModal}
+            guardando={guardando}
+            errorModal={errorModal}
+            modoDemo={modoDemo}
+            onChangeModal={setModalFactura}
+            onCerrar={() => {
+              setModalFactura(null);
+              setErrorModal(null);
+            }}
+            onLimpiarError={() => setErrorModal(null)}
+            onAutocompletarConsecutivo={autocompletarConsecutivoPrueba}
+            onGuardar={guardarComprobante}
+          />
         </>
       )}
     </EmpresaPage>

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cancelarReservaPublicaAction } from "../../../actions/reserva-publica";
+import { mensajeErrorUsuario } from "../../../lib/errores";
 
 /** Botón de cancelación con confirmación en dos pasos. */
 export default function CancelarReservaButton({ token }: { token: string }) {
@@ -12,15 +13,26 @@ export default function CancelarReservaButton({ token }: { token: string }) {
   const [pendiente, iniciar] = useTransition();
 
   function cancelar() {
+    if (pendiente) return;
     setError(null);
     iniciar(async () => {
-      const { error } = await cancelarReservaPublicaAction(token);
-      if (error) {
-        setError(error);
+      try {
+        const { error: actionError } = await cancelarReservaPublicaAction(token);
+        if (actionError) {
+          setError(actionError);
+          setConfirmando(false);
+          return;
+        }
+        router.refresh();
+      } catch (e) {
+        setError(
+          mensajeErrorUsuario(
+            e,
+            "No se pudo cancelar la reserva. Intenta de nuevo.",
+          ),
+        );
         setConfirmando(false);
-        return;
       }
-      router.refresh();
     });
   }
 
@@ -35,7 +47,7 @@ export default function CancelarReservaButton({ token }: { token: string }) {
         <button
           type="button"
           onClick={() => setConfirmando(true)}
-          className="vuki-focus h-12 w-full rounded-2xl border border-red-200 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+          className="vuki-btn-danger-outline min-h-12 w-full rounded-2xl text-sm font-semibold"
         >
           Cancelar mi reserva
         </button>
@@ -45,7 +57,7 @@ export default function CancelarReservaButton({ token }: { token: string }) {
             type="button"
             onClick={() => setConfirmando(false)}
             disabled={pendiente}
-            className="vuki-focus h-12 flex-1 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-600"
+            className="vuki-btn-secondary min-h-12 flex-1 rounded-2xl"
           >
             Volver
           </button>
@@ -53,7 +65,7 @@ export default function CancelarReservaButton({ token }: { token: string }) {
             type="button"
             onClick={cancelar}
             disabled={pendiente}
-            className="vuki-focus h-12 flex-1 rounded-2xl bg-red-600 text-sm font-semibold text-white disabled:opacity-60"
+            className="vuki-btn-danger min-h-12 flex-1 rounded-2xl"
           >
             {pendiente ? "Cancelando..." : "Sí, cancelar"}
           </button>

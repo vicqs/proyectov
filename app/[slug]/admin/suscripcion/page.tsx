@@ -12,7 +12,12 @@ import {
 import { isStripeMockMode } from "@/lib/stripe";
 import { requerirEmpresa, type EmpresaPageProps } from "@/lib/empresa";
 import { estadoEfectivo } from "@/lib/negocio-estado";
-import { funcionActivaNegocio, precioDelNegocio } from "@/lib/plataforma";
+import {
+  calcularPrecio,
+  funcionActiva,
+  listarPlanes,
+  obtenerConfiguracion,
+} from "@/lib/plataforma";
 import { fechaCorta } from "@/lib/admin/formato";
 import type { EstadoSuscripcion } from "@/types/database";
 import {
@@ -61,11 +66,20 @@ export default async function SuscripcionPage({
     params,
     searchParams,
   ]);
-  const { negocio } = await requerirEmpresa(slug);
-  const [detallePrecio, soporteActivo] = await Promise.all([
-    precioDelNegocio(negocio),
-    funcionActivaNegocio(negocio, "soporte_empresas"),
+  const [{ negocio }, config, planes] = await Promise.all([
+    requerirEmpresa(slug),
+    obtenerConfiguracion(),
+    listarPlanes(),
   ]);
+  const detallePrecio = calcularPrecio(negocio, planes);
+  const soporteActivo = funcionActiva(
+    config,
+    negocio,
+    planes,
+    "soporte_empresas",
+  );
+  const simulacionSuscripcionActiva =
+    isStripeMockMode && config.pagos_simulados;
 
   const ahoraMs = new Date().getTime();
   const efectivo = estadoEfectivo(negocio, ahoraMs);
@@ -362,7 +376,7 @@ export default async function SuscripcionPage({
               )}
             </section>
 
-            {isStripeMockMode && (
+            {simulacionSuscripcionActiva && (
               <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-slate-700">

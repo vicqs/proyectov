@@ -2,7 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import type { ConfiguracionPlataforma, Negocio, Plan } from "../types/database";
-import { supabaseAdmin } from "./supabase";
+import { leer, leerUno } from "./data/server";
 
 export const PRECIO_POR_DEFECTO_USD = 15;
 
@@ -67,6 +67,7 @@ export const CONFIG_POR_DEFECTO: ConfiguracionPlataforma = {
   max_imagen_mb: 2,
   modo_mantenimiento: false,
   mensaje_mantenimiento: null,
+  pagos_simulados: false,
   flags: {},
   plantillas_correo: {},
   terminos_texto: null,
@@ -74,29 +75,14 @@ export const CONFIG_POR_DEFECTO: ConfiguracionPlataforma = {
 };
 
 /**
- * Configuración global con valores por defecto si la tabla no existe todavía
- * (migración pendiente) o está vacía. Cacheada por request.
+ * Una configuración ausente o inaccesible debe detener la operación, no
+ * reactivar reservas ni ignorar mantenimiento con valores de respaldo.
  */
 export const obtenerConfiguracion = cache(
   async (): Promise<ConfiguracionPlataforma> => {
-    try {
-      const { data, error } = await supabaseAdmin
-        .from("configuracion_plataforma")
-        .select("*")
-        .eq("id", 1)
-        .limit(1);
-      if (error || !data || data.length === 0) return CONFIG_POR_DEFECTO;
-      const fila = data[0] as ConfiguracionPlataforma;
-      return {
-        ...CONFIG_POR_DEFECTO,
-        ...fila,
-        flags: fila.flags ?? {},
-        plantillas_correo: fila.plantillas_correo ?? {},
-        slugs_reservados: fila.slugs_reservados ?? [],
-      };
-    } catch {
-      return CONFIG_POR_DEFECTO;
-    }
+    const fila = await leerUno("configuracion_plataforma", { eq: { id: 1 } });
+    if (!fila) throw new Error("Falta la configuracion de plataforma. Ejecuta supabase/schema.sql y supabase/seed.sql.");
+    return fila;
   },
 );
 
@@ -160,13 +146,7 @@ const PLAN_RESPALDO: Plan = {
 };
 
 export const listarPlanes = cache(async (): Promise<Plan[]> => {
-  try {
-    const { data, error } = await supabaseAdmin.from("planes").select("*");
-    if (error || !data) return [];
-    return data as Plan[];
-  } catch {
-    return [];
-  }
+  return leer("planes");
 });
 
 export interface PrecioNegocio {

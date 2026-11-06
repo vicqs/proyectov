@@ -1,6 +1,11 @@
 import { requerirAdmin } from "../../../lib/admin/auth";
+import { tienePermiso } from "../../../lib/roles";
 import { leer } from "../../../lib/admin/db";
-import { indexar, montoReserva } from "../../../lib/admin/datos";
+import {
+  cargarPlataforma,
+  indexar,
+  montoReserva,
+} from "../../../lib/admin/datos";
 import { fechaHora, paginar, parametro } from "../../../lib/admin/formato";
 import { admiteReembolsoPasarela, esPagoManual } from "../../../lib/pagos";
 import {
@@ -20,21 +25,25 @@ export default async function ReservasAdminPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requerirAdmin("reservas");
-  const sp = await searchParams;
+  const [admin, sp, { reservas, servicios, negocios }, reembolsos] =
+    await Promise.all([
+      requerirAdmin("reservas"),
+      searchParams,
+      cargarPlataforma(),
+      leer("reembolsos").catch(() => []),
+    ]);
+  const puedeCompletarReembolso = tienePermiso(admin.rol, "finanzas");
+  const idx = indexar(servicios);
   const q = (parametro(sp.q) ?? "").trim().toLowerCase();
   const estado = parametro(sp.estado) ?? "";
   const negocioId = parametro(sp.negocio) ?? "";
-
-  const [reservas, servicios, negocios, reembolsos] = await Promise.all([
-    leer("reservas"),
-    leer("servicios"),
-    leer("negocios"),
-    leer("reembolsos").catch(() => []),
-  ]);
-  const idx = indexar(servicios);
   const nombreNegocio = new Map(negocios.map((n) => [n.id, n.nombre]));
   const conReembolso = new Set(reembolsos.map((r) => r.reserva_id));
+  const conReembolsoCompletado = new Set(
+    reembolsos
+      .filter((r) => r.estado === "completado")
+      .map((r) => r.reserva_id),
+  );
 
   // Conteos globales para las pestañas rápidas
   const conteos = {
@@ -77,7 +86,8 @@ export default async function ReservasAdminPage({
     negocioNombre: nombreNegocio.get(r.negocio_id) ?? "—",
     servicioNombre: idx.get(r.servicio_id)?.nombre ?? "—",
     montoUsd: montoReserva(r, idx),
-    puedeReembolsar: admiteReembolsoPasarela(r) && !conReembolso.has(r.id),
+    puedeReembolsar:
+      admiteReembolsoPasarela(r) && !conReembolsoCompletado.has(r.id),
     conReembolso: conReembolso.has(r.id),
   }));
 
@@ -113,6 +123,7 @@ export default async function ReservasAdminPage({
         cancelarAction={cancelarReservaAction}
         registrarReembolsoAction={registrarReembolsoAction}
         completarReembolsoAction={completarReembolsoAction}
+        puedeCompletarReembolso={puedeCompletarReembolso}
       />
     </PaginaAdmin>
   );

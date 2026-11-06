@@ -47,8 +47,6 @@ export default function AgendaEmpresaClient({
   function sincronizarCambios() {
     if (tieneQueryInicial()) {
       router.replace(pathname, { scroll: false });
-    } else {
-      router.refresh();
     }
   }
 

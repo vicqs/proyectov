@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarCheck } from "lucide-react";
-import { supabaseAdmin } from "../../../lib/supabase";
+import { z } from "zod";
+import { obtenerReservaPorToken } from "../../../lib/data/public";
 import { esPagoManual } from "../../../lib/pagos";
 import {
   etiquetaHorario,
   HORAS_LIMITE_CANCELACION,
 } from "../../../lib/horarios";
-import type { Negocio, Reserva, Servicio } from "../../../types/database";
 import CancelarReservaButton from "./CancelarReservaButton";
 import MarcaReserva from "../../../components/MarcaReserva";
 import PaginaPublica from "../../../components/PaginaPublica";
@@ -32,42 +32,18 @@ export default async function ReservaPublicaPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  if (token.length < 8 || token.length > 100) notFound();
-
-  const { data } = await supabaseAdmin
-    .from("reservas")
-    .select("*")
-    .eq("token_gestion", token)
-    .single();
-  if (!data) notFound();
-  const reserva = data as Reserva;
-
-  const [{ data: servicioData }, { data: negocioData }] = await Promise.all([
-    supabaseAdmin
-      .from("servicios")
-      .select("nombre, precio_usd")
-      .eq("id", reserva.servicio_id)
-      .single(),
-    supabaseAdmin
-      .from("negocios")
-      .select("nombre, slug, whatsapp")
-      .eq("id", reserva.negocio_id)
-      .single(),
-  ]);
-  const servicio = servicioData as Pick<
-    Servicio,
-    "nombre" | "precio_usd"
-  > | null;
-  const negocio = negocioData as Pick<
-    Negocio,
-    "nombre" | "slug" | "whatsapp"
-  > | null;
+  if (!z.string().uuid().safeParse(token).success) notFound();
+  const reserva = await obtenerReservaPorToken(token);
+  if (!reserva) notFound();
+  const servicio = { nombre: reserva.servicio_nombre, precio_usd: reserva.servicio_precio_usd };
+  const negocio = { nombre: reserva.negocio_nombre, slug: reserva.negocio_slug, whatsapp: reserva.negocio_whatsapp };
 
   const cupos = reserva.cupos ?? 1;
   const puedeCancelar =
     reserva.estado !== "cancelada" &&
-    new Date(reserva.fecha_hora).getTime() - Date.now() >=
-      HORAS_LIMITE_CANCELACION * 3_600_000;
+    (reserva.estado === "pendiente" ||
+      new Date(reserva.fecha_hora).getTime() - Date.now() >=
+        HORAS_LIMITE_CANCELACION * 3_600_000);
 
   const filas: [string, string][] = [
     ["Negocio", negocio?.nombre ?? "—"],
@@ -77,7 +53,7 @@ export default async function ReservaPublicaPage({
     ["Estado", ESTADO_LABEL[reserva.estado]],
   ];
   if (servicio) {
-    filas.push(["Total", `$${(servicio.precio_usd * cupos).toFixed(2)} USD`]);
+    filas.push(["Total", `$${(reserva.monto_usd ?? reserva.gross_amount ?? servicio.precio_usd * cupos).toFixed(2)} USD`]);
   }
   if (reserva.trx_id)
     filas.push([

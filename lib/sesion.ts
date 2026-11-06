@@ -4,24 +4,28 @@ import { cache } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { Perfil } from "../types/database";
 import { createSupabaseServerClient } from "./supabase/server";
-import { supabaseAdmin } from "./supabase";
+import { leerUno } from "./data/server";
 
 export type SesionValida = { user: User; perfil: Perfil | null };
 
-/** Perfil de plataforma de un usuario (rol interno, bloqueo). Tolera tabla ausente. */
-export async function obtenerPerfil(userId: string): Promise<Perfil | null> {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from("perfiles")
-      .select("*")
-      .eq("user_id", userId)
-      .limit(1);
-    if (error) return null;
-    return ((data ?? [])[0] as Perfil | undefined) ?? null;
-  } catch {
-    return null;
-  }
-}
+/** Una falla de consulta no puede ocultar bloqueos ni conceder roles de respaldo. */
+export const obtenerPerfil = cache(
+  async (userId: string): Promise<Perfil | null> => {
+    return leerUno("perfiles", { eq: { user_id: userId } });
+  },
+);
+
+/**
+ * Obtiene y memoriza por request el cliente SSR de Supabase y el usuario de Auth.
+ * Permite disparar en paralelo la lectura de `perfiles` y otras consultas por `user.id`.
+ */
+export const obtenerUsuarioServidor = cache(async () => {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return { supabase, user };
+});
 
 /**
  * Usuario autenticado cuya cuenta no está bloqueada y cuya sesión no fue
@@ -30,10 +34,7 @@ export async function obtenerPerfil(userId: string): Promise<Perfil | null> {
  */
 export const obtenerSesionValida = cache(
   async (): Promise<SesionValida | null> => {
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { user } = await obtenerUsuarioServidor();
     if (!user) return null;
 
     const perfil = await obtenerPerfil(user.id);

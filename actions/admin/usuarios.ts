@@ -1,5 +1,6 @@
 "use server";
 
+import { z } from "zod";
 import {
   accionAdmin,
   puedeActuarSobre,
@@ -8,7 +9,8 @@ import {
 } from "../../lib/admin/auth";
 import { registrarAuditoria } from "../../lib/admin/auditoria";
 import { actualizar, authAdmin, insertar, leerUno } from "../../lib/admin/db";
-import { generarContrasena, revalidarAdmin } from "../../lib/admin/util";
+import { esUuid, generarContrasena, revalidarAdmin } from "../../lib/admin/util";
+import { revalidarEmpresa } from "../../lib/empresa";
 import type { Perfil } from "../../types/database";
 
 /** Perfil existente o uno nuevo sin rol para poder guardar bloqueo/sesiones. */
@@ -30,6 +32,9 @@ async function objetivo(
   admin: Contexto,
   userId: string,
 ): Promise<Perfil | ResultadoAccion> {
+  if (!esUuid(userId)) {
+    return { error: "Identificador de usuario inválido." };
+  }
   if (userId === admin.user.id) {
     return { error: "No puedes aplicar esta acción sobre tu propia cuenta." };
   }
@@ -56,6 +61,9 @@ export async function bloquearUsuarioAction(
   _datos: FormData,
 ): Promise<ResultadoAccion> {
   return accionAdmin("usuarios", async (admin) => {
+    if (!z.boolean().safeParse(bloquear).success) {
+      return { error: "Parámetro inválido." };
+    }
     const perfil = await objetivo(admin, userId);
     if (esError(perfil)) return perfil;
     await actualizar(
@@ -79,7 +87,9 @@ export async function bloquearUsuarioAction(
       entidad_id: userId,
       detalle: { email: perfil.email },
     });
+    const negocio = await leerUno("negocios", { eq: { user_id: userId } });
     revalidarAdmin();
+    if (negocio) revalidarEmpresa(negocio.slug);
     return { ok: bloquear ? "Usuario bloqueado." : "Usuario desbloqueado." };
   });
 }
@@ -113,7 +123,7 @@ export async function restablecerContrasenaAction(
   _previo: ResultadoAccion,
   _datos: FormData,
 ): Promise<ResultadoAccion> {
-  return accionAdmin("usuarios", async (admin) => {
+  return accionAdmin("equipo", async (admin) => {
     const perfil = await objetivo(admin, userId);
     if (esError(perfil)) return perfil;
     const temporal = generarContrasena();
@@ -134,7 +144,13 @@ export async function restablecerContrasenaAction(
     });
     revalidarAdmin();
     return {
-      ok: `Contraseña temporal para ${perfil.email}: ${temporal} (compártela de forma segura; no se volverá a mostrar).`,
+      ok: `Contraseña temporal generada para ${perfil.email}.`,
+      contrasenaTemporal: {
+        email: perfil.email,
+        password: temporal,
+        contexto:
+          "Se cerraron las sesiones activas del usuario. Compártele esta contraseña de forma segura; no se volverá a mostrar al cerrar esta ventana.",
+      },
     };
   });
 }

@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
 import { requerirEmpresa, type EmpresaPageProps } from "@/lib/empresa";
-import { leer } from "@/lib/admin/db";
-import { funcionActivaNegocio, obtenerConfiguracion } from "@/lib/plataforma";
+import { leer } from "@/lib/data/server";
+import {
+  funcionActiva,
+  listarPlanes,
+  obtenerConfiguracion,
+} from "@/lib/plataforma";
 import SoporteEmpresaClient, {
   type FiltroEstado,
   type TicketConMensajes,
@@ -18,35 +22,45 @@ export default async function SoportePage({
   const [
     { slug },
     { filtro: filtroCrudo, tema: temaCrudo, nuevo: nuevoCrudo },
-  ] = await Promise.all([params, searchParams]);
+    config,
+    planes,
+  ] = await Promise.all([
+    params,
+    searchParams,
+    obtenerConfiguracion(),
+    listarPlanes(),
+  ]);
   const { negocio } = await requerirEmpresa(slug);
 
-  const [soporteActivo, config] = await Promise.all([
-    funcionActivaNegocio(negocio, "soporte_empresas"),
-    obtenerConfiguracion(),
-  ]);
-  if (!soporteActivo) notFound();
+  if (!funcionActiva(config, negocio, planes, "soporte_empresas")) notFound();
 
-  const tickets = (
-    await leer("tickets", { eq: { negocio_id: negocio.id } })
-  ).sort((a, b) => b.actualizado_en.localeCompare(a.actualizado_en));
+  const ticketsCrudos = await leer("tickets", {
+    eq: { negocio_id: negocio.id },
+  });
 
-  const mensajesPorTicket = await Promise.all(
-    tickets.map((t) =>
-      leer("ticket_mensajes", {
-        eq: { ticket_id: t.id },
-        orden: ["creado_en", true],
-      }),
-    ),
+  const tickets = ticketsCrudos.sort((a, b) =>
+    b.actualizado_en.localeCompare(a.actualizado_en),
   );
 
-  const ticketsConMensajes: TicketConMensajes[] = tickets.map(
-    (ticket, indice) => {
-      const lista = mensajesPorTicket[indice] ?? [];
-      const ultimo = lista[lista.length - 1];
-      return { ticket, mensajes: lista, ultimo };
-    },
-  );
+  const todosMensajes =
+    tickets.length > 0
+      ? await leer("ticket_mensajes", {
+          en: { ticket_id: tickets.map((t) => t.id) },
+          orden: ["creado_en", true],
+        })
+      : [];
+  const mensajesMap = new Map<string, typeof todosMensajes>();
+  for (const m of todosMensajes) {
+    const arr = mensajesMap.get(m.ticket_id);
+    if (arr) arr.push(m);
+    else mensajesMap.set(m.ticket_id, [m]);
+  }
+
+  const ticketsConMensajes: TicketConMensajes[] = tickets.map((ticket) => {
+    const lista = mensajesMap.get(ticket.id) ?? [];
+    const ultimo = lista[lista.length - 1];
+    return { ticket, mensajes: lista, ultimo };
+  });
 
   const filtroInicial: FiltroEstado =
     filtroCrudo === "activos" || filtroCrudo === "resueltos"

@@ -412,10 +412,13 @@ export default function CalendarioView({
 
                 {d.esHoy ? (
                   <span
-                    className="mt-1 rounded-full bg-black/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                    className="mt-1 max-w-full truncate rounded-full bg-black/15 px-1 py-0.5 text-[10px] font-bold uppercase tracking-wide sm:px-1.5"
                     style={{ color: textoMarca }}
                   >
-                    Hoy{totalItems > 0 ? ` · ${totalItems}` : ""}
+                    Hoy
+                    {totalItems > 0 ? (
+                      <span className="hidden sm:inline">{` · ${totalItems}`}</span>
+                    ) : null}
                   </span>
                 ) : (
                   <span
@@ -898,7 +901,7 @@ export default function CalendarioView({
                             >
                               <div
                                 style={{ width: `${pct}%` }}
-                                className={`h-full rounded-full transition-all ${barraClase}`}
+                                className={`h-full rounded-full transition-[width] duration-300 ease-out ${barraClase}`}
                               />
                             </div>
                           )}

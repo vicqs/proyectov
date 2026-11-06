@@ -20,6 +20,7 @@ import {
   crearPlanAction,
   marcarPlanDefectoAction,
 } from "../../actions/admin/suscripciones";
+import { conResilienciaRed } from "../../lib/errores";
 import type { Plan } from "../../types/database";
 import type { ResultadoAccion } from "../../lib/admin/auth";
 
@@ -77,8 +78,13 @@ function FormularioCrearPlan({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
 
+  const accionResiliente = useMemo(
+    () => conResilienciaRed(crearPlanAction),
+    [],
+  );
+
   const [estado, enviar, pendiente] = useActionState(
-    crearPlanAction,
+    accionResiliente,
     ESTADO_INICIAL,
   );
 
@@ -184,7 +190,7 @@ function FormularioCrearPlan({
         <button
           type="submit"
           disabled={pendiente}
-          className="vuki-btn-primary flex-1 bg-slate-900 hover:bg-slate-800 text-white"
+          className="vuki-btn-primary flex-1"
         >
           {pendiente ? (
             <>
@@ -216,7 +222,7 @@ function FormularioEditarPlan({
   const formRef = useRef<HTMLFormElement>(null);
 
   const accionBound = useMemo(
-    () => actualizarPlanAction.bind(null, plan.id),
+    () => conResilienciaRed(actualizarPlanAction.bind(null, plan.id)),
     [plan.id],
   );
 
@@ -398,7 +404,7 @@ function FormularioEditarPlan({
         <button
           type="submit"
           disabled={pendiente}
-          className="vuki-btn-primary flex-1 bg-slate-900 hover:bg-slate-800 text-white"
+          className="vuki-btn-primary flex-1"
         >
           {pendiente ? (
             <>

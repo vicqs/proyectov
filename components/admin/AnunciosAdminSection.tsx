@@ -55,7 +55,7 @@ export function AnunciosAdminSection({
           <button
             type="button"
             onClick={() => setDrawerAbierto(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-vuki-ocean px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 cursor-pointer"
+            className="vuki-btn-primary inline-flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             <span>Nuevo anuncio</span>
@@ -68,7 +68,7 @@ export function AnunciosAdminSection({
           vacio="Sin anuncios activos ni programados."
         >
           {anuncios.map((a) => (
-            <tr key={a.id} className="hover:bg-slate-50/70 transition-colors">
+            <tr key={a.id}>
               <Celda>
                 <div className="flex items-center gap-2">
                   <Insignia tono={TONO[a.severidad] ?? "gris"}>

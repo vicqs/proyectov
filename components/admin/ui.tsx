@@ -57,7 +57,11 @@ export function PaginaAdmin({
   children: React.ReactNode;
 }) {
   return (
-    <main className="mx-auto min-w-0 max-w-7xl px-4 py-6 sm:px-8 sm:py-8">
+    <main
+      id="contenido-principal"
+      tabIndex={-1}
+      className="mx-auto min-w-0 w-full max-w-7xl px-4 py-6 outline-none sm:px-8 sm:py-8 lg:px-10"
+    >
       <EncabezadoPanel
         contexto="administracion"
         titulo={titulo}
@@ -245,7 +249,10 @@ export function Tabla({
 }) {
   return (
     <div
-      className={`min-w-0 max-w-full overflow-x-auto rounded-2xl border border-sky-100 bg-white shadow-sm shadow-slate-900/[0.02] ${className}`}
+      role="region"
+      aria-label="Tabla de datos"
+      tabIndex={0}
+      className={`vuki-focus min-w-0 max-w-full overflow-x-auto rounded-2xl border border-sky-100 bg-white shadow-sm shadow-slate-900/[0.02] ${className}`}
     >
       <table className={`w-full text-left text-sm ${tableClassName}`}>
         <thead className="border-b border-sky-100 bg-sky-50/70 text-xs uppercase tracking-wider text-slate-600">
@@ -255,6 +262,7 @@ export function Tabla({
               const cl = typeof c === "object" ? c.className ?? "" : "";
               return (
                 <th
+                  scope="col"
                   key={typeof c === "string" ? (c || `col-${i}`) : `${c.nombre || "col"}-${i}`}
                   className={`whitespace-nowrap px-4 py-3 font-semibold ${cl}`}
                 >

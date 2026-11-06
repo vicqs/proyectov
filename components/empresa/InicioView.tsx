@@ -1,6 +1,3 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -9,9 +6,7 @@ import {
   CalendarClock,
   CalendarDays,
   CalendarOff,
-  Check,
   Clock,
-  Copy,
   DollarSign,
   ExternalLink,
   ListChecks,
@@ -22,8 +17,9 @@ import {
   Users,
 } from "lucide-react";
 import EmpresaPage, { ItemLista, KpiCard, Lista } from "../EmpresaPage";
-import { toast } from "../Toast";
+import { BotonCopiarEnlacePublico } from "./BotonCopiarEnlacePublico";
 import { formatearPrecioUsd } from "@/lib/formato";
+import { formatearFechaReservaCR } from "@/lib/zona-horaria";
 
 export interface InicioPrueba {
   /** Días restantes (0 si vence hoy); negativo si ya terminó. */
@@ -99,23 +95,6 @@ interface InicioViewProps {
   proximoCobro?: { fecha: string; dias: number; automatico: boolean };
 }
 
-const CR_OFFSET_MS = -6 * 3_600_000;
-const DIAS_CORTOS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const MESES_CORTOS = [
-  "ene",
-  "feb",
-  "mar",
-  "abr",
-  "may",
-  "jun",
-  "jul",
-  "ago",
-  "sep",
-  "oct",
-  "nov",
-  "dic",
-];
-
 const ESTADO_STYLES: Record<string, string> = {
   pendiente: "bg-amber-100 text-amber-800",
   pagada: "bg-emerald-100 text-emerald-800",
@@ -127,31 +106,6 @@ const ESTADO_TEXTO: Record<string, string> = {
   pagada: "Pagado",
   pagado: "Pagado",
 };
-
-function sumarUnDiaClave(clave: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(clave)) return "";
-  const [y, m, d] = clave.split("-").map(Number);
-  const f = new Date(y, m - 1, d + 1);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${f.getFullYear()}-${p(f.getMonth() + 1)}-${p(f.getDate())}`;
-}
-
-function formatearFechaReservaCR(iso: string, hoyClave?: string): string {
-  const cr = new Date(new Date(iso).getTime() + CR_OFFSET_MS);
-  const p = (n: number) => String(n).padStart(2, "0");
-  const clave = `${cr.getUTCFullYear()}-${p(cr.getUTCMonth() + 1)}-${p(cr.getUTCDate())}`;
-  const hora24 = cr.getUTCHours();
-  const min = cr.getUTCMinutes();
-  const h12 = hora24 % 12 === 0 ? 12 : hora24 % 12;
-  const horaTexto = `${h12}:${p(min)} ${hora24 < 12 ? "a.m." : "p.m."}`;
-
-  if (hoyClave) {
-    if (clave === hoyClave) return `Hoy · ${horaTexto}`;
-    if (clave === sumarUnDiaClave(hoyClave)) return `Mañana · ${horaTexto}`;
-  }
-
-  return `${DIAS_CORTOS[cr.getUTCDay()]} ${cr.getUTCDate()} ${MESES_CORTOS[cr.getUTCMonth()]} · ${horaTexto}`;
-}
 
 function formatearDuracion(minutos: number): string {
   if (!Number.isFinite(minutos) || minutos <= 0) return "";
@@ -183,8 +137,6 @@ export default function InicioView({
   prueba,
   proximoCobro,
 }: InicioViewProps) {
-  const [copiado, setCopiado] = useState(false);
-
   const terminada = prueba ? prueba.dias < 0 : false;
   const urgente = prueba ? prueba.dias <= 3 : false;
 
@@ -193,19 +145,6 @@ export default function InicioView({
     !sinServicios &&
     totalHorariosFuturos !== undefined &&
     totalHorariosFuturos === 0;
-
-  async function copiarEnlacePublico() {
-    if (!rutas?.publico || typeof window === "undefined") return;
-    const url = `${window.location.origin}${rutas.publico}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopiado(true);
-      toast.success("Enlace público copiado para compartir");
-      window.setTimeout(() => setCopiado(false), 2200);
-    } catch {
-      toast.error("No se pudo copiar el enlace automáticamente.");
-    }
-  }
 
   const notaHoy =
     reservasHoy !== undefined
@@ -231,23 +170,7 @@ export default function InicioView({
       accion={
         rutas ? (
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-            <button
-              type="button"
-              onClick={() => void copiarEnlacePublico()}
-              className="vuki-focus inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:flex-none"
-            >
-              {copiado ? (
-                <>
-                  <Check className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-                  ¡Enlace copiado!
-                </>
-              ) : (
-                <>
-                  <Copy className="h-4 w-4" aria-hidden="true" />
-                  Copiar enlace
-                </>
-              )}
-            </button>
+            <BotonCopiarEnlacePublico rutaPublica={rutas.publico} />
             <Link
               href={rutas.publico}
               target="_blank"

@@ -1,17 +1,12 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isMockMode } from "./lib/mock/client";
-import { MOCK_SESSION_COOKIE } from "./lib/mock/auth";
-import { MOCK_USER_PREFIX } from "./lib/mock/usuarios";
+import type { Database } from "./types/database";
+import { getSupabasePublicConfig } from "./lib/supabase/config";
 
 /**
  * Protege `/{slug}/admin` y el acceso antiguo `/empresa`: sin sesión activa,
  * redirige a `/login`. También refresca el token de sesión en cada request
  * (necesario porque los Server Components no pueden escribir cookies).
- *
- * En modo simulado (`isMockMode`, sin credenciales reales de Supabase) se
- * valida en su lugar la cookie de sesión simulada, en vez de llamar a
- * `@supabase/ssr`.
  *
  * Además, inyecta cabeceras HTTP de autoría en toda respuesta del servidor
  * (invisibles en la UI, visibles para cualquier auditor de red).
@@ -23,17 +18,6 @@ function conCabecerasDeAutoria(response: NextResponse): NextResponse {
 }
 
 export async function middleware(request: NextRequest) {
-  // Fail-closed: en producción el modo simulado (con credenciales de prueba
-  // conocidas) solo se permite si se pide explícitamente con USE_MOCK_DB=true.
-  if (
-    isMockMode &&
-    process.env.NODE_ENV === "production" &&
-    process.env.USE_MOCK_DB !== "true"
-  ) {
-    return conCabecerasDeAutoria(
-      new NextResponse("Servicio no configurado.", { status: 503 }),
-    );
-  }
   const pathname = request.nextUrl.pathname;
   const esAccesoAnterior =
     pathname === "/empresa" || pathname.startsWith("/empresa/");
@@ -52,39 +36,39 @@ export async function middleware(request: NextRequest) {
   const esPanelAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
   const requiereSesion = esPanelEmpresa || esPanelAdmin;
 
-  if (isMockMode) {
-    const sesion = request.cookies.get(MOCK_SESSION_COOKIE)?.value;
-    if (!sesion?.startsWith(MOCK_USER_PREFIX) && requiereSesion) {
+  let response = NextResponse.next({ request: { headers: request.headers } });
+
+  const publicConfig = getSupabasePublicConfig();
+  if (!publicConfig) {
+    throw new Error("La conexion de Supabase no esta configurada.");
+  }
+
+  const tieneCookieAuth = request.cookies
+    .getAll()
+    .some((c) => c.name.startsWith("sb-"));
+  if (!tieneCookieAuth) {
+    if (requiereSesion) {
       return conCabecerasDeAutoria(
         NextResponse.redirect(new URL("/login", request.url)),
       );
     }
-    return conCabecerasDeAutoria(NextResponse.next());
+    return conCabecerasDeAutoria(response);
   }
 
-  let response = NextResponse.next({ request: { headers: request.headers } });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  const supabase = createServerClient<Database>(
+    publicConfig.url,
+    publicConfig.anonKey,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
+        getAll() {
+          return request.cookies.getAll();
         },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options });
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          });
-          response.cookies.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: "", ...options });
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          });
-          response.cookies.set({ name, value: "", ...options });
+        setAll(cookiesToSet) {
+          for (const { name, value } of cookiesToSet) request.cookies.set(name, value);
+          response = NextResponse.next({ request: { headers: request.headers } });
+          for (const { name, value, options } of cookiesToSet) {
+            response.cookies.set(name, value, options);
+          }
         },
       },
     },
@@ -92,11 +76,24 @@ export async function middleware(request: NextRequest) {
 
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
+  if (error && error.name !== "AuthSessionMissingError") {
+    console.error("[supabase sesion]", error.name, error.status);
+    if (error.name === "AuthRetryableFetchError" || (error.status ?? 0) >= 500) {
+      return conCabecerasDeAutoria(
+        new NextResponse("No se pudo validar la sesion. Intenta de nuevo.", {
+          status: 503,
+        }),
+      );
+    }
+  }
 
   if (!user && requiereSesion) {
     const loginUrl = new URL("/login", request.url);
-    return conCabecerasDeAutoria(NextResponse.redirect(loginUrl));
+    const redirectResponse = NextResponse.redirect(loginUrl);
+    for (const cookie of response.cookies.getAll()) redirectResponse.cookies.set(cookie);
+    return conCabecerasDeAutoria(redirectResponse);
   }
 
   return conCabecerasDeAutoria(response);

@@ -1,7 +1,9 @@
 "use server";
 
 import { z } from "zod";
-import { obtenerEmpresaOperativa, revalidarEmpresa } from "../lib/empresa";
+import { revalidarAdmin } from "../lib/admin/util";
+import { accionEmpresa, revalidarEmpresa } from "../lib/empresa";
+import { esUuidValido } from "../lib/validaciones";
 
 const servicioSchema = z.object({
   nombre: z
@@ -24,7 +26,10 @@ const servicioSchema = z.object({
     .optional()
     .transform((v) => (v && v.trim() ? v.trim() : null)),
   imagen_url: z
-    .union([z.string().url("La imagen debe ser una URL válida"), z.literal("")])
+    .union([
+      z.string().url("La imagen debe ser una URL válida"),
+      z.literal(""),
+    ])
     .optional()
     .transform((v) => (v ? v : null)),
 });
@@ -57,25 +62,28 @@ export async function crearServicioAction(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const ctx = await obtenerEmpresaOperativa(slug);
-  if ("error" in ctx) return { error: ctx.error };
-  const { supabase, negocio } = ctx;
+  return accionEmpresa(
+    slug,
+    "No se pudo crear el servicio. Intenta de nuevo.",
+    async ({ supabase, negocio }) => {
+      const { error: insertError } = await supabase.from("servicios").insert({
+        negocio_id: negocio.id,
+        nombre: parsed.data.nombre,
+        precio_usd: parsed.data.precio_usd,
+        duracion_min: parsed.data.duracion_min,
+        descripcion: parsed.data.descripcion,
+        imagen_url: parsed.data.imagen_url,
+      });
 
-  const { error: insertError } = await supabase.from("servicios").insert({
-    negocio_id: negocio.id,
-    nombre: parsed.data.nombre,
-    precio_usd: parsed.data.precio_usd,
-    duracion_min: parsed.data.duracion_min,
-    descripcion: parsed.data.descripcion,
-    imagen_url: parsed.data.imagen_url,
-  });
+      if (insertError) {
+        return { error: "No se pudo crear el servicio. Intenta de nuevo." };
+      }
 
-  if (insertError) {
-    return { error: "No se pudo crear el servicio. Intenta de nuevo." };
-  }
-
-  revalidarEmpresa(negocio.slug);
-  return { success: true };
+      revalidarEmpresa(negocio.slug);
+      revalidarAdmin();
+      return { success: true };
+    },
+  );
 }
 
 export interface ServicioMutacionResult {
@@ -95,24 +103,31 @@ export async function editarServicioAction(
     imagen_url?: string;
   },
 ): Promise<ServicioMutacionResult> {
+  if (!esUuidValido(servicioId)) {
+    return { error: "Servicio inválido." };
+  }
   const parsed = servicioSchema.safeParse(datos);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const ctx = await obtenerEmpresaOperativa(slug);
-  if ("error" in ctx) return { error: ctx.error };
+  return accionEmpresa(
+    slug,
+    "No se pudo actualizar el servicio. Intenta de nuevo.",
+    async ({ supabase, negocio }) => {
+      const { error } = await supabase
+        .from("servicios")
+        .update(parsed.data)
+        .eq("id", servicioId)
+        .eq("negocio_id", negocio.id);
 
-  const { error } = await ctx.supabase
-    .from("servicios")
-    .update(parsed.data)
-    .eq("id", servicioId)
-    .eq("negocio_id", ctx.negocio.id);
+      if (error) return { error: "No se pudo actualizar el servicio." };
 
-  if (error) return { error: "No se pudo actualizar el servicio." };
-
-  revalidarEmpresa(ctx.negocio.slug);
-  return { success: true };
+      revalidarEmpresa(negocio.slug);
+      revalidarAdmin();
+      return { success: true };
+    },
+  );
 }
 
 /**
@@ -123,30 +138,52 @@ export async function eliminarServicioAction(
   slug: string,
   servicioId: string,
 ): Promise<ServicioMutacionResult> {
-  const ctx = await obtenerEmpresaOperativa(slug);
-  if ("error" in ctx) return { error: ctx.error };
-
-  const { data: reservas } = await ctx.supabase
-    .from("reservas")
-    .select("id")
-    .eq("servicio_id", servicioId)
-    .eq("negocio_id", ctx.negocio.id)
-    .limit(1);
-
-  if (reservas && reservas.length > 0) {
-    return {
-      error: "No se puede eliminar: el servicio tiene reservas asociadas.",
-    };
+  if (!esUuidValido(servicioId)) {
+    return { error: "Servicio inválido." };
   }
+  return accionEmpresa(
+    slug,
+    "No se pudo eliminar el servicio. Intenta de nuevo.",
+    async ({ supabase, negocio }) => {
+      const { data: reservas, error: reservasError } = await supabase
+        .from("reservas")
+        .select("id")
+        .eq("servicio_id", servicioId)
+        .eq("negocio_id", negocio.id)
+        .limit(1);
+      if (reservasError) {
+        return {
+          error:
+            "No se pudieron verificar las reservas del servicio. Intenta de nuevo.",
+        };
+      }
 
-  const { error } = await ctx.supabase
-    .from("servicios")
-    .delete()
-    .eq("id", servicioId)
-    .eq("negocio_id", ctx.negocio.id);
+      if (reservas && reservas.length > 0) {
+        return {
+          error:
+            "No se puede eliminar: el servicio tiene reservas asociadas.",
+        };
+      }
 
-  if (error) return { error: "No se pudo eliminar el servicio." };
+      const { error } = await supabase
+        .from("servicios")
+        .delete()
+        .eq("id", servicioId)
+        .eq("negocio_id", negocio.id);
 
-  revalidarEmpresa(ctx.negocio.slug);
-  return { success: true };
+      if (error) {
+        // 23503: la BD protege el historial (FK `on delete restrict`) aunque haya carreras.
+        return {
+          error:
+            error.code === "23503"
+              ? "No se puede eliminar: el servicio tiene reservas asociadas."
+              : "No se pudo eliminar el servicio.",
+        };
+      }
+
+      revalidarEmpresa(negocio.slug);
+      revalidarAdmin();
+      return { success: true };
+    },
+  );
 }

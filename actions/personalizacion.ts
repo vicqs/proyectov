@@ -1,15 +1,19 @@
 "use server";
 
 import { z } from "zod";
+import { revalidarAdmin } from "../lib/admin/util";
 import { createSupabaseServerClient } from "../lib/supabase/server";
-import {
-  obtenerEmpresaAutenticada,
-  obtenerEmpresaOperativa,
-  revalidarEmpresa,
-} from "../lib/empresa";
+import { accionEmpresa, revalidarEmpresa } from "../lib/empresa";
 import type { Negocio } from "../types/database";
 import { obtenerConfiguracion } from "../lib/plataforma";
 import { obtenerPaisPorIso, totalDigitosPais } from "../lib/telefono";
+import { mensajeErrorUsuario } from "../lib/errores";
+import {
+  HEX_COLOR_SCHEMA,
+  IBAN_REGEX,
+  campoArchivo,
+  campoTexto,
+} from "../lib/validaciones";
 
 const STORAGE_BUCKET = "negocios-media";
 const TIPOS_PERMITIDOS = ["image/png", "image/jpeg", "image/webp"];
@@ -32,24 +36,11 @@ const personalizacionSchema = z
     descripcion: z
       .string()
       .max(1000, "La biografía debe tener menos de 1000 caracteres"),
-    color_tema: z
-      .string()
-      .regex(
-        /^#([0-9a-fA-F]{6})$/,
-        "El color debe estar en formato HEX (ej. #0284c7)",
-      ),
-    color_secundario: z
-      .string()
-      .regex(
-        /^#([0-9a-fA-F]{6})$/,
-        "El color secundario debe estar en formato HEX",
-      ),
+    color_tema: HEX_COLOR_SCHEMA,
+    color_secundario: HEX_COLOR_SCHEMA,
   })
   .superRefine((datos, ctx) => {
-    if (
-      datos.cuenta_iban &&
-      !/^[A-Z]{2}[0-9A-Z]{12,32}$/.test(datos.cuenta_iban)
-    ) {
+    if (datos.cuenta_iban && !IBAN_REGEX.test(datos.cuenta_iban)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["cuenta_iban"],
@@ -103,16 +94,18 @@ export async function actualizarPersonalizacionAction(
   _prevState: PersonalizacionActionState,
   formData: FormData,
 ): Promise<PersonalizacionActionState> {
+  const colorTema = campoTexto(formData, "color_tema");
+  const colorSecundario = campoTexto(formData, "color_secundario");
+
   const parsed = personalizacionSchema.safeParse({
-    nombre: formData.get("nombre") ?? "",
-    descripcion: formData.get("descripcion") ?? "",
-    color_tema: formData.get("color_tema"),
-    color_secundario:
-      formData.get("color_secundario") || formData.get("color_tema"),
-    whatsapp: formData.get("whatsapp") ?? "",
-    whatsapp_pais: (formData.get("whatsapp_pais") as string | null) ?? undefined,
+    nombre: campoTexto(formData, "nombre") ?? "",
+    descripcion: campoTexto(formData, "descripcion") ?? "",
+    color_tema: colorTema,
+    color_secundario: colorSecundario || colorTema,
+    whatsapp: campoTexto(formData, "whatsapp") ?? "",
+    whatsapp_pais: campoTexto(formData, "whatsapp_pais"),
     cuenta_iban: formData.has("cuenta_iban")
-      ? String(formData.get("cuenta_iban") ?? "")
+      ? (campoTexto(formData, "cuenta_iban") ?? "")
       : undefined,
   });
 
@@ -120,86 +113,94 @@ export async function actualizarPersonalizacionAction(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const ctx = await obtenerEmpresaOperativa(slug);
-  if ("error" in ctx) return { error: ctx.error };
-  const { supabase, negocio } = ctx;
-  const { max_imagen_mb } = await obtenerConfiguracion();
-  const maxBytes = max_imagen_mb * 1024 * 1024;
-  const logoFile = formData.get("logo") as File | null;
-  const portadaFile = formData.get("portada") as File | null;
-  const eliminarLogo = formData.get("eliminar_logo") === "true";
-  const eliminarPortada = formData.get("eliminar_portada") === "true";
+  return accionEmpresa<PersonalizacionActionState>(
+    slug,
+    "No se pudo guardar la personalización. Intenta de nuevo.",
+    async ({ supabase, negocio }) => {
+      const { max_imagen_mb } = await obtenerConfiguracion();
+      const maxBytes = max_imagen_mb * 1024 * 1024;
+      const logoFile = campoArchivo(formData, "logo");
+      const portadaFile = campoArchivo(formData, "portada");
+      const eliminarLogo = campoTexto(formData, "eliminar_logo") === "true";
+      const eliminarPortada =
+        campoTexto(formData, "eliminar_portada") === "true";
 
-  const updatePayload: Partial<Negocio> = {
-    nombre: parsed.data.nombre,
-    descripcion: parsed.data.descripcion,
-    color_tema: parsed.data.color_tema,
-    color_secundario: parsed.data.color_secundario,
-    whatsapp: parsed.data.whatsapp || null,
-    ...(parsed.data.cuenta_iban !== undefined
-      ? { cuenta_iban: parsed.data.cuenta_iban }
-      : {}),
-  };
+      const updatePayload: Partial<Negocio> = {
+        nombre: parsed.data.nombre,
+        descripcion: parsed.data.descripcion,
+        color_tema: parsed.data.color_tema,
+        color_secundario: parsed.data.color_secundario,
+        whatsapp: parsed.data.whatsapp || null,
+        ...(parsed.data.cuenta_iban !== undefined
+          ? { cuenta_iban: parsed.data.cuenta_iban }
+          : {}),
+      };
 
-  try {
-    if (logoFile && logoFile.size > 0) {
-      updatePayload.logo_url = await subirImagen(
-        supabase,
-        negocio.id,
-        logoFile,
-        "logo",
-        maxBytes,
-      );
-    } else if (eliminarLogo) {
-      updatePayload.logo_url = null;
-    }
+      try {
+        if (logoFile && logoFile.size > 0) {
+          updatePayload.logo_url = await subirImagen(
+            supabase,
+            negocio.id,
+            logoFile,
+            "logo",
+            maxBytes,
+          );
+        } else if (eliminarLogo) {
+          updatePayload.logo_url = null;
+        }
 
-    if (portadaFile && portadaFile.size > 0) {
-      updatePayload.imagen_portada_url = await subirImagen(
-        supabase,
-        negocio.id,
-        portadaFile,
-        "portada",
-        maxBytes,
-      );
-    } else if (eliminarPortada) {
-      updatePayload.imagen_portada_url = null;
-    }
-  } catch (uploadError) {
-    console.error("Error al subir imagen a Supabase Storage:", uploadError);
-    return {
-      error:
-        uploadError instanceof Error
-          ? uploadError.message
-          : "No se pudo subir la imagen. Intenta de nuevo.",
-    };
-  }
+        if (portadaFile && portadaFile.size > 0) {
+          updatePayload.imagen_portada_url = await subirImagen(
+            supabase,
+            negocio.id,
+            portadaFile,
+            "portada",
+            maxBytes,
+          );
+        } else if (eliminarPortada) {
+          updatePayload.imagen_portada_url = null;
+        }
+      } catch (uploadError) {
+        console.error(
+          "Error al subir imagen a Supabase Storage:",
+          uploadError,
+        );
+        return {
+          error: mensajeErrorUsuario(
+            uploadError,
+            "No se pudo subir la imagen. Intenta de nuevo.",
+          ),
+        };
+      }
 
-  const { error: updateError } = await supabase
-    .from("negocios")
-    .update(updatePayload)
-    .eq("id", negocio.id);
+      const { error: updateError } = await supabase
+        .from("negocios")
+        .update(updatePayload)
+        .eq("id", negocio.id);
 
-  if (updateError) {
-    console.error("Error al actualizar el negocio:", updateError);
-    return {
-      error: "No se pudo guardar la personalización. Intenta de nuevo.",
-    };
-  }
+      if (updateError) {
+        console.error("Error al actualizar el negocio:", updateError);
+        return {
+          error: "No se pudo guardar la personalización. Intenta de nuevo.",
+        };
+      }
 
-  revalidarEmpresa(negocio.slug);
-  return {
-    success: true,
-    savedAt: Date.now(),
-    logoUrl:
-      updatePayload.logo_url !== undefined
-        ? updatePayload.logo_url
-        : negocio.logo_url,
-    portadaUrl:
-      updatePayload.imagen_portada_url !== undefined
-        ? updatePayload.imagen_portada_url
-        : negocio.imagen_portada_url,
-  };
+      revalidarEmpresa(negocio.slug);
+      revalidarAdmin();
+      return {
+        success: true,
+        savedAt: Date.now(),
+        logoUrl:
+          updatePayload.logo_url !== undefined
+            ? updatePayload.logo_url
+            : negocio.logo_url,
+        portadaUrl:
+          updatePayload.imagen_portada_url !== undefined
+            ? updatePayload.imagen_portada_url
+            : negocio.imagen_portada_url,
+      };
+    },
+  );
 }
 
 export interface CambiarContrasenaEmpresaState {
@@ -235,42 +236,46 @@ export async function cambiarContrasenaEmpresaAction(
   _prevState: CambiarContrasenaEmpresaState,
   formData: FormData,
 ): Promise<CambiarContrasenaEmpresaState> {
-  const ctx = await obtenerEmpresaAutenticada(slug);
-  if ("error" in ctx) return { error: ctx.error };
-  const { supabase, user } = ctx;
-
-  if (!user.email) {
-    return { error: "No se pudo verificar el correo de tu sesión." };
-  }
-
   const parsed = cambiarContrasenaSchema.safeParse({
-    actual: formData.get("actual") ?? "",
-    nueva: formData.get("nueva") ?? "",
-    confirmar: formData.get("confirmar") ?? "",
+    actual: campoTexto(formData, "actual") ?? "",
+    nueva: campoTexto(formData, "nueva") ?? "",
+    confirmar: campoTexto(formData, "confirmar") ?? "",
   });
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
   }
 
-  const { error: verifyError } = await supabase.auth.signInWithPassword({
-    email: user.email,
-    password: parsed.data.actual,
-  });
+  return accionEmpresa<CambiarContrasenaEmpresaState>(
+    slug,
+    "No se pudo actualizar la contraseña. Intenta de nuevo.",
+    async ({ supabase, user }) => {
+      if (!user.email) {
+        return { error: "No se pudo verificar el correo de tu sesión." };
+      }
 
-  if (verifyError) {
-    return { error: "Tu contraseña actual no es correcta." };
-  }
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: parsed.data.actual,
+      });
 
-  const { error: updateError } = await supabase.auth.updateUser({
-    password: parsed.data.nueva,
-  });
+      if (verifyError) {
+        return { error: "Tu contraseña actual no es correcta." };
+      }
 
-  if (updateError) {
-    return { error: "No se pudo actualizar la contraseña. Intenta de nuevo." };
-  }
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: parsed.data.nueva,
+      });
 
-  return { success: true, savedAt: Date.now() };
+      if (updateError) {
+        return {
+          error: "No se pudo actualizar la contraseña. Intenta de nuevo.",
+        };
+      }
+
+      return { success: true, savedAt: Date.now() };
+    },
+  );
 }
 
 /** Comprueba los primeros bytes (firma) para que el contenido coincida con el MIME declarado. */

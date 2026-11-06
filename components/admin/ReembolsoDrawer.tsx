@@ -6,6 +6,7 @@ import Drawer from "../Drawer";
 import { toast } from "../Toast";
 import { CLASE_INPUT, TextareaConContador } from "./ui";
 import { usd } from "../../lib/admin/formato";
+import { conResilienciaRed } from "../../lib/errores";
 import type { ResultadoAccion } from "../../lib/admin/auth";
 
 export interface ReservaParaReembolso {
@@ -54,7 +55,7 @@ export function ReembolsoDrawer({
   }
 
   const [estado, enviar, pendiente] = useActionState(
-    accionConId,
+    conResilienciaRed(accionConId),
     ESTADO_INICIAL,
   );
 
@@ -167,7 +168,7 @@ export function ReembolsoDrawer({
                   value={monto}
                   onChange={(e) => setMonto(e.target.value)}
                   required
-                  className={`${CLASE_INPUT} !pl-9`}
+                  className={`${CLASE_INPUT} vuki-input-currency`}
                 />
               </div>
 
@@ -176,7 +177,7 @@ export function ReembolsoDrawer({
                 <button
                   type="button"
                   onClick={() => setMonto(totalCobrado.toFixed(2))}
-                  className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+                  className={`vuki-focus inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
                     esTotalSeleccionado
                       ? "border-sky-500 bg-sky-50 text-sky-700 font-semibold ring-1 ring-sky-500/20"
                       : "border-slate-200 bg-slate-50/80 text-slate-600 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-800"
@@ -187,7 +188,7 @@ export function ReembolsoDrawer({
                 <button
                   type="button"
                   onClick={() => setMonto(mitadCobrado.toFixed(2))}
-                  className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+                  className={`vuki-focus inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
                     esMitadSeleccionada
                       ? "border-sky-500 bg-sky-50 text-sky-700 font-semibold ring-1 ring-sky-500/20"
                       : "border-slate-200 bg-slate-50/80 text-slate-600 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-800"
@@ -253,7 +254,7 @@ export function ReembolsoDrawer({
             <button
               type="submit"
               disabled={deshabilitarBoton}
-              className="vuki-btn-danger flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="vuki-btn-danger flex-1"
             >
               {pendiente && (
                 <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden="true" />

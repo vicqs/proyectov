@@ -9,8 +9,7 @@ import SelectorIdioma from "@/components/SelectorIdioma";
 import { reportarPerfilAction } from "@/actions/reportar";
 import { LocaleProvider, useTranslations } from "@/lib/i18n";
 
-const INPUT =
-  "min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus-visible:border-vuki-ocean focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vuki-ocean/20";
+const INPUT = "vuki-input min-h-11";
 
 interface Props {
   slug: string;

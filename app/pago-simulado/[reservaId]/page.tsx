@@ -2,15 +2,14 @@ import { notFound } from "next/navigation";
 import { CreditCard, ShieldCheck, XCircle } from "lucide-react";
 import PaginaPublica from "../../../components/PaginaPublica";
 import MarcaReserva from "../../../components/MarcaReserva";
-import { supabaseAdmin } from "../../../lib/supabase";
-import type { Negocio, Reserva, Servicio } from "../../../types/database";
-import {
-  cancelarPagoSimuladoAction,
-  confirmarPagoSimuladoAction,
-} from "../../../actions/pago-simulado";
+import { z } from "zod";
+import { obtenerReservaPorToken } from "../../../lib/data/public";
+import { obtenerConfiguracion } from "../../../lib/plataforma";
+import BotonesPagoSimulado from "./BotonesPagoSimulado";
 
 interface PageProps {
   params: Promise<{ reservaId: string }>;
+  searchParams: Promise<{ token?: string }>;
 }
 
 /**
@@ -19,36 +18,16 @@ interface PageProps {
  * reserva y permite "pagar" o "cancelar", ambos vía Server Actions que
  * actualizan el estado real de la reserva en la base de datos (o el mock).
  */
-export default async function PagoSimuladoPage({ params }: PageProps) {
-  const { reservaId } = await params;
-
-  const { data: reservaData, error: reservaError } = await supabaseAdmin
-    .from("reservas")
-    .select("*")
-    .eq("id", reservaId)
-    .single();
-
-  if (reservaError || !reservaData) {
-    notFound();
-  }
-
-  const reserva = reservaData as Reserva;
-
-  const [{ data: servicioData }, { data: negocioData }] = await Promise.all([
-    supabaseAdmin
-      .from("servicios")
-      .select("*")
-      .eq("id", reserva.servicio_id)
-      .single(),
-    supabaseAdmin
-      .from("negocios")
-      .select("*")
-      .eq("id", reserva.negocio_id)
-      .single(),
+export default async function PagoSimuladoPage({ params, searchParams }: PageProps) {
+  const [{ reservaId }, { token }] = await Promise.all([params, searchParams]);
+  if (!token || !z.string().uuid().safeParse(token).success) notFound();
+  const [reserva, config] = await Promise.all([
+    obtenerReservaPorToken(token),
+    obtenerConfiguracion(),
   ]);
-
-  const servicio = servicioData as Servicio | null;
-  const negocio = negocioData as Negocio | null;
+  if (!reserva || reserva.id !== reservaId) notFound();
+  const servicio = { nombre: reserva.servicio_nombre, precio_usd: reserva.servicio_precio_usd };
+  const negocio = { nombre: reserva.negocio_nombre };
 
   if (reserva.estado === "pagada") {
     return (
@@ -89,8 +68,31 @@ export default async function PagoSimuladoPage({ params }: PageProps) {
     );
   }
 
-  const confirmar = confirmarPagoSimuladoAction.bind(null, reserva.id);
-  const cancelar = cancelarPagoSimuladoAction.bind(null, reserva.id);
+  if (config.modo_mantenimiento || !config.pagos_simulados) {
+    return (
+      <PaginaPublica
+        titulo={
+          config.modo_mantenimiento
+            ? "Plataforma en mantenimiento"
+            : "Pagos simulados deshabilitados"
+        }
+        etiqueta="Estado de la pasarela"
+        icono={<XCircle className="h-4 w-4" />}
+        pie={
+          <div className="flex justify-center">
+            <MarcaReserva />
+          </div>
+        }
+      >
+        <p className="text-sm leading-relaxed text-slate-600">
+          {config.modo_mantenimiento
+            ? config.mensaje_mantenimiento ||
+              "Estamos realizando tareas de mantenimiento. Vuelve a intentarlo en unos minutos."
+            : "Los pagos simulados están deshabilitados temporalmente."}
+        </p>
+      </PaginaPublica>
+    );
+  }
 
   return (
     <PaginaPublica
@@ -102,7 +104,7 @@ export default async function PagoSimuladoPage({ params }: PageProps) {
       <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5">
         <p className="text-xs font-medium text-emerald-800">Total a pagar</p>
         <p className="mt-1 font-display text-3xl font-bold tracking-tight text-vuki-ink">
-          ${((servicio?.precio_usd ?? 0) * (reserva.cupos ?? 1)).toFixed(2)}
+          ${(reserva.gross_amount ?? servicio.precio_usd * (reserva.cupos ?? 1)).toFixed(2)}
         </p>
       </div>
 
@@ -110,22 +112,7 @@ export default async function PagoSimuladoPage({ params }: PageProps) {
         Reserva #{reserva.id.slice(0, 8)} · {reserva.email_cliente}
       </p>
 
-      <form action={confirmar}>
-        <button
-          type="submit"
-          className="vuki-focus min-h-12 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
-        >
-          Confirmar pago (simulado)
-        </button>
-      </form>
-      <form action={cancelar} className="mt-2">
-        <button
-          type="submit"
-          className="vuki-focus min-h-12 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-        >
-          Cancelar
-        </button>
-      </form>
+      <BotonesPagoSimulado reservaId={reserva.id} token={token} />
     </PaginaPublica>
   );
 }

@@ -1,8 +1,8 @@
 import { requerirAdmin } from "../../../lib/admin/auth";
-import { leer } from "../../../lib/admin/db";
+import { contar as contarDb, leer } from "../../../lib/admin/db";
 import { fechaHora, parametro } from "../../../lib/admin/formato";
-import { isMockMode } from "../../../lib/mock/client";
 import { isStripeMockMode } from "../../../lib/stripe";
+import { isTilopayConfigured } from "../../../lib/tilopay";
 import { tienePermiso } from "../../../lib/roles";
 import {
   reprocesarWebhookAction,
@@ -42,9 +42,9 @@ function resolverBadgeComprobacion(
   return { texto: "OK", tono: "verde" };
 }
 
-async function contar(tabla: Parameters<typeof leer>[0]): Promise<string> {
+async function contar(tabla: Parameters<typeof contarDb>[0]): Promise<string> {
   try {
-    return String((await leer(tabla)).length);
+    return String(await contarDb(tabla));
   } catch {
     return "error";
   }
@@ -61,8 +61,14 @@ export default async function SistemaPage({
   const tipo = parametro(sp.tipo) ?? "";
   const soloPendientes = parametro(sp.todos) !== "1";
 
-  const [registros, negocios, reservas, config] = await Promise.all([
-    leer("registro_sistema").catch(() => []),
+  const [registros, errores, negocios, reservas, config] = await Promise.all([
+    leer("registro_sistema", {
+      orden: ["creado_en", false],
+      limite: 200,
+    }).catch(() => []),
+    contarDb("registro_sistema", {
+      eq: { estado: "error", resuelto: false },
+    }).catch(() => 0),
     contar("negocios"),
     contar("reservas"),
     contar("configuracion_plataforma"),
@@ -81,29 +87,36 @@ export default async function SistemaPage({
     })
     .sort((a, b) => b.creado_en.localeCompare(a.creado_en))
     .slice(0, 100);
-  const errores = registros.filter(
-    (r) => r.estado === "error" && !r.resuelto,
-  ).length;
   const puedeReprocesar = tienePermiso(admin.rol, "sistema");
 
+  const secretoWebhookPago = Boolean(
+    process.env.TILOPAY_WEBHOOK_SECRET || process.env.PAGO_WEBHOOK_SECRET,
+  );
+  const tilopayListo = isTilopayConfigured();
+
   const comprobaciones: [string, string, boolean][] = [
-    ["Base de datos", isMockMode ? "Memoria (simulada)" : "Supabase", true],
+    ["Base de datos", "Supabase", true],
+    [
+      "Pasarela de reservas (Tilopay)",
+      tilopayListo
+        ? "API Tilopay configurada"
+        : "Modo simulado (TILOPAY_* pendiente)",
+      true,
+    ],
     ["Pagos de suscripción", isStripeMockMode ? "Simulado" : "Stripe", true],
     [
       "Correo",
-      isMockMode
-        ? "Simulado (solo consola)"
-        : process.env.RESEND_API_KEY
-          ? "Resend configurado"
-          : "Sin RESEND_API_KEY",
-      isMockMode || !!process.env.RESEND_API_KEY,
+      process.env.RESEND_API_KEY
+        ? "Resend configurado"
+        : "Sin RESEND_API_KEY",
+      !!process.env.RESEND_API_KEY,
     ],
     [
       "Secreto webhook de pagos",
-      process.env.PAGO_WEBHOOK_SECRET
+      secretoWebhookPago
         ? "Configurado"
-        : "Falta PAGO_WEBHOOK_SECRET",
-      !!process.env.PAGO_WEBHOOK_SECRET || isMockMode,
+        : "Falta PAGO_WEBHOOK_SECRET / TILOPAY_WEBHOOK_SECRET",
+      secretoWebhookPago,
     ],
     [
       "Secreto webhook de Stripe",

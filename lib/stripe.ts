@@ -1,19 +1,16 @@
 import Stripe from "stripe";
-import { isMockMode } from "./mock/client";
+import { isPlaceholder } from "./supabase/config";
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
 /**
- * En modo simulado (sin credenciales reales de Supabase/Stripe) no se
+ * En modo de prueba local (sin STRIPE_SECRET_KEY real) no se
  * inicializa el SDK de Stripe: la Server Action de billing usa en su lugar
  * un flujo de checkout simulado dentro de la propia app (ver
  * `/[slug]/admin/suscripcion/simulado`).
  */
-export const isStripeMockMode = isMockMode || !stripeSecretKey;
-
-if (!isStripeMockMode && !stripeSecretKey) {
-  throw new Error("Falta la variable de entorno STRIPE_SECRET_KEY.");
-}
+export const isStripeMockMode =
+  !stripeSecretKey || isPlaceholder(stripeSecretKey);
 
 export const stripe: Stripe | null = isStripeMockMode
   ? null

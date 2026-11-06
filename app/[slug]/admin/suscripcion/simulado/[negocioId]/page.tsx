@@ -2,7 +2,11 @@ import { notFound } from "next/navigation";
 import { CalendarClock, CheckCircle2, CreditCard } from "lucide-react";
 import PaginaPublica from "@/components/PaginaPublica";
 import { requerirEmpresa } from "@/lib/empresa";
-import { precioDelNegocio } from "@/lib/plataforma";
+import {
+  calcularPrecio,
+  listarPlanes,
+  obtenerConfiguracion,
+} from "@/lib/plataforma";
 import { isStripeMockMode } from "@/lib/stripe";
 import { estadoEfectivo } from "@/lib/negocio-estado";
 import { fechaCorta } from "@/lib/admin/formato";
@@ -26,12 +30,21 @@ export default async function SuscripcionSimuladaPage({ params }: PageProps) {
   }
 
   const { slug, negocioId } = await params;
-  const { negocio } = await requerirEmpresa(slug);
-  if (negocio.id !== negocioId) {
+  const [{ negocio }, config, planes] = await Promise.all([
+    requerirEmpresa(slug),
+    obtenerConfiguracion(),
+    listarPlanes(),
+  ]);
+  if (
+    negocio.id !== negocioId ||
+    negocio.suspendido ||
+    config.modo_mantenimiento ||
+    !config.pagos_simulados
+  ) {
     notFound();
   }
 
-  const detallePrecio = await precioDelNegocio(negocio);
+  const detallePrecio = calcularPrecio(negocio, planes);
   const confirmar = confirmarSuscripcionSimuladaAction.bind(null, negocio.slug);
   const cancelar = cancelarSuscripcionSimuladaAction.bind(null, negocio.slug);
 
@@ -104,7 +117,7 @@ export default async function SuscripcionSimuladaPage({ params }: PageProps) {
       <form action={confirmar}>
         <button
           type="submit"
-          className="vuki-focus min-h-12 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+          className="vuki-btn-primary min-h-12 w-full py-3"
         >
           Confirmar suscripción (simulado)
         </button>
@@ -112,7 +125,7 @@ export default async function SuscripcionSimuladaPage({ params }: PageProps) {
       <form action={cancelar} className="mt-2">
         <button
           type="submit"
-          className="vuki-focus min-h-12 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+          className="vuki-btn-secondary min-h-12 w-full py-2.5"
         >
           Volver sin activar
         </button>

@@ -51,8 +51,6 @@ export default function HorariosEmpresaClient({
   function sincronizarCambios() {
     if (tieneQueryInicial()) {
       router.replace(pathname, { scroll: false });
-    } else {
-      router.refresh();
     }
   }
 

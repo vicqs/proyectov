@@ -1,8 +1,9 @@
 /**
- * Tipos generados a partir del esquema relacional de Supabase (PostgreSQL).
- * Arquitectura multi-tenant: todo dato de dominio está aislado por `negocio_id`.
+ * Modelos de dominio y vistas de compatibilidad de supabase/schema.sql.
+ * Las tablas SQL usan business_id; las vistas conservan negocio_id para la UI.
  */
 
+import type { SupabaseTables } from "./supabase";
 import type {
   ClientIdType,
   FinancialTransaction,
@@ -57,6 +58,7 @@ export type Negocio = {
   /** Fecha del próximo cobro mensual (suscripción activa); Stripe lo cobra automáticamente. */
   proximo_cobro?: string | null;
   creado_en?: string;
+  email_contacto?: string | null;
 };
 
 /** Roles internos del equipo de administración global. */
@@ -117,6 +119,7 @@ export type ConfiguracionPlataforma = {
   terminos_texto: string | null;
   privacidad_texto: string | null;
   actualizado_en?: string;
+  pagos_simulados: boolean;
 };
 
 export type SeveridadAnuncio = "info" | "aviso" | "critico";
@@ -226,6 +229,19 @@ export type Servicio = {
   cabys_code?: string;
   /** Tarifa de IVA aplicable en decimal (ej. 0.13 general o 0.04 turismo ICT). */
   iva_rate?: number;
+  voucher_type?: VoucherType;
+  client_id_type?: ClientIdType;
+  client_tax_id?: string | null;
+  currency?: FiscalCurrency;
+  exchange_rate_bccr?: number;
+  subtotal_amount?: number;
+  iva_amount?: number;
+  gross_amount?: number;
+  gateway_fee_rate?: number;
+  gateway_fee_amount?: number;
+  net_amount?: number;
+  invoice_status?: InvoiceStatus;
+  invoice_consecutive?: string | null;
 };
 
 export type Reserva = {
@@ -250,6 +266,14 @@ export type Reserva = {
   iva_rate?: number;
   invoice_status?: InvoiceStatus;
   invoice_consecutive?: string | null;
+  subtotal_amount?: number;
+  iva_amount?: number;
+  gross_amount?: number;
+  gateway_fee_rate?: number;
+  gateway_fee_amount?: number;
+  net_amount?: number;
+  horario_id?: string | null;
+  creado_en?: string;
 };
 
 /** Reserva extendida con el nombre del servicio (JOIN reservas + servicios). */
@@ -275,12 +299,9 @@ export type Horario = {
 };
 
 /**
- * Definición de tablas para tipar el cliente de Supabase (`Database['public']['Tables']`).
- * Permite tipado estricto en `.from('tabla')` con @supabase/supabase-js.
+ * Vistas españolas que mantienen el contrato actual de páginas y acciones.
  */
-export type Database = {
-  public: {
-    Tables: {
+export type DomainViews = {
       negocios: {
         Row: Negocio;
         Insert: Partial<Negocio> &
@@ -310,7 +331,13 @@ export type Database = {
             | "estado"
           >;
         Update: Partial<Reserva>;
-        Relationships: [];
+        Relationships: [{
+          foreignKeyName: "bookings_service_id_business_id_fkey";
+          columns: ["servicio_id", "negocio_id"];
+          referencedRelation: "servicios";
+          referencedColumns: ["id", "negocio_id"];
+          isOneToOne: false;
+        }];
       };
       horarios: {
         Row: Horario;
@@ -413,7 +440,7 @@ export type Database = {
         Update: Partial<Reembolso>;
         Relationships: [];
       };
-      financial_transactions: {
+      transacciones_financieras: {
         Row: { [K in keyof FinancialTransaction]: FinancialTransaction[K] };
         Insert: Partial<{
           [K in keyof FinancialTransaction]: FinancialTransaction[K];
@@ -433,8 +460,78 @@ export type Database = {
         }>;
         Relationships: [];
       };
+};
+
+export type NegocioPublicoDb = Pick<
+  Negocio,
+  | "id" | "nombre" | "slug" | "descripcion" | "color_tema" | "color_secundario"
+  | "logo_url" | "imagen_portada_url" | "whatsapp" | "estado_suscripcion"
+  | "prueba_hasta" | "suspendido" | "eliminado_en" | "plan_id"
+  | "descuento_pct" | "flags_override"
+>;
+
+export type DisponibilidadPublicaDb = Pick<
+  Horario, "id" | "servicio_id" | "fecha_hora" | "cupos_totales"
+> & { cupos_ocupados: number };
+
+export type DetalleReservaPublica = Reserva & {
+  servicio_nombre: string;
+  servicio_precio_usd: number;
+  negocio_nombre: string;
+  negocio_slug: string;
+  negocio_logo_url: string | null;
+  negocio_whatsapp: string | null;
+  negocio_email: string | null;
+  pago_confirmado_ahora: boolean;
+};
+
+type PublicBookingArgs = {
+  p_service_id: string;
+  p_starts_at: string;
+  p_client_email: string;
+  p_client_name?: string | null;
+  p_quantity?: number;
+};
+
+export type Database = {
+  public: {
+    Tables: SupabaseTables;
+    Views: DomainViews & {
+      booking_details: { Row: DetalleReservaPublica; Relationships: [] };
     };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      get_public_business: { Args: { p_slug: string }; Returns: NegocioPublicoDb[] };
+      get_public_services: { Args: { p_business_id: string }; Returns: Servicio[] };
+      get_public_availability: { Args: { p_business_id: string }; Returns: DisponibilidadPublicaDb[] };
+      get_booking_by_token: { Args: { p_token: string }; Returns: DetalleReservaPublica[] };
+      create_public_booking: {
+        Args: PublicBookingArgs;
+        Returns: DetalleReservaPublica[];
+      };
+      create_simulated_booking: {
+        Args: PublicBookingArgs;
+        Returns: DetalleReservaPublica[];
+      };
+      cancel_public_booking: { Args: { p_token: string }; Returns: DetalleReservaPublica[] };
+      complete_simulated_booking: { Args: { p_token: string }; Returns: DetalleReservaPublica[] };
+      record_gateway_payment: {
+        Args: {
+          p_booking_id: string;
+          p_status: "pendiente" | "pagada" | "cancelada";
+          p_transaction_ref?: string | null;
+        };
+        Returns: DetalleReservaPublica[];
+      };
+      set_simulated_subscription: {
+        Args: { p_business_id: string; p_active: boolean };
+        Returns: Negocio[];
+      };
+      register_profile_report: {
+        Args: { p_slug: string; p_reason: string; p_detail?: string | null; p_email?: string | null };
+        Returns: string;
+      };
+    };
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 };

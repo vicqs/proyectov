@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { requerirAdmin } from "../../../lib/admin/auth";
 import { leer } from "../../../lib/admin/db";
+import { COLUMNAS_NEGOCIO_ADMIN } from "../../../lib/data/columnas";
 import { calcularPrecio, FLAGS_POR_NEGOCIO } from "../../../lib/plataforma";
 import { estadoEfectivo } from "../../../lib/negocio-estado";
 import { isStripeMockMode, stripe } from "../../../lib/stripe";
@@ -32,11 +34,10 @@ async function facturasStripe() {
 }
 
 export default async function SuscripcionesPage() {
-  await requerirAdmin("facturacion");
-  const [planes, negocios, facturas] = await Promise.all([
+  const [, planes, negocios] = await Promise.all([
+    requerirAdmin("facturacion"),
     leer("planes").catch(() => []),
-    leer("negocios"),
-    facturasStripe(),
+    leer("negocios", { columnas: COLUMNAS_NEGOCIO_ADMIN }),
   ]);
   const vivos = negocios.filter((n) => !n.eliminado_en);
   const enRiesgo = vivos.filter((n) => {
@@ -117,27 +118,41 @@ export default async function SuscripcionesPage() {
       </Tarjeta>
 
       <Tarjeta titulo="Facturas de Stripe">
-        {facturas === null ? (
-          <p className="text-sm text-slate-500">
-            Stripe está en modo simulado: no hay facturas reales.
-          </p>
-        ) : (
-          <Tabla
-            columnas={["Factura", "Cliente", "Estado", "Monto", "Fecha"]}
-            vacia={facturas.length === 0}
-          >
-            {facturas.map((f) => (
-              <tr key={f.id}>
-                <Celda>{f.id}</Celda>
-                <Celda>{f.cliente}</Celda>
-                <Celda>{f.estado}</Celda>
-                <Celda>{usd(f.monto)}</Celda>
-                <Celda>{fechaHora(f.fecha)}</Celda>
-              </tr>
-            ))}
-          </Tabla>
-        )}
+        <Suspense
+          fallback={
+            <div className="vuki-skeleton h-28 w-full rounded-2xl" />
+          }
+        >
+          <TablaFacturasStripe />
+        </Suspense>
       </Tarjeta>
     </PaginaAdmin>
+  );
+}
+
+async function TablaFacturasStripe() {
+  const facturas = await facturasStripe();
+  if (facturas === null) {
+    return (
+      <p className="text-sm text-slate-500">
+        Stripe está en modo simulado: no hay facturas reales.
+      </p>
+    );
+  }
+  return (
+    <Tabla
+      columnas={["Factura", "Cliente", "Estado", "Monto", "Fecha"]}
+      vacia={facturas.length === 0}
+    >
+      {facturas.map((f) => (
+        <tr key={f.id}>
+          <Celda>{f.id}</Celda>
+          <Celda>{f.cliente}</Celda>
+          <Celda>{f.estado}</Celda>
+          <Celda>{usd(f.monto)}</Celda>
+          <Celda>{fechaHora(f.fecha)}</Celda>
+        </tr>
+      ))}
+    </Tabla>
   );
 }

@@ -32,7 +32,7 @@ export default function AuthShell({
   return (
     <MovimientoMarca>
       <main className="grid min-h-svh bg-slate-50 lg:grid-cols-[1.05fr_1fr]">
-        <aside className="relative hidden overflow-hidden bg-slate-900 lg:flex lg:flex-col lg:justify-between lg:p-10 xl:p-16">
+        <aside className="relative hidden overflow-hidden bg-vuki-ink lg:flex lg:flex-col lg:justify-between lg:p-10 xl:p-16">
           <FondoMarca />
           <Link
             href="/"
@@ -82,7 +82,7 @@ export default function AuthShell({
         </aside>
 
         <section className="flex min-h-svh flex-col lg:min-h-0 lg:items-center lg:justify-center lg:bg-white lg:px-10 lg:py-14">
-          <header className="relative overflow-hidden bg-slate-900 px-6 pb-20 pt-8 text-center lg:hidden">
+          <header className="relative overflow-hidden bg-vuki-ink px-6 pb-20 pt-8 text-center lg:hidden">
             <FondoMarca />
             <div className="relative flex flex-col items-center gap-3">
               <Link
@@ -119,7 +119,7 @@ export default function AuthShell({
                 <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                 Tu espacio en vuki
               </p>
-              <h1 className="font-display text-3xl font-bold tracking-tight text-slate-900">
+              <h1 className="font-display text-3xl font-bold tracking-tight text-vuki-ink">
                 {titulo}
               </h1>
               {descripcion && (

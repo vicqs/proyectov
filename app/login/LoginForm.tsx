@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useFormStatus } from "react-dom";
 import { AlertCircle, Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 import { loginAction, type LoginActionState } from "../../actions/auth";
+import { conResilienciaRed } from "../../lib/errores";
 
 const initialState: LoginActionState = {};
+const loginActionResiliente = conResilienciaRed(loginAction);
 
-const INPUT =
-  "block min-h-11 w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40 focus-visible:shadow-sm focus-visible:shadow-sky-500/10";
+const INPUT = "vuki-input block min-h-11 py-2.5";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -17,7 +18,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-slate-900/15 transition duration-200 hover:bg-slate-800 hover:shadow-md hover:shadow-slate-900/20 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 motion-reduce:transform-none"
+      className="vuki-btn-primary group flex min-h-12 w-full py-3"
     >
       {pending ? (
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -33,7 +34,7 @@ function SubmitButton() {
 }
 
 export default function LoginForm() {
-  const [state, formAction] = useActionState(loginAction, initialState);
+  const [state, formAction] = useActionState(loginActionResiliente, initialState);
   // El correo se controla para que no se borre tras un intento fallido.
   const [email, setEmail] = useState("");
   const [verClave, setVerClave] = useState(false);
@@ -81,7 +82,7 @@ export default function LoginForm() {
           </label>
           <Link
             href="/recuperar"
-            className="rounded text-sm font-medium text-sky-700 transition hover:text-sky-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            className="vuki-focus rounded text-sm font-medium text-sky-700 transition hover:text-sky-800 hover:underline"
           >
             ¿Olvidaste tu contraseña?
           </Link>
@@ -105,7 +106,7 @@ export default function LoginForm() {
             onClick={() => setVerClave((v) => !v)}
             aria-label={verClave ? "Ocultar contraseña" : "Mostrar contraseña"}
             aria-pressed={verClave}
-            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-slate-500 transition hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            className="vuki-focus absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-slate-500 transition hover:text-slate-800"
           >
             {verClave ? (
               <EyeOff className="h-4 w-4" aria-hidden="true" />

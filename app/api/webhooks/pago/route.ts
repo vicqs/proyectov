@@ -1,215 +1,84 @@
 import { NextRequest, NextResponse, after } from "next/server";
-import crypto from "node:crypto";
-import { z } from "zod";
-import { supabaseAdmin } from "../../../../lib/supabase";
-import { enviarCorreosConfirmacion } from "../../../../lib/email";
-import { esPagoManual } from "../../../../lib/pagos";
-import { registrarSistema } from "../../../../lib/registro";
-
-/**
- * El banco/pasarela envía notificaciones asíncronas (webhook) para
- * confirmar o rechazar un pago. `trx_id` es el identificador de la
- * transacción bancaria, útil para conciliación y auditoría.
- */
-const webhookSchema = z.object({
-  reserva_id: z.string().uuid(),
-  estado: z.enum(["pendiente", "pagada"]),
-  trx_id: z
-    .string()
-    .refine((v) => !esPagoManual(v), "Prefijo trx_id reservado")
-    .optional(),
-});
-
-const PAGO_WEBHOOK_SECRET = process.env.PAGO_WEBHOOK_SECRET;
-
-/**
- * Valida que la notificación provenga realmente del banco/pasarela: se
- * compara un HMAC-SHA256 del cuerpo crudo (calculado con el secreto
- * compartido) contra la firma enviada en el header `x-signature`.
- * `timingSafeEqual` evita ataques de timing en la comparación.
- */
-function firmaValida(rawBody: string, firmaRecibida: string | null): boolean {
-  if (!PAGO_WEBHOOK_SECRET) {
-    console.error("PAGO_WEBHOOK_SECRET no está configurado.");
-    return false;
-  }
-  if (!firmaRecibida) {
-    return false;
-  }
-
-  const firmaEsperada = crypto
-    .createHmac("sha256", PAGO_WEBHOOK_SECRET)
-    .update(rawBody)
-    .digest("hex");
-
-  const bufferRecibido = Buffer.from(firmaRecibida);
-  const bufferEsperado = Buffer.from(firmaEsperada);
-
-  if (bufferRecibido.length !== bufferEsperado.length) {
-    return false;
-  }
-
-  return crypto.timingSafeEqual(bufferRecibido, bufferEsperado);
-}
+import {
+  createSupabasePaymentWebhookClient, WebhookAuthenticationError, type PrivilegedSupabaseClient,
+} from "@/lib/supabase/admin";
+import { revalidarAdmin } from "@/lib/admin/util";
+import { enviarCorreosConfirmacion } from "@/lib/email";
+import { revalidarEmpresa } from "@/lib/empresa";
+import { registrarSistema } from "@/lib/registro";
+import { DataError } from "@/lib/data/db";
+import { normalizarWebhookPago, type WebhookPagoNormalizado } from "@/lib/tilopay";
 
 export async function POST(request: NextRequest) {
+  let verifiedClient: PrivilegedSupabaseClient | undefined;
+  let validatedPayload: WebhookPagoNormalizado | undefined;
   try {
-    // Se lee el cuerpo como texto crudo para poder validar la firma HMAC
-    // antes de parsearlo como JSON.
     const rawBody = await request.text();
-    const firmaRecibida = request.headers.get("x-signature");
-
-    // 1. Validar la firma del banco.
-    if (!firmaValida(rawBody, firmaRecibida)) {
-      console.error("Firma de webhook inválida o ausente.");
-      await registrarSistema({
-        tipo: "webhook",
-        origen: "pago",
-        estado: "error",
-        detalle: "Firma inválida o ausente",
-      });
-      return NextResponse.json({ error: "Firma inválida" }, { status: 401 });
-    }
-
-    const body = JSON.parse(rawBody);
-    const parsed = webhookSchema.safeParse(body);
-
+    const signature = request.headers.get("x-tilopay-signature") ?? request.headers.get("x-signature");
+    const client = createSupabasePaymentWebhookClient(rawBody, signature);
+    verifiedClient = client;
+    const body: unknown = JSON.parse(rawBody);
+    const parsed = normalizarWebhookPago(body);
     if (!parsed.success) {
       await registrarSistema({
-        tipo: "webhook",
-        origen: "pago",
-        estado: "error",
-        detalle: "Payload inválido",
-      });
-      return NextResponse.json(
-        { error: "Payload inválido", detalles: parsed.error.flatten() },
-        { status: 400 },
-      );
+        tipo: "webhook", origen: "pago", estado: "error", detalle: "Payload inválido",
+      }, client);
+      return NextResponse.json({ error: "Payload inválido", detalles: parsed.error.flatten() }, { status: 400 });
     }
-
-    const { reserva_id, estado, trx_id } = parsed.data;
-
-    // 2. No "resucitar" reservas canceladas (el cupo ya fue liberado).
-    const { data: existente } = await supabaseAdmin
-      .from("reservas")
-      .select("estado")
-      .eq("id", reserva_id)
-      .single();
-    if (existente?.estado === "cancelada") {
-      await registrarSistema({
-        tipo: "webhook",
-        origen: "pago",
-        estado: "error",
-        detalle: "Pago recibido para una reserva cancelada (posible reembolso)",
-        payload: { reserva_id, estado, trx_id: trx_id ?? null },
-      });
-      return NextResponse.json(
-        { error: "La reserva fue cancelada" },
-        { status: 409 },
-      );
-    }
-
-    // Actualizar el estado de la reserva (si no existe, 404).
-    const { data: reserva, error: updateError } = await supabaseAdmin
-      .from("reservas")
-      .update({ estado, trx_id })
-      .eq("id", reserva_id)
-      .select(
-        "id, servicio_id, negocio_id, fecha_hora, email_cliente, estado, trx_id, cupos",
-      )
-      .single();
-
-    if (updateError || !reserva) {
-      await registrarSistema({
-        tipo: "webhook",
-        origen: "pago",
-        estado: "error",
-        detalle: "Reserva no encontrada",
-        payload: { reserva_id, estado, trx_id: trx_id ?? null },
-      });
-      return NextResponse.json(
-        { error: "Reserva no encontrada" },
-        { status: 404 },
-      );
-    }
-
-    // Solo se notifica por correo cuando el pago fue exitoso.
-    if (reserva.estado === "pagada") {
-      // 3. Obtener los datos de negocio y servicio necesarios para los correos.
-      const [{ data: servicio }, { data: negocio }] = await Promise.all([
-        supabaseAdmin
-          .from("servicios")
-          .select("nombre, precio_usd")
-          .eq("id", reserva.servicio_id)
-          .single(),
-        supabaseAdmin
-          .from("negocios")
-          .select("nombre, logo_url, user_id")
-          .eq("id", reserva.negocio_id)
-          .single(),
-      ]);
-
-      if (servicio && negocio) {
-        await supabaseAdmin
-          .from("reservas")
-          .update({ monto_usd: servicio.precio_usd * (reserva.cupos ?? 1) })
-          .eq("id", reserva.id);
-
-        const { data: negocioAuthUser } =
-          await supabaseAdmin.auth.admin.getUserById(negocio.user_id);
-        const negocioEmail = negocioAuthUser?.user?.email;
-
-        if (negocioEmail) {
-          // 4. Enviar los correos SIN bloquear la respuesta HTTP al banco.
-          // `after()` programa el envío para después de que la respuesta ya
-          // fue enviada, garantizando un status 200 rápido y que el runtime
-          // no termine la función antes de que Resend complete el envío.
-          after(async () => {
-            const resultado = await enviarCorreosConfirmacion({
-              negocioNombre: negocio.nombre,
-              negocioLogoUrl: negocio.logo_url,
-              negocioEmail,
-              servicioNombre: servicio.nombre,
-              fechaHora: reserva.fecha_hora,
-              montoUsd: servicio.precio_usd * (reserva.cupos ?? 1),
-              trxId: reserva.trx_id ?? "N/A",
-              emailCliente: reserva.email_cliente,
-            });
-
-            if (!resultado.reciboTuristaOk || !resultado.alertaPymeOk) {
-              console.error(
-                `Envío de correos incompleto para la reserva ${reserva.id}:`,
-                resultado,
-              );
-            }
-          });
-        } else {
-          console.error(
-            `No se encontró email del dueño para negocio_id=${reserva.negocio_id}, no se enviarán correos.`,
-          );
-        }
+    validatedPayload = parsed.data;
+    const { reserva_id, estado, trx_id } = validatedPayload;
+    const { data, error } = await client.rpc("record_gateway_payment", {
+      p_booking_id: reserva_id, p_status: estado, p_transaction_ref: trx_id ?? null,
+    });
+    if (error) throw new DataError(error.message, error.code);
+    const reserva = data?.[0];
+    if (!reserva) throw new DataError("La confirmación no devolvió la reserva.");
+    if (reserva.pago_confirmado_ahora) {
+      if (!reserva.negocio_email || !reserva.trx_id || reserva.monto_usd == null) {
+        console.error(`[webhook pago] Datos de notificación incompletos para ${reserva.id}.`);
       } else {
-        console.error(
-          `No se pudo resolver servicio/negocio para la reserva ${reserva.id}, no se enviarán correos.`,
-        );
+        const negocioEmail = reserva.negocio_email;
+        const reference = reserva.trx_id;
+        const amount = reserva.monto_usd;
+        after(async () => {
+          const result = await enviarCorreosConfirmacion({
+            negocioNombre: reserva.negocio_nombre, negocioLogoUrl: reserva.negocio_logo_url,
+            negocioEmail, servicioNombre: reserva.servicio_nombre, fechaHora: reserva.fecha_hora,
+            montoUsd: amount, trxId: reference, emailCliente: reserva.email_cliente,
+            gestionUrl: reserva.token_gestion
+              ? `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/reserva/${reserva.token_gestion}`
+              : undefined,
+          }, client);
+          if (!result.reciboTuristaOk || !result.alertaPymeOk) {
+            console.error(`[webhook pago] Correos incompletos para ${reserva.id}.`, result);
+          }
+        });
       }
     }
-
-    return NextResponse.json(
-      { ok: true, reserva_id: reserva.id },
-      { status: 200 },
-    );
+    revalidarEmpresa(reserva.negocio_slug);
+    revalidarAdmin();
+    return NextResponse.json({ ok: true, reserva_id: reserva.id });
   } catch (error) {
-    console.error("Error en /api/webhooks/pago:", error);
+    const detalle = error instanceof SyntaxError
+      ? "JSON inválido."
+      : error instanceof Error ? error.message : "Error interno";
+    console.error("[webhook pago]", error instanceof SyntaxError ? detalle : error);
     await registrarSistema({
-      tipo: "webhook",
-      origen: "pago",
-      estado: "error",
-      detalle: error instanceof Error ? error.message : "Error interno",
-    });
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 },
-    );
+      tipo: "webhook", origen: "pago", estado: "error",
+      detalle,
+      payload: validatedPayload,
+    }, verifiedClient);
+    if (error instanceof WebhookAuthenticationError) {
+      return NextResponse.json({ error: "Firma inválida" }, { status: 401 });
+    }
+    if (error instanceof SyntaxError) return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
+    if (error instanceof DataError) {
+      if (error.code === "P0002") return NextResponse.json({ error: error.message }, { status: 404 });
+      if (["P0001", "23505", "23514"].includes(error.code ?? "")) {
+        return NextResponse.json({ error: error.message }, { status: 409 });
+      }
+      if (error.code === "22023") return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
   }
 }

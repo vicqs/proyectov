@@ -1,7 +1,9 @@
 "use server";
 
 import { z } from "zod";
-import { obtenerEmpresaOperativa, revalidarEmpresa } from "../lib/empresa";
+import { accionEmpresa, revalidarEmpresa } from "../lib/empresa";
+import { reservaOcupaCupo } from "../lib/horarios";
+import { esUuidValido } from "../lib/validaciones";
 import { localCRaIso } from "../lib/zona-horaria";
 
 const bloqueoSchema = z
@@ -14,8 +16,8 @@ const bloqueoSchema = z
       .min(3, "El motivo debe tener al menos 3 caracteres")
       .max(200, "El motivo es muy largo"),
   })
-  .refine((data) => new Date(data.fecha_fin) >= new Date(data.fecha_inicio), {
-    message: "La fecha de fin no puede ser anterior a la fecha de inicio.",
+  .refine((data) => new Date(data.fecha_fin) > new Date(data.fecha_inicio), {
+    message: "La fecha de fin debe ser posterior a la fecha de inicio.",
     path: ["fecha_fin"],
   });
 
@@ -52,41 +54,52 @@ export async function crearBloqueoAction(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const ctx = await obtenerEmpresaOperativa(slug);
-  if ("error" in ctx) return { error: ctx.error };
-  const { supabase, negocio } = ctx;
+  return accionEmpresa(
+    slug,
+    "No se pudo crear el bloqueo. Intenta de nuevo.",
+    async ({ supabase, negocio }) => {
+      const { data: reservasRango, error: countError } = await supabase
+        .from("reservas")
+        .select("estado, trx_id")
+        .eq("negocio_id", negocio.id)
+        .neq("estado", "cancelada")
+        .gte("fecha_hora", parsed.data.fecha_inicio)
+        .lte("fecha_hora", parsed.data.fecha_fin);
+      if (countError) {
+        return { error: "No se pudo verificar la disponibilidad del rango." };
+      }
+      const afectadas = (reservasRango ?? []).filter((r) =>
+        reservaOcupaCupo(r),
+      ).length;
+      if (afectadas > 0) {
+        return {
+          error: `Hay ${afectadas} reserva(s) en ese rango. Cancélalas primero en Reservas.`,
+        };
+      }
 
-  const { data: reservas } = await supabase
-    .from("reservas")
-    .select("*")
-    .eq("negocio_id", negocio.id);
-  const ini = new Date(parsed.data.fecha_inicio).getTime();
-  const fin = new Date(parsed.data.fecha_fin).getTime();
-  const afectadas = (reservas ?? []).filter((r) => {
-    const t = new Date(r.fecha_hora).getTime();
-    return r.estado !== "cancelada" && t >= ini && t <= fin;
-  }).length;
-  if (afectadas > 0) {
-    return {
-      error: `Hay ${afectadas} reserva(s) en ese rango. Cancélalas primero en Reservas.`,
-    };
-  }
+      const { error: insertError } = await supabase
+        .from("bloqueos_excepcion")
+        .insert({
+          negocio_id: negocio.id,
+          fecha_inicio: parsed.data.fecha_inicio,
+          fecha_fin: parsed.data.fecha_fin,
+          motivo: parsed.data.motivo,
+        });
 
-  const { error: insertError } = await supabase
-    .from("bloqueos_excepcion")
-    .insert({
-      negocio_id: negocio.id,
-      fecha_inicio: parsed.data.fecha_inicio,
-      fecha_fin: parsed.data.fecha_fin,
-      motivo: parsed.data.motivo,
-    });
+      if (insertError) {
+        // El trigger `guard_block_write` revalida reservas activas aunque otra se cree entre medias.
+        return {
+          error:
+            insertError.code === "23514"
+              ? "Hay reservas activas en ese rango. Cancélalas primero en Reservas."
+              : "No se pudo crear el bloqueo. Intenta de nuevo.",
+        };
+      }
 
-  if (insertError) {
-    return { error: "No se pudo crear el bloqueo. Intenta de nuevo." };
-  }
-
-  revalidarEmpresa(negocio.slug);
-  return { success: true };
+      revalidarEmpresa(negocio.slug);
+      return { success: true };
+    },
+  );
 }
 
 /** Elimina un bloqueo del negocio autenticado (filtra siempre por `negocio_id`). */
@@ -94,22 +107,27 @@ export async function eliminarBloqueoAction(
   slug: string,
   bloqueoId: string,
 ): Promise<CrearBloqueoActionState> {
-  const ctx = await obtenerEmpresaOperativa(slug);
-  if ("error" in ctx) return { error: ctx.error };
-  const { supabase, negocio } = ctx;
-
-  const { error } = await supabase
-    .from("bloqueos_excepcion")
-    .delete()
-    .eq("id", bloqueoId)
-    .eq("negocio_id", negocio.id);
-
-  if (error) {
-    return { error: "No se pudo eliminar el bloqueo." };
+  if (!esUuidValido(bloqueoId)) {
+    return { error: "Bloqueo inválido." };
   }
+  return accionEmpresa(
+    slug,
+    "No se pudo eliminar el bloqueo. Intenta de nuevo.",
+    async ({ supabase, negocio }) => {
+      const { error } = await supabase
+        .from("bloqueos_excepcion")
+        .delete()
+        .eq("id", bloqueoId)
+        .eq("negocio_id", negocio.id);
 
-  revalidarEmpresa(negocio.slug);
-  return { success: true };
+      if (error) {
+        return { error: "No se pudo eliminar el bloqueo." };
+      }
+
+      revalidarEmpresa(negocio.slug);
+      return { success: true };
+    },
+  );
 }
 
 function toIsoDateTime(value: FormDataEntryValue | null): string {

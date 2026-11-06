@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import type { Negocio } from "../../types/database";
+import type { NegocioListado } from "../../lib/data/columnas";
 import { estadoEfectivo } from "../../lib/negocio-estado";
 import { fechaCorta, paginar } from "../../lib/admin/formato";
 import {
@@ -28,7 +28,7 @@ export function NegociosAdminClient({
   paginaInicial = 1,
   abrirNuevoInicial = false,
 }: {
-  negociosIniciales: Negocio[];
+  negociosIniciales: NegocioListado[];
   reservasPorNegocio: Record<string, number>;
   puedeGestionar: boolean;
   qInicial?: string;
@@ -40,7 +40,7 @@ export function NegociosAdminClient({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [drawerAbierto, setDrawerAbierto] = useState(abrirNuevoInicial);
-  const [negocios, setNegocios] = useState<Negocio[]>(negociosIniciales);
+  const [negocios, setNegocios] = useState<NegocioListado[]>(negociosIniciales);
 
   useEffect(() => {
     setNegocios(negociosIniciales);
@@ -56,7 +56,7 @@ export function NegociosAdminClient({
     }
   }
 
-  function alCrearNegocio(nuevoNegocio?: Negocio) {
+  function alCrearNegocio(nuevoNegocio?: NegocioListado) {
     if (nuevoNegocio) {
       setNegocios((prev) => [
         nuevoNegocio,
@@ -233,7 +233,7 @@ export function NegociosAdminClient({
                 href={`/admin/negocios/${n.id}`}
                 className="font-semibold text-sky-700 hover:underline text-xs"
               >
-                Gestionar →
+                {puedeGestionar ? "Gestionar →" : "Ver detalle →"}
               </Link>
             </Celda>
           </tr>

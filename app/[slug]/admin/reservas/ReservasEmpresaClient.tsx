@@ -45,8 +45,6 @@ export default function ReservasEmpresaClient({
   function sincronizarCambios() {
     if (tieneQueryManual()) {
       router.replace(pathname, { scroll: false });
-    } else {
-      router.refresh();
     }
   }
 

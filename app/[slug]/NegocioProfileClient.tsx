@@ -17,6 +17,7 @@ import {
 } from "../../lib/tipos-publicos";
 import { LocaleProvider, useTranslations } from "../../lib/i18n";
 import { reservarYPagarAction } from "../../actions/pago-simulado";
+import { mensajeErrorUsuario } from "../../lib/errores";
 
 export interface NegocioPublico {
   nombre: string;
@@ -96,15 +97,19 @@ function NegocioProfileContenido({
     if (!servicioSeleccionado || !horario) {
       return { error: t("horario_no_disponible") };
     }
-    const resultado = await reservarYPagarAction({
-      servicioId: servicioSeleccionado.id,
-      email: emailCliente,
-      nombre: nombreCliente.trim() || undefined,
-      fechaHora: horario.fechaHora,
-      cupos,
-    });
-    if (!resultado.error) setHuboReserva(true);
-    return resultado;
+    try {
+      const resultado = await reservarYPagarAction({
+        servicioId: servicioSeleccionado.id,
+        email: emailCliente,
+        nombre: nombreCliente.trim() || undefined,
+        fechaHora: horario.fechaHora,
+        cupos,
+      });
+      if (!resultado.error) setHuboReserva(true);
+      return resultado;
+    } catch (error) {
+      return { error: mensajeErrorUsuario(error, t("error_pago")) };
+    }
   }
 
   function cerrarSheet() {
@@ -198,7 +203,7 @@ function NegocioProfileContenido({
           transition={{ duration: 0.5, delay: 0.1 }}
           className="mt-8"
         >
-          <h1 className="break-words text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+          <h1 className="break-words font-display text-3xl font-bold tracking-tight text-vuki-ink sm:text-4xl">
             {negocio.nombre}
           </h1>
           <div
@@ -221,7 +226,7 @@ function NegocioProfileContenido({
               whileHover={{ scale: 1.03, y: -1 }}
               whileTap={{ scale: 0.97 }}
               transition={{ type: "spring", stiffness: 400, damping: 20 }}
-              className="group mt-4 inline-flex min-h-11 items-center gap-2.5 rounded-full border border-emerald-300/80 bg-emerald-50/90 px-4 py-2 text-sm font-semibold text-emerald-800 shadow-xs transition-colors hover:border-emerald-400 hover:bg-emerald-100/90 hover:shadow-sm hover:shadow-emerald-600/10 focus-visible:outline-2 focus-visible:outline-emerald-700"
+              className="vuki-focus group mt-4 inline-flex min-h-11 items-center gap-2.5 rounded-full border border-emerald-300/80 bg-emerald-50/90 px-4 py-2 text-sm font-semibold text-emerald-800 shadow-xs transition-colors hover:border-emerald-400 hover:bg-emerald-100/90 hover:shadow-sm hover:shadow-emerald-600/10"
             >
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 duration-1000" />
@@ -271,7 +276,7 @@ function NegocioProfileContenido({
           {hrefReportar && (
             <Link
               href={hrefReportar}
-              className="inline-block rounded-lg px-2 py-2 text-xs text-slate-500 hover:text-slate-700 hover:underline focus-visible:underline"
+              className="vuki-focus inline-block rounded-lg px-2 py-2 text-xs text-slate-500 hover:text-slate-700 hover:underline focus-visible:underline"
             >
               {t("reportar_perfil")}
             </Link>

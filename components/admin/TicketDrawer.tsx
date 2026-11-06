@@ -23,6 +23,7 @@ import {
   type TonoInsignia,
 } from "./ui";
 import { fechaHora } from "../../lib/admin/formato";
+import { mensajeErrorUsuario } from "../../lib/errores";
 import {
   actualizarTicketAction,
   cargarMensajesTicketAction,
@@ -57,6 +58,19 @@ const ETIQUETAS_PRIORIDAD: Record<string, string> = {
   alta: "Alta",
   urgente: "Urgente",
 };
+
+function esEstadoTicket(valor: string): valor is Ticket["estado"] {
+  return (
+    valor === "abierto" ||
+    valor === "en_curso" ||
+    valor === "resuelto" ||
+    valor === "cerrado"
+  );
+}
+
+function esPrioridadTicket(valor: string): valor is Ticket["prioridad"] {
+  return valor === "baja" || valor === "normal" || valor === "alta";
+}
 
 function formatearTicketId(id: string): string {
   if (!id) return "";
@@ -119,8 +133,14 @@ export function TicketDrawer({
 
   if (!ticket) return null;
 
+  function handleClose() {
+    if (guardandoEstado || enviando) return;
+    onClose();
+  }
+
   async function handleGuardarEstado(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (guardandoEstado || enviando) return;
     setGuardandoEstado(true);
     try {
       const formData = new FormData();
@@ -134,8 +154,10 @@ export function TicketDrawer({
       } else if (res.error) {
         toast.error(res.error);
       }
-    } catch {
-      toast.error("Error al actualizar el estado.");
+    } catch (error) {
+      toast.error(
+        mensajeErrorUsuario(error, "Error al actualizar el estado."),
+      );
     } finally {
       setGuardandoEstado(false);
     }
@@ -144,7 +166,7 @@ export function TicketDrawer({
   async function handleEnviarRespuesta(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const textoRespuesta = respuesta.trim();
-    if (!textoRespuesta || enviando) return;
+    if (!textoRespuesta || enviando || guardandoEstado) return;
 
     setEnviando(true);
     try {
@@ -170,8 +192,10 @@ export function TicketDrawer({
       } else if (res.error) {
         toast.error(res.error);
       }
-    } catch {
-      toast.error("Error al enviar la respuesta.");
+    } catch (error) {
+      toast.error(
+        mensajeErrorUsuario(error, "Error al enviar la respuesta."),
+      );
     } finally {
       setEnviando(false);
     }
@@ -188,7 +212,7 @@ export function TicketDrawer({
     <Drawer
       abierto={Boolean(ticket)}
       titulo={titulo}
-      onClose={onClose}
+      onClose={handleClose}
       ancho="max-w-xl sm:max-w-2xl"
     >
       <div className="flex flex-col h-full justify-between gap-5 -mx-2">
@@ -238,12 +262,20 @@ export function TicketDrawer({
           className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs"
         >
           <div className="flex items-center gap-2 flex-1 min-w-[140px]">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <label
+              htmlFor="ticket-estado-select"
+              className="text-xs font-semibold text-slate-500 uppercase tracking-wider"
+            >
               Estado:
-            </span>
+            </label>
             <select
+              id="ticket-estado-select"
               value={estadoActual}
-              onChange={(e) => setEstadoActual(e.target.value as Ticket["estado"])}
+              onChange={(e) => {
+                if (esEstadoTicket(e.target.value)) {
+                  setEstadoActual(e.target.value);
+                }
+              }}
               className={`${CLASE_SELECT} text-xs py-1.5`}
             >
               <option value="abierto">Abierto</option>
@@ -254,14 +286,20 @@ export function TicketDrawer({
           </div>
 
           <div className="flex items-center gap-2 flex-1 min-w-[140px]">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <label
+              htmlFor="ticket-prioridad-select"
+              className="text-xs font-semibold text-slate-500 uppercase tracking-wider"
+            >
               Prioridad:
-            </span>
+            </label>
             <select
+              id="ticket-prioridad-select"
               value={prioridadActual}
-              onChange={(e) =>
-                setPrioridadActual(e.target.value as Ticket["prioridad"])
-              }
+              onChange={(e) => {
+                if (esPrioridadTicket(e.target.value)) {
+                  setPrioridadActual(e.target.value);
+                }
+              }}
               className={`${CLASE_SELECT} text-xs py-1.5`}
             >
               <option value="baja">Baja</option>
@@ -272,7 +310,7 @@ export function TicketDrawer({
 
           <button
             type="submit"
-            disabled={guardandoEstado}
+            disabled={guardandoEstado || enviando}
             className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold disabled:opacity-50 cursor-pointer transition shadow-2xs ${
               hayCambiosPendientesEstado
                 ? "border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100"
@@ -358,7 +396,10 @@ export function TicketDrawer({
           className="border-t border-slate-200 pt-4 space-y-3"
         >
           <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-slate-700">
+            <label
+              htmlFor="ticket-respuesta-textarea"
+              className="text-xs font-semibold text-slate-700"
+            >
               Responder a la empresa
             </label>
             <span className="text-[11px] text-slate-400">
@@ -367,6 +408,7 @@ export function TicketDrawer({
           </div>
 
           <textarea
+            id="ticket-respuesta-textarea"
             value={respuesta}
             onChange={(e) => setRespuesta(e.target.value)}
             required
@@ -391,20 +433,17 @@ export function TicketDrawer({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={onClose}
-                className="rounded-xl border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                onClick={handleClose}
+                disabled={guardandoEstado || enviando}
+                className="vuki-btn-secondary-sm cursor-pointer disabled:opacity-50"
               >
                 Cerrar
               </button>
 
               <button
                 type="submit"
-                disabled={enviando || !tieneTexto}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition cursor-pointer ${
-                  tieneTexto && !enviando
-                    ? "bg-slate-900 text-white hover:bg-slate-800 shadow-sm active:scale-[0.98]"
-                    : "bg-slate-100 text-slate-400 border border-slate-200/80 cursor-not-allowed shadow-none"
-                }`}
+                disabled={enviando || guardandoEstado || !tieneTexto}
+                className="vuki-btn-primary inline-flex items-center gap-1.5 text-xs cursor-pointer"
               >
                 {enviando ? (
                   <>

@@ -8,17 +8,21 @@ import {
 } from "../../lib/admin/auth";
 import { registrarAuditoria } from "../../lib/admin/auditoria";
 import { actualizar, insertar, leer, leerUno } from "../../lib/admin/db";
-import { campo, revalidarAdmin } from "../../lib/admin/util";
+import { campo, esUuid, revalidarAdmin } from "../../lib/admin/util";
 import { revalidatePath } from "next/cache";
 import type { TicketMensaje } from "../../types/database";
 
 const ESTADOS = ["abierto", "en_curso", "resuelto", "cerrado"] as const;
 const PRIORIDADES = ["baja", "normal", "alta"] as const;
 
+const estadoSchema = z.enum(ESTADOS);
+const prioridadSchema = z.enum(PRIORIDADES);
+
 export async function cargarMensajesTicketAction(
   ticketId: string,
 ): Promise<TicketMensaje[]> {
   await requerirAdmin("soporte");
+  if (!esUuid(ticketId)) return [];
   return leer("ticket_mensajes", {
     eq: { ticket_id: ticketId },
     orden: ["creado_en", true],
@@ -31,10 +35,16 @@ export async function responderTicketAdminAction(
   datos: FormData,
 ): Promise<ResultadoAccion> {
   return accionAdmin("soporte", async (admin) => {
-    const mensaje = campo(datos, "mensaje");
-    if (mensaje.length < 2) return { error: "Escribe una respuesta." };
-    if (mensaje.length > 4000)
-      return { error: "La respuesta es demasiado larga." };
+    if (!esUuid(id)) return { error: "Identificador de ticket inválido." };
+    const mensajeParsed = z
+      .string()
+      .trim()
+      .min(2, "Escribe una respuesta.")
+      .max(4000, "La respuesta es demasiado larga.")
+      .safeParse(campo(datos, "mensaje"));
+    if (!mensajeParsed.success)
+      return { error: mensajeParsed.error.issues[0].message };
+    const mensaje = mensajeParsed.data;
     const ticket = await leerUno("tickets", { eq: { id } });
     if (!ticket) return { error: "Ticket no encontrado." };
     await insertar("ticket_mensajes", {
@@ -44,17 +54,19 @@ export async function responderTicketAdminAction(
       mensaje,
     });
 
-    const estadoCrudo = campo(datos, "estado");
-    const prioridadCruda = campo(datos, "prioridad");
+    const estadoParsed = estadoSchema.safeParse(campo(datos, "estado"));
+    const prioridadParsed = prioridadSchema.safeParse(
+      campo(datos, "prioridad"),
+    );
 
-    const estadoFinal = (ESTADOS as readonly string[]).includes(estadoCrudo)
-      ? (estadoCrudo as (typeof ESTADOS)[number])
+    const estadoFinal = estadoParsed.success
+      ? estadoParsed.data
       : ticket.estado === "abierto"
         ? "en_curso"
         : ticket.estado;
 
-    const prioridadFinal = (PRIORIDADES as readonly string[]).includes(prioridadCruda)
-      ? (prioridadCruda as (typeof PRIORIDADES)[number])
+    const prioridadFinal = prioridadParsed.success
+      ? prioridadParsed.data
       : ticket.prioridad;
 
     await actualizar(
@@ -85,8 +97,9 @@ export async function actualizarTicketAction(
   datos: FormData,
 ): Promise<ResultadoAccion> {
   return accionAdmin("soporte", async (admin) => {
+    if (!esUuid(id)) return { error: "Identificador de ticket inválido." };
     const parsed = z
-      .object({ estado: z.enum(ESTADOS), prioridad: z.enum(PRIORIDADES) })
+      .object({ estado: estadoSchema, prioridad: prioridadSchema })
       .safeParse({
         estado: campo(datos, "estado"),
         prioridad: campo(datos, "prioridad"),

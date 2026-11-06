@@ -10,7 +10,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { requerirAdmin } from "../../lib/admin/auth";
-import { leer } from "../../lib/admin/db";
+import { contar } from "../../lib/admin/db";
 import {
   calcularMrr,
   cargarPlataforma,
@@ -32,11 +32,32 @@ import { InsigniaNegocio } from "../../components/admin/InsigniaNegocio";
 
 export default async function AdminResumenPage() {
   const admin = await requerirAdmin("dashboard");
-  const { negocios, servicios, reservas, planes } = await cargarPlataforma();
-  const [tickets, reportes, registros] = await Promise.all([
-    leer("tickets").catch(() => []),
-    leer("reportes_perfil").catch(() => []),
-    leer("registro_sistema").catch(() => []),
+  const puedeSoporte = tienePermiso(admin.rol, "soporte");
+  const puedeModeracion = tienePermiso(admin.rol, "moderacion");
+  const puedeSistema = tienePermiso(admin.rol, "sistema");
+  const puedeGestionarNegocios = tienePermiso(admin.rol, "negocios_gestionar");
+  const [
+    { negocios, servicios, reservas, planes },
+    ticketsAbiertos,
+    reportesPendientes,
+    erroresSinResolver,
+  ] = await Promise.all([
+    cargarPlataforma(),
+    puedeSoporte
+      ? contar("tickets", { en: { estado: ["abierto", "en_curso"] } }).catch(
+          () => 0,
+        )
+      : Promise.resolve(0),
+    puedeModeracion
+      ? contar("reportes_perfil", { eq: { estado: "pendiente" } }).catch(
+          () => 0,
+        )
+      : Promise.resolve(0),
+    puedeSistema
+      ? contar("registro_sistema", {
+          eq: { estado: "error", resuelto: false },
+        }).catch(() => 0)
+      : Promise.resolve(0),
   ]);
 
   const vivos = negocios.filter((n) => !n.eliminado_en);
@@ -58,16 +79,22 @@ export default async function AdminResumenPage() {
     .filter((r) => new Date(r.fecha_hora).getTime() >= hace30)
     .reduce((a, r) => a + montoReserva(r, idxServicios), 0);
 
-  const ticketsAbiertos = tickets.filter(
-    (t) => t.estado === "abierto" || t.estado === "en_curso",
-  ).length;
-  const reportesPendientes = reportes.filter(
-    (r) => r.estado === "pendiente",
-  ).length;
-  const erroresSinResolver = registros.filter(
-    (r) => r.estado === "error" && !r.resuelto,
-  ).length;
+  const mostrarAtencion = puedeSoporte || puedeModeracion || puedeSistema;
   const atencion = ticketsAbiertos + reportesPendientes + erroresSinResolver;
+  const notasAtencion = [
+    puedeSoporte ? pluralizar(ticketsAbiertos, "ticket", "tickets") : null,
+    puedeModeracion
+      ? pluralizar(reportesPendientes, "reporte", "reportes")
+      : null,
+    puedeSistema ? pluralizar(erroresSinResolver, "error", "errores") : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const hrefAtencion = puedeSoporte
+    ? "/admin/soporte?estado=abierto"
+    : puedeModeracion
+      ? "/admin/moderacion"
+      : "/admin/sistema";
 
   const recientes = [...vivos]
     .sort((a, b) => (b.creado_en ?? "").localeCompare(a.creado_en ?? ""))
@@ -132,14 +159,16 @@ export default async function AdminResumenPage() {
           nota={pluralizar(pagadas.length, "pagada", "pagadas")}
           href="/admin/reservas"
         />
-        <Estadistica
-          titulo="Atención pendiente"
-          icono={<LifeBuoy className="h-4 w-4" />}
-          valor={String(atencion)}
-          nota={`${pluralizar(ticketsAbiertos, "ticket", "tickets")} · ${pluralizar(reportesPendientes, "reporte", "reportes")} · ${pluralizar(erroresSinResolver, "error", "errores")}`}
-          tono={atencion > 0 ? "malo" : "normal"}
-          href="/admin/soporte?estado=abierto"
-        />
+        {mostrarAtencion && (
+          <Estadistica
+            titulo="Atención pendiente"
+            icono={<LifeBuoy className="h-4 w-4" />}
+            valor={String(atencion)}
+            nota={notasAtencion}
+            tono={atencion > 0 ? "malo" : "normal"}
+            href={hrefAtencion}
+          />
+        )}
       </div>
 
       <Tarjeta
@@ -170,7 +199,7 @@ export default async function AdminResumenPage() {
                   href={`/admin/negocios/${n.id}`}
                   className="text-xs font-semibold text-sky-700 hover:underline"
                 >
-                  Gestionar →
+                  {puedeGestionarNegocios ? "Gestionar →" : "Ver detalle →"}
                 </Link>
               </Celda>
             </tr>

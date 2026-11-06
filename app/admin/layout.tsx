@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LogOut } from "lucide-react";
 import { requerirAdmin } from "../../lib/admin/auth";
 import { ETIQUETA_ROL, tienePermiso, type Permiso } from "../../lib/roles";
 import { logoutAction } from "../../actions/auth";
@@ -126,9 +127,13 @@ export default async function AdminLayout({
         <form action={logoutAction}>
           <button
             type="submit"
-            className="vuki-focus min-h-11 w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-sky-50"
+            className="vuki-focus flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-sky-50 hover:text-slate-900 cursor-pointer"
           >
-            Cerrar sesión
+            <LogOut
+              className="h-4 w-4 shrink-0 text-slate-500"
+              aria-hidden="true"
+            />
+            <span>Cerrar sesión</span>
           </button>
         </form>
       }

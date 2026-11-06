@@ -1,10 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { insertar, leer } from "../lib/admin/db";
-import { supabaseAdmin } from "../lib/supabase";
-import { funcionActivaNegocio } from "../lib/plataforma";
+import { revalidarAdmin } from "../lib/admin/util";
+import { registrarReportePublico } from "../lib/data/public";
+import { DataError } from "../lib/data/db";
 
 export interface ReporteEstado {
   ok?: string;
@@ -21,6 +20,7 @@ const MENSAJES = {
     deshabilitado: "Los reportes están deshabilitados por ahora.",
     saturado: "Este perfil ya recibió varios reportes recientes. Gracias.",
     ok: "Gracias, revisaremos el perfil.",
+    fallo: "No se pudo enviar el reporte. Intenta de nuevo.",
   },
   en: {
     correo: "Invalid email address.",
@@ -29,6 +29,7 @@ const MENSAJES = {
     deshabilitado: "Reports are currently disabled.",
     saturado: "This profile has already received several recent reports. Thank you.",
     ok: "Thank you, we will review the profile.",
+    fallo: "Could not submit the report. Please try again.",
   },
 } as const;
 
@@ -54,34 +55,20 @@ export async function reportarPerfilAction(
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? m.invalido };
 
-  const { data: negocio } = await supabaseAdmin
-    .from("negocios")
-    .select("*")
-    .eq("slug", slug.toLowerCase())
-    .maybeSingle();
-  if (!negocio || negocio.eliminado_en) return { error: m.noEncontrado };
-  if (!(await funcionActivaNegocio(negocio, "reportes_publicos"))) {
-    return { error: m.deshabilitado };
+  try {
+    await registrarReportePublico({
+      p_slug: slug.toLowerCase(), p_reason: parsed.data.motivo,
+      p_detail: parsed.data.detalle || null, p_email: parsed.data.email || null,
+    });
+    revalidarAdmin();
+    return { ok: m.ok };
+  } catch (error) {
+    console.error("[reporte público]", error);
+    if (error instanceof DataError) {
+      if (error.code === "P0002") return { error: m.noEncontrado };
+      if (error.code === "42501") return { error: m.deshabilitado };
+      if (error.code === "P0001" && error.message.includes("varios reportes")) return { error: m.saturado };
+    }
+    return { error: m.fallo };
   }
-
-  const pendientes = (
-    await leer("reportes_perfil", { eq: { negocio_id: negocio.id } })
-  ).filter(
-    (r) =>
-      r.estado === "pendiente" &&
-      Date.now() - new Date(r.creado_en).getTime() < 3_600_000,
-  );
-  if (pendientes.length >= 5) {
-    return { error: m.saturado };
-  }
-
-  await insertar("reportes_perfil", {
-    negocio_id: negocio.id,
-    motivo: parsed.data.motivo,
-    detalle: parsed.data.detalle || null,
-    email_reportante: parsed.data.email || null,
-    estado: "pendiente",
-  });
-  revalidatePath("/admin/moderacion");
-  return { ok: m.ok };
 }
