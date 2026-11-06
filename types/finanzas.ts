@@ -6,6 +6,8 @@
  * directamente a tablas/vistas de PostgreSQL en Supabase sin refactorizar la UI.
  */
 
+import type { CodigoMoneda } from "../lib/monedas";
+
 /** Tipo de comprobante electrónico ante el Ministerio de Hacienda (CR). */
 export type VoucherType = "TE" | "FE";
 
@@ -18,8 +20,8 @@ export type ClientIdType =
   | "extranjero"
   | null;
 
-/** Moneda de cobro y facturación de la transacción. */
-export type FiscalCurrency = "USD" | "CRC";
+/** Moneda de cobro y facturación de la transacción (`USD`, `CRC`, `CAD`, `EUR`, `GBP`). */
+export type FiscalCurrency = CodigoMoneda;
 
 /** Estado de emisión del comprobante electrónico ante Hacienda. */
 export type InvoiceStatus = "pending" | "issued";

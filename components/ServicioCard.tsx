@@ -2,15 +2,24 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { Clock } from "lucide-react";
+import { Clock, Package } from "lucide-react";
 import {
   esImagenOptimizable,
   type ServicioPublico,
 } from "../lib/tipos-publicos";
 import { textoSobre } from "../lib/color";
+import { formatearMoneda } from "../lib/formato";
+import { useTranslations } from "../lib/i18n";
+import {
+  convertirMoneda,
+  normalizarMoneda,
+  type CodigoMoneda,
+} from "../lib/monedas";
 
 interface ServicioCardProps {
   servicio: ServicioPublico;
+  /** Moneda elegida por el visitante (por defecto la moneda nativa del servicio). */
+  monedaVista?: CodigoMoneda;
   colorTema: string;
   /** Segundo color de marca; junto al principal forma el degradado del precio. */
   colorSecundario?: string;
@@ -26,11 +35,23 @@ interface ServicioCardProps {
  */
 export default function ServicioCard({
   servicio,
+  monedaVista,
   colorTema,
   colorSecundario = colorTema,
   onSeleccionar,
   prioritaria = false,
 }: ServicioCardProps) {
+  const monedaBase = normalizarMoneda(servicio.moneda, "USD");
+  const monedaActiva = normalizarMoneda(monedaVista, monedaBase);
+  const precioMostrado = convertirMoneda(
+    servicio.precioUsd,
+    monedaBase,
+    monedaActiva,
+  );
+  const { t } = useTranslations();
+  const esItem = servicio.tipoUnidad === "item";
+  const stock = servicio.stockDisponible ?? 0;
+  const agotado = esItem && stock <= 0;
   return (
     <motion.button
       type="button"
@@ -68,10 +89,25 @@ export default function ServicioCard({
         </div>
 
         <div className="flex items-center justify-between pt-1">
-          <span className="flex items-center gap-1.5 text-xs font-medium text-white/90">
-            <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-            {servicio.duracionMin} min
-          </span>
+          {esItem ? (
+            <span
+              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold backdrop-blur-sm ${
+                agotado
+                  ? "bg-red-500/85 text-white"
+                  : "bg-white/20 text-white"
+              }`}
+            >
+              <Package className="h-3.5 w-3.5" aria-hidden="true" />
+              {agotado
+                ? t("agotado")
+                : `${stock} ${stock === 1 ? t("disponible") : t("disponibles")}`}
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-xs font-medium text-white/90">
+              <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+              {servicio.duracionMin} min
+            </span>
+          )}
 
           <span
             className="rounded-full px-4 py-2 text-sm font-semibold shadow-lg backdrop-blur-sm transition-transform duration-200 group-hover:scale-[1.03] motion-reduce:transform-none"
@@ -80,7 +116,7 @@ export default function ServicioCard({
               color: textoSobre(colorTema),
             }}
           >
-            ${servicio.precioUsd.toFixed(2)}
+            {formatearMoneda(precioMostrado, monedaActiva)}
           </span>
         </div>
       </div>

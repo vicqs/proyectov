@@ -22,6 +22,7 @@ type BusinessRow = Rename<
   {
     user_id: "owner_id"; nombre: "name"; cuenta_iban: "iban"; descripcion: "description";
     color_tema: "primary_color"; color_secundario: "secondary_color"; imagen_portada_url: "cover_url";
+    moneda: "currency";
     suspendido: "suspended"; motivo_suspension: "suspension_reason"; eliminado_en: "deleted_at";
     descuento_pct: "discount_pct"; creado_en: "created_at"; email_contacto: "contact_email";
   }

@@ -5,24 +5,30 @@ import {
   cancelarReservaAction,
   crearReservaManualAction,
 } from "@/actions/reservas";
+import type { CodigoMoneda } from "@/lib/monedas";
 import { rutaPanelEmpresa } from "@/lib/rutas-empresa";
 import ReservasView, {
   type HorarioManual,
+  type ItemManual,
   type VistaReserva,
 } from "@/components/empresa/ReservasView";
 
 /** Puente cliente de `/[slug]/admin/reservas`: vista compartida + Server Actions. */
 export default function ReservasEmpresaClient({
   slug,
+  monedaNegocio = "USD",
   reservas,
   horarios,
+  items = [],
   hoyClave,
   ahoraMs,
   abrirManualInicial = false,
 }: {
   slug: string;
+  monedaNegocio?: CodigoMoneda;
   reservas: VistaReserva[];
   horarios: HorarioManual[];
+  items?: ItemManual[];
   hoyClave?: string;
   ahoraMs?: number;
   abrirManualInicial?: boolean;
@@ -51,6 +57,7 @@ export default function ReservasEmpresaClient({
   return (
     <ReservasView
       reservas={reservas}
+      monedaNegocio={monedaNegocio}
       hoyClave={hoyClave}
       ahoraMs={ahoraMs}
       abrirManualInicial={abrirManualInicial}
@@ -64,6 +71,7 @@ export default function ReservasEmpresaClient({
       }}
       manual={{
         horarios,
+        items,
         onCrear: async (datos) => {
           const { error } = await crearReservaManualAction(slug, datos);
           if (!error) sincronizarCambios();

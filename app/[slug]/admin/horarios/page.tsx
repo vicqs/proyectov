@@ -1,5 +1,6 @@
 import { requerirEmpresa, type EmpresaPageProps } from "@/lib/empresa";
 import { construirHorarios, sugerirProximoHorario } from "@/lib/horarios";
+import { normalizarMoneda } from "@/lib/monedas";
 import { hoyClaveCR } from "@/lib/zona-horaria";
 import type { Horario, Reserva, Servicio } from "@/types/database";
 import HorariosEmpresaClient from "./HorariosEmpresaClient";
@@ -33,7 +34,7 @@ export default async function HorariosPage({
 
   let servicios: Pick<
     Servicio,
-    "id" | "nombre" | "duracion_min" | "precio_usd"
+    "id" | "nombre" | "duracion_min" | "precio_usd" | "currency" | "unit_type"
   >[] = [];
   let horarios: Horario[] = [];
   let reservas: Pick<
@@ -43,7 +44,10 @@ export default async function HorariosPage({
 
   if (negocio) {
     [servicios, horarios, reservas] = await Promise.all([
-      leer("servicios", { eq: { negocio_id: negocio.id }, orden: ["nombre", true] }),
+      leer("servicios", { eq: { negocio_id: negocio.id }, orden: ["nombre", true] }).then(
+        // Los ítems de venta directa descuentan stock y no usan horarios.
+        (lista) => lista.filter((s) => s.unit_type !== "item"),
+      ),
       leer("horarios", {
         eq: { negocio_id: negocio.id }, gte: { fecha_hora: inicioHoyIso },
         orden: ["fecha_hora", true],
@@ -84,6 +88,7 @@ export default async function HorariosPage({
         nombre: s.nombre,
         duracionMin: s.duracion_min,
         precioUsd: s.precio_usd,
+        moneda: normalizarMoneda(s.currency ?? negocio.moneda, "USD"),
       }))}
       horarios={construirHorarios(horarios, reservas, []).map((h) => ({
         id: h.id,

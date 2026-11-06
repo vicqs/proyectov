@@ -22,14 +22,17 @@ import { toast } from "../Toast";
 import { etiquetaDia, generarFechasRepeticion } from "../../lib/horarios";
 import {
   aClaveFecha,
+  diaCR,
   DIAS_LARGOS as NOMBRES_DIAS_LARGOS,
   DIAS_MIN as NOMBRES_DIAS_CORTOS,
   DIAS_SEMANA_LETRA as DIAS_SEMANA,
+  formatoHoraCR,
   MESES_CORTOS as NOMBRES_MESES_CORTOS,
   MESES_LARGOS as NOMBRES_MESES_LARGOS,
   parseClaveFecha,
 } from "../../lib/zona-horaria";
-import { formatearPrecioUsd } from "../../lib/formato";
+import { formatearMoneda } from "../../lib/formato";
+import type { CodigoMoneda } from "../../lib/monedas";
 import { mensajeErrorUsuario } from "../../lib/errores";
 
 export interface VistaHorario {
@@ -111,10 +114,7 @@ function formatoFechaCortaLocal(localInput: string): string {
 }
 
 function formatoHoraIso(iso: string): string {
-  const f = new Date(iso);
-  const h = f.getHours();
-  const m = String(f.getMinutes()).padStart(2, "0");
-  return `${h % 12 === 0 ? 12 : h % 12}:${m} ${h < 12 ? "a.m." : "p.m."}`;
+  return formatoHoraCR(iso);
 }
 
 function formatoHora24a12(hora24: string): string {
@@ -185,6 +185,7 @@ export interface ServicioHorarioItem {
   nombre: string;
   duracionMin?: number;
   precioUsd?: number;
+  moneda?: CodigoMoneda;
 }
 
 interface HorariosViewProps {
@@ -514,7 +515,7 @@ export default function HorariosView({
     }[] = [];
 
     for (const h of horariosFiltrados) {
-      const clave = h.fechaHora ? aClaveFecha(new Date(h.fechaHora)) : "";
+      const clave = h.fechaHora ? diaCR(h.fechaHora) : "";
       const titulo = clave
         ? formatoFechaLargaClave(clave)
         : h.fechaHora
@@ -660,11 +661,13 @@ export default function HorariosView({
               <ListChecks className="h-5 w-5" aria-hidden="true" />
             </div>
             <h2 className="mt-4 font-display text-base font-bold text-vuki-ink sm:text-lg">
-              Primero crea un servicio para asignarle horarios
+              Primero crea un servicio por cupos para asignarle horarios
             </h2>
             <p className="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-slate-600">
               Registra tus tours, clases o actividades en Mis Servicios; luego
-              podrás publicar aquí todas sus franjas horarias y cupos.
+              podrás publicar aquí todas sus franjas horarias y cupos. Los
+              servicios por ítems (venta rápida) se venden por stock y no
+              necesitan horarios.
             </p>
             {hrefServicios && (
               <Link
@@ -1049,7 +1052,10 @@ export default function HorariosView({
                 );
                 const precioTexto =
                   typeof servicio.precioUsd === "number"
-                    ? formatearPrecioUsd(servicio.precioUsd)
+                    ? formatearMoneda(
+                        servicio.precioUsd,
+                        servicio.moneda ?? "USD",
+                      )
                     : "";
                 const partes = [
                   servicio.nombre,

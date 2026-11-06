@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 import type { ConfiguracionPlataforma, DetalleReservaPublica } from "@/types/database";
 import { DataError } from "./data/db";
+import { convertirMoneda, normalizarMoneda } from "./monedas";
 import { esPagoManual } from "./pagos";
 import { isPlaceholder } from "./supabase/config";
 
@@ -107,12 +108,35 @@ export async function crearSesionCheckoutReserva(
 
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
   const bearer = await obtenerTokenBearerTilopay(cfg);
+  const monedaReserva = normalizarMoneda(
+    reserva.currency ?? reserva.servicio_currency ?? reserva.negocio_moneda,
+    "USD",
+  );
+  const monedaServicio = normalizarMoneda(
+    reserva.servicio_currency ?? reserva.negocio_moneda,
+    monedaReserva,
+  );
+  const montoBase =
+    reserva.gross_amount ??
+    convertirMoneda(
+      reserva.servicio_precio_usd * (reserva.cupos ?? 1),
+      monedaServicio,
+      monedaReserva,
+    );
+  // Tilopay CR procesa terminales en USD y CRC; si la reserva está en otra divisa, convierte a USD.
+  const monedaPasarela =
+    monedaReserva === "CRC" || monedaReserva === "USD" ? monedaReserva : "USD";
   const amount = Number(
-    (reserva.gross_amount ?? reserva.servicio_precio_usd * (reserva.cupos ?? 1)).toFixed(2),
+    convertirMoneda(
+      montoBase,
+      monedaReserva,
+      monedaPasarela,
+      reserva.exchange_rate_bccr,
+    ).toFixed(2),
   );
   const nombrePartes = (reserva.nombre_cliente ?? "Turista Vuki").trim().split(/\s+/);
   const firstName = nombrePartes[0] || "Turista";
-  const lastName = nombrePartes.slice(1).join(" ") || "Vuki";
+  const lastName = nombrePartes[1] ? nombrePartes.slice(1).join(" ") : "Vuki";
 
   const response = await fetch(`${cfg.apiUrl}/processPayment`, {
     method: "POST",
@@ -125,7 +149,7 @@ export async function crearSesionCheckoutReserva(
       redirect: `${appUrl}/reserva/${encodeURIComponent(reserva.token_gestion)}`,
       key: cfg.apiKey,
       amount: amount.toFixed(2),
-      currency: reserva.currency ?? "USD",
+      currency: monedaPasarela,
       orderNumber: reserva.id,
       capture: "1",
       subscription: "0",

@@ -8,6 +8,14 @@ import type {
   VoucherType,
 } from "@/types/finanzas";
 import { reservaOcupaCupo } from "@/lib/horarios";
+import {
+  convertirACrc,
+  convertirAUsd,
+  convertirMoneda,
+  normalizarMoneda,
+  obtenerTipoCambioBccr,
+  resolverTipoCambioCrc,
+} from "@/lib/monedas";
 import { esCobroPasarela, esPagoManual, esTrxPasarela, montoEfectivoReserva } from "@/lib/pagos";
 
 /** Comisión estimada de la pasarela bancaria (4.25%). vuki cobra 0% por venta. */
@@ -101,12 +109,19 @@ export function reservaATransaccionFinanciera(
   reserva: Reserva,
   servicio?: Pick<
     Servicio,
-    "nombre" | "precio_usd" | "cabys_code" | "iva_rate"
+    "nombre" | "precio_usd" | "cabys_code" | "iva_rate" | "currency"
   > | null,
 ): FinancialTransaction {
   const cupos = reserva.cupos ?? 1;
+  const currency: FiscalCurrency = normalizarMoneda(
+    reserva.currency ?? servicio?.currency,
+    "USD",
+  );
+  const monedaServicio = normalizarMoneda(servicio?.currency, currency);
   const gross =
-    reserva.monto_usd ?? (servicio?.precio_usd ?? 0) * cupos;
+    reserva.monto_usd ??
+    reserva.gross_amount ??
+    convertirMoneda((servicio?.precio_usd ?? 0) * cupos, monedaServicio, currency);
   const ivaRate =
     reserva.iva_rate ?? servicio?.iva_rate ?? IVA_RATE_DEFAULT;
   const cabysCode = normalizarCabys(
@@ -114,7 +129,6 @@ export function reservaATransaccionFinanciera(
   );
   const voucherType: VoucherType = reserva.voucher_type ?? "TE";
   const invoiceStatus: InvoiceStatus = reserva.invoice_status ?? "pending";
-  const currency: FiscalCurrency = reserva.currency ?? "USD";
 
   return crearTransaccionFinanciera({
     id: reserva.id,
@@ -132,8 +146,10 @@ export function reservaATransaccionFinanciera(
     client_id_type: reserva.client_id_type ?? null,
     client_tax_id: reserva.client_tax_id ?? null,
     currency,
-    exchange_rate_bccr:
-      reserva.exchange_rate_bccr ?? EXCHANGE_RATE_BCCR_DEFAULT,
+    exchange_rate_bccr: resolverTipoCambioCrc(
+      currency,
+      reserva.exchange_rate_bccr,
+    ),
     iva_rate: ivaRate,
     gross_amount: gross,
     invoice_status: invoiceStatus,
@@ -156,52 +172,62 @@ export function normalizarCabys(codigo?: string | null): string {
 export function montoEnUsd(
   monto: number,
   currency: FiscalCurrency,
-  exchangeRateBccr: number,
+  exchangeRateBccr?: number,
 ): number {
-  if (currency === "USD") return monto;
-  const tc = exchangeRateBccr > 0 ? exchangeRateBccr : EXCHANGE_RATE_BCCR_DEFAULT;
-  return redondearMoneda(monto / tc);
+  return convertirAUsd(monto, currency, exchangeRateBccr);
 }
 
 /** Convierte un monto a colones costarricenses (CRC) según `exchange_rate_bccr`. */
 export function montoEnCrc(
   monto: number,
   currency: FiscalCurrency,
-  exchangeRateBccr: number,
+  exchangeRateBccr?: number,
 ): number {
-  if (currency === "CRC") return monto;
-  const tc = exchangeRateBccr > 0 ? exchangeRateBccr : EXCHANGE_RATE_BCCR_DEFAULT;
-  return redondearMoneda(monto * tc);
+  return convertirACrc(monto, currency, exchangeRateBccr);
 }
 
 /**
  * Agrupa las transacciones filtradas por servicio produciendo resúmenes
- * `ServiceFiscalSummary` listos para renderizar en "Ingresos por servicio".
+ * `ServiceFiscalSummary` expresados en `monedaBase` (por defecto `"USD"`).
  */
 export function resumirServiciosFiscales(
   transacciones: FinancialTransaction[],
+  monedaBase: FiscalCurrency = "USD",
 ): ServiceFiscalSummary[] {
   const mapa = new Map<string, ServiceFiscalSummary>();
 
   for (const t of transacciones) {
     const clave = t.servicio_id ?? `${t.service_name}::${t.cabys_code}`;
-    const subtotalUsd = montoEnUsd(
+    const subtotalConv = convertirMoneda(
       t.subtotal_amount,
       t.currency,
+      monedaBase,
       t.exchange_rate_bccr,
     );
-    const ivaUsd = montoEnUsd(t.iva_amount, t.currency, t.exchange_rate_bccr);
-    const brutoUsd = montoEnUsd(
+    const ivaConv = convertirMoneda(
+      t.iva_amount,
+      t.currency,
+      monedaBase,
+      t.exchange_rate_bccr,
+    );
+    const brutoConv = convertirMoneda(
       t.gross_amount,
       t.currency,
+      monedaBase,
       t.exchange_rate_bccr,
     );
-    const comisionUsd = montoEnUsd(
+    const comisionConv = convertirMoneda(
       t.gateway_fee_amount,
       t.currency,
+      monedaBase,
       t.exchange_rate_bccr,
     );
-    const netoUsd = montoEnUsd(t.net_amount, t.currency, t.exchange_rate_bccr);
+    const netoConv = convertirMoneda(
+      t.net_amount,
+      t.currency,
+      monedaBase,
+      t.exchange_rate_bccr,
+    );
 
     const actual = mapa.get(clave) ?? {
       servicio_id: t.servicio_id,
@@ -209,7 +235,7 @@ export function resumirServiciosFiscales(
       service_name: t.service_name,
       cabys_code: t.cabys_code,
       iva_rate: t.iva_rate,
-      currency: "USD" as FiscalCurrency,
+      currency: monedaBase,
       transactions_count: 0,
       total_cupos: 0,
       subtotal_amount: 0,
@@ -224,14 +250,14 @@ export function resumirServiciosFiscales(
     actual.transactions_count += 1;
     actual.total_cupos += t.cupos ?? 1;
     actual.subtotal_amount = redondearMoneda(
-      actual.subtotal_amount + subtotalUsd,
+      actual.subtotal_amount + subtotalConv,
     );
-    actual.iva_amount = redondearMoneda(actual.iva_amount + ivaUsd);
-    actual.gross_amount = redondearMoneda(actual.gross_amount + brutoUsd);
+    actual.iva_amount = redondearMoneda(actual.iva_amount + ivaConv);
+    actual.gross_amount = redondearMoneda(actual.gross_amount + brutoConv);
     actual.gateway_fee_amount = redondearMoneda(
-      actual.gateway_fee_amount + comisionUsd,
+      actual.gateway_fee_amount + comisionConv,
     );
-    actual.net_amount = redondearMoneda(actual.net_amount + netoUsd);
+    actual.net_amount = redondearMoneda(actual.net_amount + netoConv);
 
     if (t.invoice_status === "issued") {
       actual.issued_invoices_count += 1;
@@ -287,6 +313,12 @@ export function generarConsecutivoHaciendaMock(
 }
 
 export interface ResumenKpiFinanciero {
+  monedaBase: FiscalCurrency;
+  subtotalBase: number;
+  ivaBase: number;
+  brutoBase: number;
+  comisionesBase: number;
+  netoBase: number;
   subtotalUsd: number;
   ivaUsd: number;
   brutoUsd: number;
@@ -300,11 +332,17 @@ export interface ResumenKpiFinanciero {
   pendientesFactura: number;
 }
 
-/** Calcula los totales KPI (USD y CRC) e indicadores de facturación de las transacciones filtradas. */
+/** Calcula los totales KPI (moneda base, USD y CRC) e indicadores de facturación de las transacciones filtradas. */
 export function calcularResumenKpiFinanciero(
   transaccionesFiltradas: FinancialTransaction[],
   todasTransacciones: FinancialTransaction[],
+  monedaBase: FiscalCurrency = "USD",
 ): ResumenKpiFinanciero {
+  let subtotalBase = 0;
+  let ivaBase = 0;
+  let brutoBase = 0;
+  let comisionesBase = 0;
+  let netoBase = 0;
   let subtotalUsd = 0;
   let ivaUsd = 0;
   let brutoUsd = 0;
@@ -316,6 +354,36 @@ export function calcularResumenKpiFinanciero(
   let facturadas = 0;
 
   for (const t of transaccionesFiltradas) {
+    subtotalBase += convertirMoneda(
+      t.subtotal_amount,
+      t.currency,
+      monedaBase,
+      t.exchange_rate_bccr,
+    );
+    ivaBase += convertirMoneda(
+      t.iva_amount,
+      t.currency,
+      monedaBase,
+      t.exchange_rate_bccr,
+    );
+    brutoBase += convertirMoneda(
+      t.gross_amount,
+      t.currency,
+      monedaBase,
+      t.exchange_rate_bccr,
+    );
+    comisionesBase += convertirMoneda(
+      t.gateway_fee_amount,
+      t.currency,
+      monedaBase,
+      t.exchange_rate_bccr,
+    );
+    netoBase += convertirMoneda(
+      t.net_amount,
+      t.currency,
+      monedaBase,
+      t.exchange_rate_bccr,
+    );
     subtotalUsd += montoEnUsd(
       t.subtotal_amount,
       t.currency,
@@ -335,12 +403,25 @@ export function calcularResumenKpiFinanciero(
     if (t.invoice_status === "issued") facturadas += 1;
   }
 
-  const tipoCambioRef =
-    transaccionesFiltradas[0]?.exchange_rate_bccr ??
-    todasTransacciones[0]?.exchange_rate_bccr ??
-    EXCHANGE_RATE_BCCR_DEFAULT;
+  const monedaReferenciaTc: FiscalCurrency =
+    monedaBase === "CRC" ? "USD" : monedaBase;
+  const trxConMismaMoneda =
+    transaccionesFiltradas.find((t) => t.currency === monedaReferenciaTc) ??
+    todasTransacciones.find((t) => t.currency === monedaReferenciaTc);
+  const tipoCambioRef = trxConMismaMoneda
+    ? resolverTipoCambioCrc(
+        trxConMismaMoneda.currency,
+        trxConMismaMoneda.exchange_rate_bccr,
+      )
+    : obtenerTipoCambioBccr(monedaReferenciaTc);
 
   return {
+    monedaBase,
+    subtotalBase: redondearMoneda(subtotalBase),
+    ivaBase: redondearMoneda(ivaBase),
+    brutoBase: redondearMoneda(brutoBase),
+    comisionesBase: redondearMoneda(comisionesBase),
+    netoBase: redondearMoneda(netoBase),
     subtotalUsd: redondearMoneda(subtotalUsd),
     ivaUsd: redondearMoneda(ivaUsd),
     brutoUsd: redondearMoneda(brutoUsd),
@@ -393,7 +474,7 @@ export function filasCsvD104(
     t.client_name ?? "",
     t.client_email,
     t.currency,
-    t.exchange_rate_bccr.toFixed(2),
+    resolverTipoCambioCrc(t.currency, t.exchange_rate_bccr).toFixed(2),
     t.subtotal_amount.toFixed(2),
     t.iva_rate.toFixed(2),
     t.iva_amount.toFixed(2),
@@ -414,15 +495,17 @@ export function reconciliarFinanzasNegocio({
   trxPersistidas,
   servicios,
   reembolsosDb,
+  monedaBase = "USD",
 }: {
   reservasDb: Reserva[];
   trxPersistidas: FinancialTransaction[];
   servicios: Servicio[];
-  reembolsosDb: Pick<Reembolso, "reserva_id" | "monto_usd" | "estado">[];
+  reembolsosDb: Pick<Reembolso, "reserva_id" | "monto_usd" | "currency" | "estado">[];
+  monedaBase?: FiscalCurrency;
 }) {
   const serviciosPorId = new Map(servicios.map((s) => [s.id, s]));
-  const montoReembolsoPorReserva = new Map(
-    reembolsosDb.map((r) => [r.reserva_id, r.monto_usd]),
+  const reembolsoPorReserva = new Map(
+    reembolsosDb.map((r) => [r.reserva_id, r]),
   );
   const reembolsosCompletadosIds = new Set(
     reembolsosDb
@@ -480,30 +563,58 @@ export function reconciliarFinanzasNegocio({
     b.service_date.localeCompare(a.service_date),
   );
 
-  const montoDe = (r: (typeof filas)[number]) =>
-    montoEfectivoReserva(r, r.servicio?.precio_usd);
+  const monedaDe = (r: (typeof filas)[number]): FiscalCurrency =>
+    normalizarMoneda(r.currency ?? r.servicio?.currency, monedaBase);
+
+  const montoEnMonedaBase = (r: (typeof filas)[number]): number => {
+    const origen = monedaDe(r);
+    const montoNominal = montoEfectivoReserva(r, r.servicio?.precio_usd);
+    return convertirMoneda(
+      montoNominal,
+      origen,
+      monedaBase,
+      r.exchange_rate_bccr,
+    );
+  };
 
   return {
     transacciones,
     pagosManualesResumen: {
       cantidad: pagosManuales.length,
-      monto: pagosManuales.reduce((acc, r) => acc + montoDe(r), 0),
+      monto: redondearMoneda(
+        pagosManuales.reduce((acc, r) => acc + montoEnMonedaBase(r), 0),
+      ),
     },
     detalleManuales: pagosManuales.map((r) => ({
       fechaIso: r.fecha_hora,
-      monto: montoDe(r),
+      monto: montoEnMonedaBase(r),
     })),
     reembolsosPendientes: {
       cantidad: reembolsos.length,
-      monto: reembolsos.reduce(
-        (acc, r) =>
-          acc + (montoReembolsoPorReserva.get(r.id) ?? montoDe(r)),
-        0,
+      monto: redondearMoneda(
+        reembolsos.reduce((acc, r) => {
+          const reemb = reembolsoPorReserva.get(r.id);
+          if (reemb) {
+            const monReemb = normalizarMoneda(reemb.currency, monedaDe(r));
+            return (
+              acc +
+              convertirMoneda(
+                reemb.monto_usd,
+                monReemb,
+                monedaBase,
+                r.exchange_rate_bccr,
+              )
+            );
+          }
+          return acc + montoEnMonedaBase(r);
+        }, 0),
       ),
     },
     pendientesCobro: {
       cantidad: pendientes.length,
-      monto: pendientes.reduce((acc, r) => acc + montoDe(r), 0),
+      monto: redondearMoneda(
+        pendientes.reduce((acc, r) => acc + montoEnMonedaBase(r), 0),
+      ),
     },
   };
 }

@@ -30,8 +30,8 @@ export default async function AgendaPage({
 
   let bloqueos: BloqueoExcepcion[] = [];
   let horarios: Horario[] = [];
-  let reservas: Pick<Reserva, "fecha_hora" | "estado" | "trx_id">[] = [];
-  let servicios: Pick<Servicio, "id" | "duracion_min">[] = [];
+  let reservas: Pick<Reserva, "servicio_id" | "fecha_hora" | "estado" | "trx_id">[] = [];
+  let servicios: Pick<Servicio, "id" | "duracion_min" | "unit_type">[] = [];
 
   if (negocio) {
     [bloqueos, horarios, reservas, servicios] = await Promise.all([
@@ -42,14 +42,18 @@ export default async function AgendaPage({
       leer("reservas", {
         eq: { negocio_id: negocio.id },
         gte: { fecha_hora: inicioHoyIso },
-        columnas: ["fecha_hora", "estado", "trx_id"],
+        columnas: ["servicio_id", "fecha_hora", "estado", "trx_id"],
       }),
-      leer("servicios", { eq: { negocio_id: negocio.id }, columnas: ["id", "duracion_min"] }),
+      leer("servicios", { eq: { negocio_id: negocio.id }, columnas: ["id", "duracion_min", "unit_type"] }),
     ]);
   }
 
   const duracionPorServicio = new Map(
     servicios.map((s) => [s.id, s.duracion_min]),
+  );
+  // Las ventas de ítems no ocupan un horario: no generan conflicto al bloquear fechas.
+  const idsItem = new Set(
+    servicios.filter((s) => s.unit_type === "item").map((s) => s.id),
   );
 
   const horariosDetallados = horarios.map((h) => ({
@@ -59,7 +63,7 @@ export default async function AgendaPage({
   }));
 
   const reservasActivasIso = reservas
-    .filter((r) => reservaOcupaCupo(r, ahoraMs))
+    .filter((r) => !idsItem.has(r.servicio_id) && reservaOcupaCupo(r, ahoraMs))
     .map((r) => r.fecha_hora);
 
   const fechaSugerida =

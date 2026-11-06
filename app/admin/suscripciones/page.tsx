@@ -6,7 +6,7 @@ import { COLUMNAS_NEGOCIO_ADMIN } from "../../../lib/data/columnas";
 import { calcularPrecio, FLAGS_POR_NEGOCIO } from "../../../lib/plataforma";
 import { estadoEfectivo } from "../../../lib/negocio-estado";
 import { isStripeMockMode, stripe } from "../../../lib/stripe";
-import { fechaCorta, fechaHora, usd } from "../../../lib/admin/formato";
+import { fechaCorta, fechaHora, moneda, usd } from "../../../lib/admin/formato";
 import { InsigniaNegocio } from "../../../components/admin/InsigniaNegocio";
 import { PlanesAdminSection } from "../../../components/admin/PlanesAdminSection";
 import {
@@ -26,6 +26,7 @@ async function facturasStripe() {
         typeof f.customer === "string" ? f.customer : (f.customer?.id ?? ""),
       estado: f.status ?? "—",
       monto: (f.amount_due ?? 0) / 100,
+      moneda: f.currency?.toUpperCase() ?? "USD",
       fecha: f.created ? new Date(f.created * 1000).toISOString() : "",
     }));
   } catch {
@@ -80,6 +81,11 @@ export default async function SuscripcionesPage() {
                 </Celda>
                 <Celda>
                   <InsigniaNegocio negocio={n} />
+                  {isStripeMockMode && n.estado_suscripcion === "activa" && (
+                    <p className="mt-1 text-[11px] font-medium text-amber-700">
+                      Suscripción simulada (demo)
+                    </p>
+                  )}
                   {estadoEfectivo(n) !== n.estado_suscripcion && (
                     <p className="mt-1 text-xs text-amber-600">
                       Prueba vencida
@@ -100,7 +106,7 @@ export default async function SuscripcionesPage() {
                   {n.estado_suscripcion === "prueba"
                     ? `Prueba: ${fechaCorta(n.prueba_hasta)}`
                     : n.estado_suscripcion === "activa"
-                      ? `Renueva: ${fechaCorta(n.proximo_cobro || (n.slug === "kayak-manglar" || n.nombre.includes("Kayak") ? "2026-12-03T12:00:00.000Z" : null))}`
+                      ? `Renueva: ${fechaCorta(n.proximo_cobro)}`
                       : "—"}
                 </Celda>
                 <Celda className="text-right">
@@ -149,7 +155,7 @@ async function TablaFacturasStripe() {
           <Celda>{f.id}</Celda>
           <Celda>{f.cliente}</Celda>
           <Celda>{f.estado}</Celda>
-          <Celda>{usd(f.monto)}</Celda>
+          <Celda>{moneda(f.monto, f.moneda)}</Celda>
           <Celda>{fechaHora(f.fecha)}</Celda>
         </tr>
       ))}

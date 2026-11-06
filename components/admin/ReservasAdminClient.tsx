@@ -17,7 +17,9 @@ import {
   type TonoInsignia,
 } from "./ui";
 import { AccionForm } from "./AccionForm";
-import { usd } from "../../lib/admin/formato";
+import { moneda } from "../../lib/admin/formato";
+import { esTransaccionSimulada } from "../../lib/formato";
+import type { CodigoMoneda } from "../../lib/monedas";
 import {
   ReembolsoDrawer,
   type ReservaParaReembolso,
@@ -47,6 +49,7 @@ export interface ReservaItemAdmin {
   negocioNombre: string;
   servicioNombre: string;
   montoUsd: number;
+  moneda: CodigoMoneda;
   puedeReembolsar: boolean;
   conReembolso: boolean;
 }
@@ -56,6 +59,7 @@ export interface ReembolsoPendienteItem {
   negocioNombre: string;
   reservaId: string;
   montoUsd: number;
+  moneda: CodigoMoneda;
   motivo: string;
 }
 
@@ -199,25 +203,28 @@ export function ReservasAdminClient({
     <>
       {/* Reembolsos pendientes de conciliación */}
       {reembolsosPendientes.length > 0 && (
-        <Tarjeta titulo="Reembolsos pendientes de confirmación">
+        <Tarjeta
+          titulo="Reembolsos pendientes de confirmación"
+          descripcion="Registro interno de conciliación (no ejecuta devolución bancaria automática en pasarela)."
+        >
           <Tabla columnas={["Negocio", "Reserva", "Monto", "Motivo", ""]}>
             {reembolsosPendientes.map((r) => (
               <tr key={r.id}>
                 <Celda>{r.negocioNombre}</Celda>
                 <Celda className="font-mono text-xs">{r.reservaId}</Celda>
-                <Celda>{usd(r.montoUsd)}</Celda>
+                <Celda>{moneda(r.montoUsd, r.moneda)}</Celda>
                 <Celda>{r.motivo}</Celda>
                 <Celda>
                   {puedeCompletarReembolso ? (
                     <AccionForm
                       accion={completarReembolsoAction.bind(null, r.id)}
-                      boton="Marcar completado"
+                      boton="Marcar completado (registro)"
                       variante="acento_sm"
                       tamano="sm"
                       icono={
                         <Check className="h-3.5 w-3.5" aria-hidden="true" />
                       }
-                      confirmar="¿Confirmas que el dinero ya fue devuelto al cliente?"
+                      confirmar="¿Confirmas que el reembolso ya fue gestionado y deseas marcar el registro como completado?"
                     />
                   ) : (
                     <Insignia tono="ambar">Pendiente de finanzas</Insignia>
@@ -337,9 +344,16 @@ export function ReservasAdminClient({
             <Celda>
               <p className="text-slate-800">{r.emailCliente}</p>
               {r.trxId && (
-                <p className="text-xs text-slate-400 font-mono">
-                  {r.esPagoManual ? "Pago manual" : r.trxId}
-                </p>
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                  <span className="font-mono text-xs text-slate-400">
+                    {r.esPagoManual ? "Pago manual" : r.trxId}
+                  </span>
+                  {esTransaccionSimulada(r.trxId) && (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                      Simulado (demo)
+                    </span>
+                  )}
+                </div>
               )}
             </Celda>
             <Celda>
@@ -353,7 +367,7 @@ export function ReservasAdminClient({
               )}
             </Celda>
             <Celda className="font-semibold text-slate-900">
-              {usd(r.montoUsd)}
+              {moneda(r.montoUsd, r.moneda)}
             </Celda>
             <Celda>
               <div className="flex flex-wrap items-center gap-1.5">
@@ -369,6 +383,7 @@ export function ReservasAdminClient({
                         negocioNombre: r.negocioNombre,
                         servicioNombre: r.servicioNombre,
                         montoUsd: r.montoUsd,
+                        moneda: r.moneda,
                       })
                     }
                     className="vuki-btn-secondary-sm"

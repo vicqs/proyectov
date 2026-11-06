@@ -5,6 +5,7 @@ import ReciboTurista, {
 import AlertaPyme, { type AlertaPymeProps } from "../emails/AlertaPyme";
 import { isPlaceholder } from "./supabase/config";
 import type { DatabaseClient } from "./data/db";
+import type { CodigoMoneda } from "./monedas";
 import { obtenerConfiguracion } from "./plataforma";
 import { registrarSistema } from "./registro";
 
@@ -31,8 +32,12 @@ export interface DatosConfirmacionReserva {
   servicioNombre: string;
   fechaHora: string; // ISO string
   montoUsd: number;
+  moneda?: CodigoMoneda;
   trxId: string;
   emailCliente: string;
+  /** Venta directa de ítems (sin horario): ajusta etiquetas y asuntos. */
+  esItem?: boolean;
+  cantidad?: number;
   /** Enlace privado para que el turista vea o cancele su reserva. */
   gestionUrl?: string;
 }
@@ -80,9 +85,12 @@ export async function enviarCorreosConfirmacion(
     servicioNombre: datos.servicioNombre,
     fechaHora: datos.fechaHora,
     montoUsd: datos.montoUsd,
+    moneda: datos.moneda,
     trxId: datos.trxId,
     emailCliente: datos.emailCliente,
     gestionUrl: datos.gestionUrl,
+    esItem: datos.esItem,
+    cantidad: datos.cantidad,
     encabezado: pRecibo.encabezado
       ? aplicarVariables(pRecibo.encabezado, vars)
       : undefined,
@@ -95,6 +103,9 @@ export async function enviarCorreosConfirmacion(
     fechaHora: datos.fechaHora,
     emailCliente: datos.emailCliente,
     montoUsd: datos.montoUsd,
+    moneda: datos.moneda,
+    esItem: datos.esItem,
+    cantidad: datos.cantidad,
     encabezado: pAlerta.encabezado
       ? aplicarVariables(pAlerta.encabezado, vars)
       : undefined,
@@ -103,10 +114,10 @@ export async function enviarCorreosConfirmacion(
 
   const asuntoRecibo = pRecibo.asunto
     ? aplicarVariables(pRecibo.asunto, vars)
-    : `Tu reserva en ${datos.negocioNombre} (#${datos.trxId})`;
+    : `${datos.esItem ? "Tu compra" : "Tu reserva"} en ${datos.negocioNombre} (#${datos.trxId})`;
   const asuntoAlerta = pAlerta.asunto
     ? aplicarVariables(pAlerta.asunto, vars)
-    : `Nueva reserva confirmada: ${datos.servicioNombre} (#${datos.trxId})`;
+    : `${datos.esItem ? "Nueva venta" : "Nueva reserva confirmada"}: ${datos.servicioNombre} (#${datos.trxId})`;
 
   const [resRecibo, resAlerta] = await Promise.allSettled([
     resend.emails.send({

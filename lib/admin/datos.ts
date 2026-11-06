@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
-import type { Plan, Reserva, Servicio } from "../../types/database";
+import type { Negocio, Plan, Reserva, Servicio } from "../../types/database";
 import {
   COLUMNAS_NEGOCIO_ADMIN,
   COLUMNAS_RESERVA_ADMIN,
@@ -11,6 +11,12 @@ import {
   type ServicioAdmin,
 } from "../data/columnas";
 import { leer } from "./db";
+import {
+  convertirAUsd,
+  convertirMoneda,
+  normalizarMoneda,
+  type CodigoMoneda,
+} from "../monedas";
 import { calcularPrecio } from "../plataforma";
 import { estadoEfectivo, negocioOperativo } from "../negocio-estado";
 import { montoEfectivoReserva } from "../pagos";
@@ -37,12 +43,59 @@ export const cargarPlataforma = cache(async (): Promise<DatosPlataforma> => {
   return { negocios, servicios, reservas, planes };
 });
 
-/** Monto cobrado de una reserva (precio × cupos si no se guardó el monto). */
+/** Moneda efectiva de una reserva (cae en la del servicio o negocio si falta). */
+export function monedaReserva(
+  r: Pick<Reserva, "servicio_id"> & Partial<Pick<Reserva, "currency" | "negocio_id">>,
+  servicios: Map<string, Partial<Pick<Servicio, "currency">>>,
+  negocios?: Map<string, Partial<Pick<Negocio, "moneda">>>,
+): CodigoMoneda {
+  const srv = servicios.get(r.servicio_id);
+  const neg = r.negocio_id ? negocios?.get(r.negocio_id) : undefined;
+  return normalizarMoneda(r.currency ?? srv?.currency ?? neg?.moneda, "USD");
+}
+
+/** Monto nominal de una reserva expresado en su propia moneda (`monedaReserva`). */
 export function montoReserva(
-  r: Pick<Reserva, "monto_usd" | "cupos" | "servicio_id">,
-  servicios: Map<string, Pick<Servicio, "precio_usd">>,
+  r: Pick<Reserva, "monto_usd" | "cupos" | "servicio_id"> &
+    Partial<Pick<Reserva, "gross_amount" | "currency" | "negocio_id">>,
+  servicios: Map<string, Pick<Servicio, "precio_usd"> & Partial<Pick<Servicio, "currency">>>,
+  negocios?: Map<string, Partial<Pick<Negocio, "moneda">>>,
 ): number {
-  return montoEfectivoReserva(r, servicios.get(r.servicio_id)?.precio_usd);
+  if (r.monto_usd !== null && r.monto_usd !== undefined) return r.monto_usd;
+  if (r.gross_amount !== null && r.gross_amount !== undefined) return r.gross_amount;
+  const srv = servicios.get(r.servicio_id);
+  const base = montoEfectivoReserva(r, srv?.precio_usd);
+  const monSrv = normalizarMoneda(
+    srv?.currency ?? (r.negocio_id ? negocios?.get(r.negocio_id)?.moneda : undefined),
+    "USD",
+  );
+  const monRes = monedaReserva(r, servicios, negocios);
+  return convertirMoneda(base, monSrv, monRes);
+}
+
+/** Equivalente en USD de una reserva (para KPIs consolidados de plataforma). */
+export function montoReservaUsd(
+  r: Pick<Reserva, "monto_usd" | "cupos" | "servicio_id"> &
+    Partial<Pick<Reserva, "gross_amount" | "currency" | "exchange_rate_bccr" | "negocio_id">>,
+  servicios: Map<string, Pick<Servicio, "precio_usd"> & Partial<Pick<Servicio, "currency">>>,
+  negocios?: Map<string, Partial<Pick<Negocio, "moneda">>>,
+): number {
+  const monto = montoReserva(r, servicios, negocios);
+  const moneda = monedaReserva(r, servicios, negocios);
+  return convertirAUsd(monto, moneda, r.exchange_rate_bccr);
+}
+
+/** Monto de una reserva convertido a una moneda objetivo (p. ej. moneda base del negocio). */
+export function montoReservaEnMoneda(
+  r: Pick<Reserva, "monto_usd" | "cupos" | "servicio_id"> &
+    Partial<Pick<Reserva, "gross_amount" | "currency" | "exchange_rate_bccr" | "negocio_id">>,
+  destino: CodigoMoneda,
+  servicios: Map<string, Pick<Servicio, "precio_usd"> & Partial<Pick<Servicio, "currency">>>,
+  negocios?: Map<string, Partial<Pick<Negocio, "moneda">>>,
+): number {
+  const monto = montoReserva(r, servicios, negocios);
+  const moneda = monedaReserva(r, servicios, negocios);
+  return convertirMoneda(monto, moneda, destino, r.exchange_rate_bccr);
 }
 
 export function indexar<T extends { id: string }>(filas: T[]): Map<string, T> {

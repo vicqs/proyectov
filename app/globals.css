@@ -185,8 +185,9 @@ select.vuki-input-sm:active {
   @apply vuki-focus min-h-9 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 placeholder:font-normal placeholder:text-slate-400 shadow-2xs transition hover:border-slate-300 focus:border-sky-500 focus:bg-white focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400;
 }
 
-/* Inputs de búsqueda con icono lupa integrado */
-.vuki-input-search {
+/* Inputs de búsqueda o campos con icono izquierdo integrado */
+.vuki-input-search,
+.vuki-input-icon {
   @apply vuki-focus min-h-10 w-full min-w-0 rounded-xl border border-slate-300 bg-white pr-3.5 py-2 text-base sm:text-sm font-medium text-slate-900 placeholder:font-normal placeholder:text-slate-400 shadow-xs transition hover:border-slate-400 focus:border-sky-500 focus:bg-white focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400;
   padding-left: 2.5rem !important;
 }
@@ -196,9 +197,13 @@ select.vuki-input-sm:active {
   padding-left: 2.25rem !important;
 }
 
-/* Inputs con prefijo de moneda ($) */
+/* Inputs con prefijo de moneda ($, ₡, €, £ vs CA$) */
 .vuki-input-currency {
   padding-left: 2.125rem !important;
+}
+
+.vuki-input-currency-wide {
+  padding-left: 3.1rem !important;
 }
 
 /* Inputs numéricos con sufijo interno (ocultar stepper nativo que se superpone) */

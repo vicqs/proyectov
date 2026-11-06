@@ -1,6 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  useActionState,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Loader2 } from "lucide-react";
 import ConfirmDialog from "../ConfirmDialog";
 import { toast } from "../Toast";
@@ -92,12 +99,16 @@ export function AccionForm({
   }, [estado, limpiarAlOk]);
 
   function alEnviar(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     if (confirmar && !confirmadoRef.current) {
-      e.preventDefault();
       setDialogoAbierto(true);
       return;
     }
     confirmadoRef.current = false;
+    const datos = new FormData(e.currentTarget);
+    startTransition(() => {
+      enviar(datos);
+    });
   }
 
   function ejecutarConfirmado() {
@@ -129,7 +140,6 @@ export function AccionForm({
       <form
         id={id}
         ref={ref}
-        action={enviar}
         onSubmit={alEnviar}
         className={cn(
           enLinea ? "flex flex-wrap items-center gap-2" : "space-y-4",

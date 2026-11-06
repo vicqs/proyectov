@@ -3,7 +3,10 @@
 import { useId, useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, CreditCard } from "lucide-react";
+import { formatearMoneda } from "@/lib/formato";
 import { useTranslations } from "@/lib/i18n";
+import type { CodigoMoneda } from "@/lib/monedas";
+import SelectorMoneda from "../SelectorMoneda";
 
 /** Formatea el número de tarjeta agrupando en bloques de 4 dígitos. */
 function formatearNumeroTarjeta(valor: string): string {
@@ -34,7 +37,11 @@ interface PasoPagoSimuladoProps {
     centro: { x: number; opacity: number };
     sale: (dir: number) => { x: number; opacity: number };
   };
-  totalUsd: number;
+  totalMonto: number;
+  moneda: CodigoMoneda;
+  montoBaseServicio?: number;
+  monedaBaseServicio?: CodigoMoneda;
+  onCambiarMoneda?: (moneda: CodigoMoneda) => void;
   errorPago: string | null;
   onVolver: () => void;
   onConfirmarPago: () => void;
@@ -44,7 +51,11 @@ export default function PasoPagoSimulado({
   idTitulo,
   direccion,
   variantesPaso,
-  totalUsd,
+  totalMonto,
+  moneda,
+  montoBaseServicio,
+  monedaBaseServicio,
+  onCambiarMoneda,
   errorPago,
   onVolver,
   onConfirmarPago,
@@ -90,15 +101,48 @@ export default function PasoPagoSimulado({
           {t("pago_demo")}
         </span>
       </div>
-      <p className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        {t("aviso_pago_demo")}
-      </p>
+      <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <p>{t("aviso_pago_demo")}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setNumeroTarjeta("4242 4242 4242 4242");
+            setVencimiento("12/28");
+            setCvc("123");
+          }}
+          className="vuki-focus mt-2 inline-flex items-center rounded-lg border border-amber-300 bg-white/80 px-2.5 py-1 text-xs font-semibold text-amber-950 transition hover:bg-white"
+        >
+          {t("usar_tarjeta_demo")}
+        </button>
+      </div>
 
       <div className="mb-6 rounded-2xl bg-slate-50 p-5">
-        <p className="text-xs text-slate-500">{t("total_a_pagar")}</p>
-        <p className="font-display text-3xl font-bold tracking-tight text-vuki-ink">
-          ${totalUsd.toFixed(2)}
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="text-xs text-slate-500">{t("total_a_pagar")}</p>
+            <p className="mt-0.5 font-display text-3xl font-bold tracking-tight text-vuki-ink">
+              {formatearMoneda(totalMonto, moneda)}
+            </p>
+          </div>
+          {onCambiarMoneda && (
+            <SelectorMoneda
+              variante="superficie"
+              valor={moneda}
+              onChange={onCambiarMoneda}
+            />
+          )}
+        </div>
+        {monedaBaseServicio &&
+          monedaBaseServicio !== moneda &&
+          montoBaseServicio !== undefined && (
+            <p className="mt-2 text-xs text-slate-500">
+              {t("precio_base_ref")}{" "}
+              <span className="font-medium text-slate-700">
+                {formatearMoneda(montoBaseServicio, monedaBaseServicio)}
+              </span>{" "}
+              · {t("tipo_cambio_ref")}
+            </p>
+          )}
       </div>
 
       <div className="space-y-5">
@@ -183,7 +227,7 @@ export default function PasoPagoSimulado({
         whileTap={{ scale: 0.97 }}
         className="mt-10 h-14 w-full rounded-2xl bg-emerald-700 text-base font-semibold text-white shadow-sm outline-none transition-colors hover:bg-emerald-800 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-30"
       >
-        {t("pagar")} ${totalUsd.toFixed(2)}
+        {t("pagar_demo")} {formatearMoneda(totalMonto, moneda)}
       </motion.button>
     </motion.div>
   );

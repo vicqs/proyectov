@@ -6,13 +6,15 @@ import {
   editarDatosNegocioAction,
 } from "../../actions/admin/negocios";
 import { AccionForm } from "./AccionForm";
-import { CLASE_INPUT, Campo, Tarjeta, TextareaConContador } from "./ui";
+import { LISTA_MONEDAS, normalizarMoneda } from "../../lib/monedas";
+import { CLASE_INPUT, CLASE_SELECT, Campo, Tarjeta, TextareaConContador } from "./ui";
 
 interface Props {
   negocioId: string;
   nombre: string;
   slug: string;
   descripcion: string;
+  moneda?: string | null;
 }
 
 export function TarjetaDatosPublicos({
@@ -20,6 +22,7 @@ export function TarjetaDatosPublicos({
   nombre,
   slug,
   descripcion,
+  moneda,
 }: Props) {
   const [nombreVal, setNombreVal] = useState(nombre);
 
@@ -81,21 +84,36 @@ export function TarjetaDatosPublicos({
           </div>
         </div>
 
-        {/* Debajo: Descripción y botón Guardar datos */}
+        {/* Debajo: Moneda operativa, Descripción y botón Guardar datos */}
         <AccionForm
           id="form-datos-publicos"
           accion={editarDatosNegocioAction.bind(null, negocioId)}
           boton="Guardar datos"
         >
           <input type="hidden" name="nombre" value={nombreVal} />
-          <Campo etiqueta="Descripción">
-            <TextareaConContador
-              name="descripcion"
-              defaultValue={descripcion}
-              maxLength={600}
-              rows={3}
-            />
-          </Campo>
+          <div className="space-y-4">
+            <Campo etiqueta="Moneda operativa por defecto">
+              <select
+                name="moneda"
+                defaultValue={normalizarMoneda(moneda, "USD")}
+                className={`${CLASE_SELECT} sm:max-w-sm`}
+              >
+                {LISTA_MONEDAS.map((m) => (
+                  <option key={m.codigo} value={m.codigo}>
+                    {m.codigo} ({m.simbolo}) — {m.nombreEs}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+            <Campo etiqueta="Descripción">
+              <TextareaConContador
+                name="descripcion"
+                defaultValue={descripcion}
+                maxLength={600}
+                rows={3}
+              />
+            </Campo>
+          </div>
         </AccionForm>
       </div>
     </Tarjeta>

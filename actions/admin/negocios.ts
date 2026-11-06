@@ -20,12 +20,14 @@ import {
 import type { NegocioListado } from "../../lib/data/columnas";
 import { revalidarEmpresa } from "../../lib/empresa";
 import { obtenerConfiguracion, slugReservado } from "../../lib/plataforma";
+import { MONEDA_SCHEMA } from "../../lib/monedas";
 import { SLUG_SCHEMA as SLUG } from "../../lib/validaciones";
 
 const esquemaNuevo = z.object({
   nombre: z.string().trim().min(2, "Nombre demasiado corto").max(80),
   slug: SLUG,
   email: z.string().trim().toLowerCase().email("Correo del dueño inválido"),
+  moneda: MONEDA_SCHEMA.default("USD"),
   cuenta_iban: z.string().trim().max(40).optional(),
 });
 
@@ -51,12 +53,13 @@ export async function crearNegocioAction(
       nombre: campo(datos, "nombre"),
       slug: campo(datos, "slug"),
       email: campo(datos, "email"),
+      moneda: campo(datos, "moneda") || "USD",
       cuenta_iban: campo(datos, "cuenta_iban") || undefined,
     });
     if (!parsed.success) {
       return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
     }
-    const { nombre, slug, email, cuenta_iban } = parsed.data;
+    const { nombre, slug, email, moneda, cuenta_iban } = parsed.data;
 
     const errorSlug = await validarSlugLibre(slug);
     if (errorSlug) return { error: errorSlug };
@@ -91,6 +94,7 @@ export async function crearNegocioAction(
       user_id: userId,
       nombre,
       slug,
+      moneda,
       cuenta_iban: cuenta_iban ?? "",
       descripcion: null,
       color_tema: "#0284c7",
@@ -106,7 +110,7 @@ export async function crearNegocioAction(
       entidad: "negocio",
       entidad_id: negocio.id,
       negocio_id: negocio.id,
-      detalle: { slug, email, usuario_nuevo: !existenteId },
+      detalle: { slug, email, moneda, usuario_nuevo: !existenteId },
     });
     revalidarAdmin();
     revalidarEmpresa(slug);
@@ -116,6 +120,7 @@ export async function crearNegocioAction(
       id: negocio.id,
       nombre: negocio.nombre,
       slug: negocio.slug,
+      moneda: negocio.moneda,
       estado_suscripcion: negocio.estado_suscripcion,
       prueba_hasta: negocio.prueba_hasta,
       suspendido: negocio.suspendido,
@@ -261,6 +266,7 @@ export async function restaurarNegocioAction(
 const esquemaDatos = z.object({
   nombre: z.string().trim().min(2, "Nombre demasiado corto").max(80),
   descripcion: z.string().trim().max(600),
+  moneda: MONEDA_SCHEMA.optional(),
 });
 
 export async function editarDatosNegocioAction(
@@ -273,6 +279,7 @@ export async function editarDatosNegocioAction(
     const parsed = esquemaDatos.safeParse({
       nombre: campo(datos, "nombre"),
       descripcion: campo(datos, "descripcion"),
+      moneda: campo(datos, "moneda") || undefined,
     });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const negocio = await leerUno("negocios", { eq: { id } });
@@ -282,6 +289,7 @@ export async function editarDatosNegocioAction(
       {
         nombre: parsed.data.nombre,
         descripcion: parsed.data.descripcion || null,
+        ...(parsed.data.moneda ? { moneda: parsed.data.moneda } : {}),
       },
       { id },
     );
@@ -290,7 +298,10 @@ export async function editarDatosNegocioAction(
       entidad: "negocio",
       entidad_id: id,
       negocio_id: id,
-      detalle: { nombre: parsed.data.nombre },
+      detalle: {
+        nombre: parsed.data.nombre,
+        ...(parsed.data.moneda ? { moneda: parsed.data.moneda } : {}),
+      },
     });
     revalidarAdmin();
     revalidarEmpresa(negocio.slug);

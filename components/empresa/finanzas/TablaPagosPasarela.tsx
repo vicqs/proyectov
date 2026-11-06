@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowRight, CheckCircle2, FileText, Users } from "lucide-react";
 import { ItemLista, Lista } from "../../EmpresaPage";
 import { etiquetaTipoIdentificacion } from "@/lib/finanzas";
+import { esTransaccionSimulada } from "@/lib/formato";
 import { fechaHoraCR } from "@/lib/zona-horaria";
 import type { FinancialTransaction } from "@/types/finanzas";
 import { formatoMonedaFiscal } from "./ModalComprobanteHacienda";
@@ -11,12 +12,14 @@ import { formatoMonedaFiscal } from "./ModalComprobanteHacienda";
 interface TablaPagosPasarelaProps {
   ultimos: FinancialTransaction[];
   claveLista: string;
+  modoDemo?: boolean;
   onAbrirModalFactura: (pago: FinancialTransaction) => void;
 }
 
 export default function TablaPagosPasarela({
   ultimos,
   claveLista,
+  modoDemo = false,
   onAbrirModalFactura,
 }: TablaPagosPasarelaProps) {
   const [receptorAbiertoId, setReceptorAbiertoId] = useState<string | null>(
@@ -72,7 +75,7 @@ export default function TablaPagosPasarela({
                 scope="col"
                 className="px-4 py-3.5 text-right whitespace-nowrap"
               >
-                Hacienda / Factura
+                {modoDemo ? "Hacienda (demo)" : "Hacienda / Factura"}
               </th>
             </tr>
           </thead>
@@ -97,9 +100,16 @@ export default function TablaPagosPasarela({
                       {fechaHoraCR(pago.service_date)}
                     </p>
                     {pago.transaction_ref && (
-                      <p className="font-mono text-[11px] text-slate-400">
-                        {pago.transaction_ref}
-                      </p>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-[11px] text-slate-400">
+                          {pago.transaction_ref}
+                        </span>
+                        {esTransaccionSimulada(pago.transaction_ref) && (
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                            Simulado (demo)
+                          </span>
+                        )}
+                      </div>
                     )}
                   </td>
 
@@ -206,8 +216,8 @@ export default function TablaPagosPasarela({
                       onClick={() => onAbrirModalFactura(pago)}
                       title={
                         esFacturado
-                          ? "Comprobante emitido · Clic para ver o editar consecutivo"
-                          : "Clic para marcar como Facturado o ingresar consecutivo de Hacienda"
+                          ? "Comprobante registrado (no emite ante Hacienda) · Clic para ver o editar consecutivo"
+                          : "Clic para registrar comprobante o consecutivo de prueba (no emite ante Hacienda)"
                       }
                       className={`vuki-focus group inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold shadow-xs transition active:scale-[0.98] ${
                         esFacturado
@@ -234,7 +244,11 @@ export default function TablaPagosPasarela({
                             : "bg-amber-100/90 text-amber-900 group-hover:bg-amber-200/80"
                         }`}
                       >
-                        {esFacturado ? "Ver" : "Facturar"}
+                        {esFacturado
+                          ? "Ver"
+                          : modoDemo
+                            ? "Facturar (demo)"
+                            : "Facturar"}
                         <ArrowRight
                           className="h-3 w-3 transition-transform group-hover:translate-x-0.5"
                           aria-hidden="true"
@@ -356,9 +370,16 @@ export default function TablaPagosPasarela({
               </div>
 
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
-                <span className="font-mono text-[11px] text-slate-400">
-                  {pago.invoice_consecutive || pago.transaction_ref}
-                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-mono text-[11px] text-slate-400">
+                    {pago.invoice_consecutive || pago.transaction_ref}
+                  </span>
+                  {esTransaccionSimulada(pago.transaction_ref) && (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                      Simulado (demo)
+                    </span>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => onAbrirModalFactura(pago)}
@@ -387,7 +408,11 @@ export default function TablaPagosPasarela({
                         : "bg-amber-100/90 text-amber-900 group-hover:bg-amber-200/80"
                     }`}
                   >
-                    {esFacturado ? "Ver" : "Facturar"}
+                    {esFacturado
+                      ? "Ver"
+                      : modoDemo
+                        ? "Facturar (demo)"
+                        : "Facturar"}
                     <ArrowRight
                       className="h-3 w-3 transition-transform group-hover:translate-x-0.5"
                       aria-hidden="true"

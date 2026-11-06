@@ -1,9 +1,15 @@
+import type { TipoUnidadServicio } from "@/types/database";
+import type { CodigoMoneda } from "./monedas";
+
 export interface ServicioPublico {
   id: string;
   nombre: string;
   descripcion: string;
   precioUsd: number;
+  moneda?: CodigoMoneda;
   duracionMin: number;
+  tipoUnidad?: TipoUnidadServicio;
+  stockDisponible?: number | null;
   imagenUrl: string;
 }
 
@@ -25,6 +31,7 @@ export interface ReservaPublica {
   emailCliente: string;
   cantidadCuposReservados: number;
   montoPagado: number;
+  moneda?: CodigoMoneda;
   fechaReserva: string; // ISO string
   estado: "pagado";
 }

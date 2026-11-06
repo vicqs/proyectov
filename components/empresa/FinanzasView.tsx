@@ -18,7 +18,7 @@ import {
 import EmpresaPage, { KpiCard, Lista } from "../EmpresaPage";
 import { toast } from "../Toast";
 import { descargarCsv } from "../../lib/csv";
-import { formatearPrecioUsd } from "@/lib/formato";
+import { formatearMoneda } from "@/lib/formato";
 import { mensajeErrorUsuario } from "../../lib/errores";
 import {
   calcularResumenKpiFinanciero,
@@ -35,6 +35,7 @@ import {
 } from "../../lib/zona-horaria";
 import type {
   FinancialTransaction,
+  FiscalCurrency,
   ServiceFiscalSummary,
 } from "../../types/finanzas";
 import type {
@@ -48,11 +49,6 @@ import ModalComprobanteHacienda, {
 import TablaPagosPasarela from "./finanzas/TablaPagosPasarela";
 
 export type { FinancialTransaction, ServiceFiscalSummary };
-
-const formatoUsd = {
-  format: (monto: number | null | undefined): string =>
-    formatearPrecioUsd(monto),
-};
 
 const formatoNumeroCr = new Intl.NumberFormat("es-CR", {
   minimumFractionDigits: 2,
@@ -69,6 +65,7 @@ function formatearIban(iban?: string | null): string | null {
 /** Dashboard financiero con trazabilidad fiscal (Hacienda CR) para `/[slug]/admin/finanzas`. */
 export default function FinanzasView({
   transacciones: transaccionesIniciales,
+  monedaBase = "USD",
   error,
   reembolsosPendientes,
   pagosManuales,
@@ -82,6 +79,7 @@ export default function FinanzasView({
   onGuardarComprobante,
 }: {
   transacciones: FinancialTransaction[];
+  monedaBase?: FiscalCurrency;
   error?: string | null;
   /** Reservas pagadas y luego canceladas: dinero que falta devolver al cliente. */
   reembolsosPendientes?: { cantidad: number; monto: number };
@@ -143,15 +141,22 @@ export default function FinanzasView({
     return pagosManuales ?? { cantidad: 0, monto: 0 };
   }, [detalleManuales, pagosManuales, desde, hasta]);
 
+  const formatoBase = (monto: number | null | undefined) =>
+    formatearMoneda(monto, monedaBase);
+
   const resumenKpi = useMemo(
     () =>
-      calcularResumenKpiFinanciero(transaccionesFiltradas, listaTransacciones),
-    [transaccionesFiltradas, listaTransacciones],
+      calcularResumenKpiFinanciero(
+        transaccionesFiltradas,
+        listaTransacciones,
+        monedaBase,
+      ),
+    [transaccionesFiltradas, listaTransacciones, monedaBase],
   );
 
   const desgloseServicios: ServiceFiscalSummary[] = useMemo(
-    () => resumirServiciosFiscales(transaccionesFiltradas),
-    [transaccionesFiltradas],
+    () => resumirServiciosFiscales(transaccionesFiltradas, monedaBase),
+    [transaccionesFiltradas, monedaBase],
   );
 
   const ultimos =
@@ -310,6 +315,26 @@ export default function FinanzasView({
         </div>
       ) : (
         <>
+          {modoDemo && (
+            <div
+              role="status"
+              className="mb-5 flex items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-xs leading-relaxed text-amber-950"
+            >
+              <AlertTriangle
+                className="mt-0.5 h-4 w-4 shrink-0 text-amber-600"
+                aria-hidden="true"
+              />
+              <span>
+                <strong className="font-semibold">
+                  Modo demostración activo:
+                </strong>{" "}
+                Los pagos simulados, la liquidación neta y el registro de
+                comprobantes funcionan como entorno de prueba; no mueven dinero
+                real ni emiten documentos ante el Ministerio de Hacienda.
+              </span>
+            </div>
+          )}
+
           {/* Barra de período: atajos en 1 clic + rango de fechas */}
           <div className="mb-5 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -385,27 +410,30 @@ export default function FinanzasView({
             <KpiCard
               icono={<DollarSign className="h-3.5 w-3.5" aria-hidden="true" />}
               titulo="Ingresos brutos (pasarela)"
-              valor={formatoUsd.format(resumenKpi.brutoUsd)}
+              valor={formatoBase(resumenKpi.brutoBase)}
               detalle={
                 <>
                   <p className="text-xs text-slate-500">
                     Subtotal (sin IVA):{" "}
                     <span className="font-medium text-slate-700">
-                      {formatoUsd.format(resumenKpi.subtotalUsd)}
+                      {formatoBase(resumenKpi.subtotalBase)}
                     </span>{" "}
                     + IVA recaudado:{" "}
                     <span className="font-medium text-slate-700">
-                      {formatoUsd.format(resumenKpi.ivaUsd)}
+                      {formatoBase(resumenKpi.ivaBase)}
                     </span>
                   </p>
                   <p className="text-xs text-slate-500">
                     ≈{" "}
                     <span className="font-medium text-slate-700">
-                      CRC ₡{formatoNumeroCr.format(resumenKpi.brutoCrc)}
+                      {monedaBase === "CRC"
+                        ? formatearMoneda(resumenKpi.brutoUsd, "USD")
+                        : `CRC ₡${formatoNumeroCr.format(resumenKpi.brutoCrc)}`}
                     </span>{" "}
                     <span className="text-[11px] text-slate-400">
-                      (T.C. BCCR ₡
-                      {formatoNumeroCr.format(resumenKpi.tipoCambioRef)})
+                      (T.C. ref. BCCR ₡
+                      {formatoNumeroCr.format(resumenKpi.tipoCambioRef)}/
+                      {monedaBase === "CRC" ? "USD" : monedaBase} · estimado)
                     </span>
                   </p>
                 </>
@@ -416,7 +444,7 @@ export default function FinanzasView({
             <KpiCard
               icono={<Percent className="h-3.5 w-3.5" aria-hidden="true" />}
               titulo="Comisión bancaria estimada"
-              valor={formatoUsd.format(resumenKpi.comisionesUsd)}
+              valor={formatoBase(resumenKpi.comisionesBase)}
               ayuda={
                 <span
                   tabIndex={0}
@@ -446,13 +474,15 @@ export default function FinanzasView({
             <KpiCard
               icono={<Wallet className="h-3.5 w-3.5" aria-hidden="true" />}
               titulo="Neto estimado a liquidar"
-              valor={formatoUsd.format(resumenKpi.netoUsd)}
+              valor={formatoBase(resumenKpi.netoBase)}
               detalle={
                 <>
                   <p className="text-xs text-slate-500">
                     ≈{" "}
                     <span className="font-medium text-slate-700">
-                      CRC ₡{formatoNumeroCr.format(resumenKpi.netoCrc)}
+                      {monedaBase === "CRC"
+                        ? formatearMoneda(resumenKpi.netoUsd, "USD")
+                        : `CRC ₡${formatoNumeroCr.format(resumenKpi.netoCrc)}`}
                     </span>
                   </p>
                   <p className="text-xs text-slate-500">
@@ -536,7 +566,7 @@ export default function FinanzasView({
                       Reembolsos por gestionar ({reembolsosPendientes.cantidad})
                     </p>
                     <p className="mt-1.5 font-display text-lg font-bold text-amber-950">
-                      {formatoUsd.format(reembolsosPendientes.monto)}
+                      {formatoBase(reembolsosPendientes.monto)}
                     </p>
                     <p className="mt-1 leading-relaxed text-amber-800">
                       Reservas pagadas que luego se cancelaron. Ya fueron
@@ -566,7 +596,7 @@ export default function FinanzasView({
                       Cobros directos ({manualesVisibles.cantidad})
                     </p>
                     <p className="mt-1.5 font-display text-lg font-bold text-emerald-950">
-                      {formatoUsd.format(manualesVisibles.monto)}
+                      {formatoBase(manualesVisibles.monto)}
                     </p>
                     <p className="mt-1 leading-relaxed text-slate-600">
                       Recibidos por SINPE o efectivo en reservas manuales. No
@@ -596,7 +626,7 @@ export default function FinanzasView({
                       Reservas pendientes de pago ({pendientesCobro.cantidad})
                     </p>
                     <p className="mt-1.5 font-display text-lg font-bold text-vuki-ink">
-                      {formatoUsd.format(pendientesCobro.monto)}
+                      {formatoBase(pendientesCobro.monto)}
                     </p>
                     <p className="mt-1 leading-relaxed text-slate-500">
                       Cupos apartados aún sin pago confirmado; no suman a tus
@@ -620,7 +650,7 @@ export default function FinanzasView({
           {/* Desglose de ingresos por servicio con configuración fiscal */}
           <DesgloseServiciosTabla
             desgloseServicios={desgloseServicios}
-            brutoTotalUsd={resumenKpi.brutoUsd}
+            brutoTotal={resumenKpi.brutoBase}
           />
 
           {/* Historial detallado de pagos procesados por pasarela */}
@@ -676,6 +706,7 @@ export default function FinanzasView({
               <TablaPagosPasarela
                 ultimos={ultimos}
                 claveLista={`${desde}-${hasta}-${verTodos}`}
+                modoDemo={modoDemo}
                 onAbrirModalFactura={abrirModalFactura}
               />
             )}

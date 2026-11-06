@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { crearNegocioAction } from "../../actions/admin/negocios";
+import { LISTA_MONEDAS } from "../../lib/monedas";
 import { AccionForm } from "./AccionForm";
-import { CLASE_INPUT, Campo } from "./ui";
+import { CLASE_INPUT, CLASE_SELECT, Campo } from "./ui";
 
 function aSlug(texto: string): string {
   return texto
@@ -83,6 +84,18 @@ export function NuevoNegocioForm() {
             placeholder="dueno@ejemplo.com"
             className={CLASE_INPUT}
           />
+        </Campo>
+        <Campo
+          etiqueta="Moneda operativa"
+          ayuda="Moneda predeterminada para precios y reportes del negocio."
+        >
+          <select name="moneda" defaultValue="USD" className={CLASE_SELECT}>
+            {LISTA_MONEDAS.map((m) => (
+              <option key={m.codigo} value={m.codigo}>
+                {m.codigo} ({m.simbolo}) · {m.nombreEs}
+              </option>
+            ))}
+          </select>
         </Campo>
         <Campo etiqueta="Cuenta IBAN (opcional)">
           <input

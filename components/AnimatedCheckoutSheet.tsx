@@ -8,6 +8,7 @@ import {
   Clock,
   Loader2,
   Mail,
+  Package,
   User,
   X,
 } from "lucide-react";
@@ -19,6 +20,11 @@ import type {
 import { cn } from "../lib/cn";
 import { textoSobre } from "../lib/color";
 import { useTranslations } from "../lib/i18n";
+import {
+  convertirMoneda,
+  normalizarMoneda,
+  type CodigoMoneda,
+} from "../lib/monedas";
 import type { ReservaPublicaResultado } from "../actions/pago-simulado";
 import AnimatedIconButton from "./AnimatedIconButton";
 import PasoPagoSimulado from "./checkout/PasoPagoSimulado";
@@ -33,6 +39,8 @@ const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface AnimatedCheckoutSheetProps {
   servicio: ServicioPublico;
+  moneda?: CodigoMoneda;
+  onCambiarMoneda?: (moneda: CodigoMoneda) => void;
   negocioNombre: string;
   colorTema: string;
   onClose: () => void;
@@ -42,10 +50,11 @@ interface AnimatedCheckoutSheetProps {
   reservasExistentes?: ReservaPublica[];
   /** Se llama al confirmar el pago simulado, con los datos para registrar la reserva. */
   onReservaConfirmada: (
-    horarioId: string,
+    horarioId: string | null,
     nombreCliente: string,
     emailCliente: string,
     cupos: number,
+    moneda?: CodigoMoneda,
   ) => void | Promise<ReservaPublicaResultado | void>;
 }
 
@@ -63,7 +72,7 @@ const variantesPaso = {
 
 /** Selector de elementos enfocables dentro de la trampa de foco del sheet. */
 const SELECTOR_ENFOCABLES =
-  'a[href]:not([tabindex="-1"]), button:not([disabled]):not([tabindex="-1"]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  'a[href]:not([tabindex="-1"]), button:not([disabled]):not([tabindex="-1"]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * Bottom sheet premium (estilo iOS) para el checkout simulado. Se desliza
@@ -74,6 +83,8 @@ const SELECTOR_ENFOCABLES =
  */
 export default function AnimatedCheckoutSheet({
   servicio,
+  moneda,
+  onCambiarMoneda,
   negocioNombre,
   colorTema,
   onClose,
@@ -82,7 +93,17 @@ export default function AnimatedCheckoutSheet({
   onReservaConfirmada,
 }: AnimatedCheckoutSheetProps) {
   const { t } = useTranslations();
-  const [paso, setPaso] = useState<Paso>("horario");
+  const monedaServicio = normalizarMoneda(servicio.moneda, "USD");
+  const monedaActiva = normalizarMoneda(moneda, monedaServicio);
+
+  // Ítems de venta directa: sin horario; se paga y simplemente se rebaja el stock.
+  const esItem = servicio.tipoUnidad === "item";
+  const stockDisponible = servicio.stockDisponible ?? 0;
+  const maxCantidad = esItem ? Math.max(0, Math.min(50, stockDisponible)) : 0;
+
+  const [paso, setPaso] = useState<Paso>(
+    esItem && stockDisponible > 0 ? "datos" : "horario",
+  );
   const [direccion, setDireccion] = useState(1);
   const [horarioSeleccionado, setHorarioSeleccionado] =
     useState<HorarioPublico | null>(null);
@@ -93,8 +114,14 @@ export default function AnimatedCheckoutSheet({
   const [trxIdSimulado, setTrxIdSimulado] = useState(
     () => `TL-${Date.now().toString().slice(-8)}`,
   );
+  const [tokenGestion, setTokenGestion] = useState<string | undefined>(
+    undefined,
+  );
   const [errorPago, setErrorPago] = useState<string | null>(null);
   const [reciboEnviado, setReciboEnviado] = useState(false);
+  const [montoConfirmado, setMontoConfirmado] = useState<number | null>(null);
+  const [monedaConfirmada, setMonedaConfirmada] =
+    useState<CodigoMoneda | null>(null);
 
   const idTitulo = useId();
   const idNombre = useId();
@@ -158,10 +185,12 @@ export default function AnimatedCheckoutSheet({
       return;
     }
 
-    const yaReservado = reservasExistentes.some(
-      (reserva) =>
-        reserva.emailCliente.trim().toLowerCase() === emailNormalizado,
-    );
+    const yaReservado =
+      !esItem &&
+      reservasExistentes.some(
+        (reserva) =>
+          reserva.emailCliente.trim().toLowerCase() === emailNormalizado,
+      );
     if (yaReservado) {
       setErrorEmail(t("correo_duplicado"));
       return;
@@ -170,19 +199,27 @@ export default function AnimatedCheckoutSheet({
     irA("pago");
   }
 
+  const totalBaseServicio = servicio.precioUsd * cupos;
+  const totalConvertido = convertirMoneda(
+    totalBaseServicio,
+    monedaServicio,
+    monedaActiva,
+  );
+
   async function handleConfirmarPago() {
     if (paso === "cargando") return;
     setErrorPago(null);
     irA("cargando");
     const espera = new Promise((resolve) => setTimeout(resolve, 3000));
     let resultado: ReservaPublicaResultado | void = undefined;
-    if (horarioSeleccionado) {
+    if (horarioSeleccionado || esItem) {
       try {
         resultado = await onReservaConfirmada(
-          horarioSeleccionado.id,
+          horarioSeleccionado?.id ?? null,
           nombre,
           email.trim().toLowerCase(),
           cupos,
+          monedaActiva,
         );
       } catch {
         resultado = { error: t("error_pago") };
@@ -195,11 +232,12 @@ export default function AnimatedCheckoutSheet({
       return;
     }
     if (resultado && resultado.trxId) setTrxIdSimulado(resultado.trxId);
+    setTokenGestion(resultado?.tokenGestion);
     setReciboEnviado(resultado?.reciboEnviado === true);
+    setMontoConfirmado(resultado?.montoPagado ?? totalConvertido);
+    setMonedaConfirmada(resultado?.moneda ?? monedaActiva);
     irA("exito");
   }
-
-  const totalUsd = servicio.precioUsd * cupos;
 
   return (
     <motion.div
@@ -253,7 +291,15 @@ export default function AnimatedCheckoutSheet({
                 <p className="mt-1 text-sm text-slate-500">{negocioNombre}</p>
 
                 <p className="mt-8 mb-4 text-sm font-medium text-slate-700">
-                  {horariosDisponibles.length > 0 ? (
+                  {esItem ? (
+                    <span className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 font-normal text-slate-600">
+                      <Package
+                        className="h-4 w-4 shrink-0 text-slate-400"
+                        aria-hidden="true"
+                      />
+                      {t("sin_stock")}
+                    </span>
+                  ) : horariosDisponibles.length > 0 ? (
                     t("elige_horario")
                   ) : (
                     <span className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 font-normal text-slate-600">
@@ -353,18 +399,27 @@ export default function AnimatedCheckoutSheet({
                 exit="sale"
                 transition={{ duration: 0.25, ease: "easeOut" }}
               >
-                <button
-                  type="button"
-                  onClick={() => irA("horario")}
-                  className="vuki-focus -ml-1 mb-5 inline-flex min-h-9 items-center gap-1 rounded-lg px-1 text-sm font-medium text-slate-500 transition hover:text-slate-900"
-                >
-                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                  {t("volver")}
-                </button>
-                <div className="mb-6 flex items-center gap-2 text-sm text-slate-500">
-                  <Calendar className="h-4 w-4" aria-hidden="true" />
-                  {horarioSeleccionado?.label}
-                </div>
+                {esItem ? (
+                  <span className="mb-6 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                    <Package className="h-3.5 w-3.5" aria-hidden="true" />
+                    {t("venta_directa")} · {servicio.nombre}
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => irA("horario")}
+                      className="vuki-focus -ml-1 mb-5 inline-flex min-h-9 items-center gap-1 rounded-lg px-1 text-sm font-medium text-slate-500 transition hover:text-slate-900"
+                    >
+                      <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                      {t("volver")}
+                    </button>
+                    <div className="mb-6 flex items-center gap-2 text-sm text-slate-500">
+                      <Calendar className="h-4 w-4" aria-hidden="true" />
+                      {horarioSeleccionado?.label}
+                    </div>
+                  </>
+                )}
 
                 <h2
                   id={idTitulo}
@@ -439,12 +494,12 @@ export default function AnimatedCheckoutSheet({
 
                 <div className="mt-5 flex items-center justify-between rounded-2xl bg-slate-100 px-4 py-3">
                   <span className="text-sm font-medium text-slate-700">
-                    {t("personas")}
+                    {esItem ? t("cantidad_items") : t("personas")}
                   </span>
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
-                      aria-label={t("quitar_persona")}
+                      aria-label={esItem ? t("quitar_item") : t("quitar_persona")}
                       disabled={cupos <= 1}
                       onClick={() => setCupos((c) => Math.max(1, c - 1))}
                       className="vuki-focus h-11 w-11 rounded-full bg-white text-lg font-semibold text-slate-700 shadow-sm disabled:opacity-30"
@@ -456,9 +511,12 @@ export default function AnimatedCheckoutSheet({
                     </span>
                     <button
                       type="button"
-                      aria-label={t("agregar_persona")}
+                      aria-label={esItem ? t("agregar_item") : t("agregar_persona")}
                       disabled={
-                        cupos >= (horarioSeleccionado?.cuposDisponibles ?? 1)
+                        cupos >=
+                        (esItem
+                          ? maxCantidad
+                          : (horarioSeleccionado?.cuposDisponibles ?? 1))
                       }
                       onClick={() => setCupos((c) => c + 1)}
                       className="vuki-focus h-11 w-11 rounded-full bg-white text-lg font-semibold text-slate-700 shadow-sm disabled:opacity-30"
@@ -470,7 +528,7 @@ export default function AnimatedCheckoutSheet({
 
                 <motion.button
                   type="button"
-                  disabled={!nombre || !email}
+                  disabled={!nombre.trim() || !email.trim()}
                   onClick={handleContinuarAPago}
                   whileTap={{ scale: 0.97 }}
                   className="mt-10 h-14 w-full rounded-2xl text-base font-semibold text-white shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-30"
@@ -491,7 +549,11 @@ export default function AnimatedCheckoutSheet({
                 idTitulo={idTitulo}
                 direccion={direccion}
                 variantesPaso={variantesPaso}
-                totalUsd={totalUsd}
+                totalMonto={totalConvertido}
+                moneda={monedaActiva}
+                montoBaseServicio={totalBaseServicio}
+                monedaBaseServicio={monedaServicio}
+                onCambiarMoneda={onCambiarMoneda}
                 errorPago={errorPago}
                 onVolver={() => irA("datos")}
                 onConfirmarPago={handleConfirmarPago}
@@ -531,12 +593,16 @@ export default function AnimatedCheckoutSheet({
               <PasoExitoReserva
                 idTitulo={idTitulo}
                 trxIdSimulado={trxIdSimulado}
+                tokenGestion={tokenGestion}
                 negocioNombre={negocioNombre}
                 servicioNombre={servicio.nombre}
                 horarioLabel={horarioSeleccionado?.label}
+                esItem={esItem}
+                cantidad={cupos}
                 nombreCliente={nombre}
                 emailCliente={email}
-                totalUsd={totalUsd}
+                totalMonto={montoConfirmado ?? totalConvertido}
+                moneda={monedaConfirmada ?? monedaActiva}
                 reciboEnviado={reciboEnviado}
                 onClose={onClose}
               />

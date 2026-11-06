@@ -13,7 +13,9 @@ import {
   Section,
   Text,
 } from "@react-email/components";
+import { formatearMoneda } from "../lib/formato";
 import { MARCA } from "../lib/marca";
+import type { CodigoMoneda } from "../lib/monedas";
 
 export interface ReciboTuristaProps {
   negocioNombre: string;
@@ -21,9 +23,13 @@ export interface ReciboTuristaProps {
   servicioNombre: string;
   fechaHora: string; // ISO string
   montoUsd: number;
+  moneda?: CodigoMoneda;
   trxId: string;
   emailCliente: string;
   gestionUrl?: string;
+  /** Venta directa de ítems: se muestra cantidad y fecha de compra. */
+  esItem?: boolean;
+  cantidad?: number;
   /** Texto opcional configurable por la administración global. */
   encabezado?: string;
   pie?: string;
@@ -40,9 +46,12 @@ export default function ReciboTurista({
   servicioNombre,
   fechaHora,
   montoUsd,
+  moneda = "USD",
   trxId,
   emailCliente,
   gestionUrl,
+  esItem = false,
+  cantidad = 1,
   encabezado,
   pie,
 }: ReciboTuristaProps) {
@@ -50,6 +59,7 @@ export default function ReciboTurista({
     dateStyle: "full",
     timeStyle: "short",
   });
+  const montoFormateado = formatearMoneda(montoUsd, moneda);
 
   return (
     <Html>
@@ -78,7 +88,9 @@ export default function ReciboTurista({
             </Row>
           </Section>
 
-          <Heading style={heading}>¡Reserva confirmada!</Heading>
+          <Heading style={heading}>
+            {esItem ? "¡Compra confirmada!" : "¡Reserva confirmada!"}
+          </Heading>
 
           {encabezado && <Text style={paragraph}>{encabezado}</Text>}
 
@@ -96,14 +108,16 @@ export default function ReciboTurista({
             </Row>
             <Row>
               <Column>
-                <Text style={detailLabel}>Fecha y hora</Text>
+                <Text style={detailLabel}>
+                  {esItem ? "Fecha de compra" : "Fecha y hora"}
+                </Text>
                 <Text style={detailValue}>{fechaFormateada}</Text>
               </Column>
             </Row>
             <Row>
               <Column>
                 <Text style={detailLabel}>Monto pagado</Text>
-                <Text style={detailValue}>${montoUsd.toFixed(2)} USD</Text>
+                <Text style={detailValue}>{montoFormateado}</Text>
               </Column>
             </Row>
             <Row>

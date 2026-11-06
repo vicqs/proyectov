@@ -82,6 +82,7 @@ export default async function TicketPage({
         >
           <Campo etiqueta="Estado">
             <select
+              key={ticket.estado}
               name="estado"
               defaultValue={ticket.estado}
               className={CLASE_SELECT}
@@ -94,6 +95,7 @@ export default async function TicketPage({
           </Campo>
           <Campo etiqueta="Prioridad">
             <select
+              key={ticket.prioridad}
               name="prioridad"
               defaultValue={ticket.prioridad}
               className={CLASE_SELECT}

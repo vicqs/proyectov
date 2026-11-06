@@ -8,10 +8,13 @@ import {
   esHex,
   textoSobre,
 } from "@/lib/color";
+import { formatearMoneda } from "@/lib/formato";
+import { obtenerInfoMoneda, type CodigoMoneda } from "@/lib/monedas";
 
 interface ParColoresMarcaProps {
   primarioInicial: string | null;
   secundarioInicial: string | null;
+  moneda?: CodigoMoneda;
   onChange?: (colores: { primario: string; secundario: string }) => void;
 }
 
@@ -22,6 +25,7 @@ interface ParColoresMarcaProps {
 export default function ParColoresMarca({
   primarioInicial,
   secundarioInicial,
+  moneda = "USD",
   onChange,
 }: ParColoresMarcaProps) {
   const [primario, setPrimario] = useState(
@@ -143,7 +147,12 @@ export default function ParColoresMarca({
             }`}
             style={{ background: degradado, color: textoSobre(primario) }}
           >
-            Botón reserva · $45.00
+            Botón reserva ·{" "}
+            {formatearMoneda(
+              Number(obtenerInfoMoneda(moneda).ejemploPrecio) || 45,
+              moneda,
+              { mostrarCodigo: false },
+            )}
           </span>
         </div>
       </div>

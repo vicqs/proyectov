@@ -5,6 +5,7 @@ import { leer } from "@/lib/data/server";
 import { leer as leerAdmin } from "@/lib/admin/db";
 import { DataError } from "@/lib/data/db";
 import { reconciliarFinanzasNegocio } from "@/lib/finanzas";
+import { normalizarMoneda } from "@/lib/monedas";
 import { obtenerConfiguracion } from "@/lib/plataforma";
 import { hoyClaveCR } from "@/lib/zona-horaria";
 import { guardarComprobanteAction } from "@/actions/facturacion";
@@ -22,6 +23,7 @@ export default async function FinanzasPage({ params }: EmpresaPageProps) {
   ]);
 
   const hoyClave = hoyClaveCR(Date.now());
+  const monedaBase = normalizarMoneda(negocio?.moneda, "USD");
 
   let reconciliado: ReturnType<typeof reconciliarFinanzasNegocio> | null = null;
   let errorCarga: string | null = null;
@@ -39,10 +41,8 @@ export default async function FinanzasPage({ params }: EmpresaPageProps) {
             orden: ["service_date", false],
           }),
           leer("servicios", { eq: { negocio_id: negocio.id } }),
-          leer("reembolsos", { eq: { negocio_id: negocio.id } }).catch(() =>
-            leerAdmin("reembolsos", { eq: { negocio_id: negocio.id } }).catch(
-              () => [],
-            ),
+          leerAdmin("reembolsos", { eq: { negocio_id: negocio.id } }).catch(
+            () => [],
           ),
         ]);
 
@@ -51,6 +51,7 @@ export default async function FinanzasPage({ params }: EmpresaPageProps) {
         trxPersistidas,
         servicios,
         reembolsosDb,
+        monedaBase,
       });
     } catch (error) {
       if (!(error instanceof DataError)) throw error;
@@ -67,6 +68,7 @@ export default async function FinanzasPage({ params }: EmpresaPageProps) {
   return (
     <FinanzasView
       error={errorCarga}
+      monedaBase={monedaBase}
       hoyClave={hoyClave}
       cuentaIban={negocio?.cuenta_iban}
       hrefReservas={rutaPanelEmpresa(slugActual, "reservas")}

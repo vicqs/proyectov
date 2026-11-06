@@ -4,6 +4,7 @@ import {
   construirSemanaCalendario,
   obtenerEtiquetaPeriodoSemana,
 } from "@/lib/horarios";
+import { desplazarClave, hoyClaveCR, partesCR } from "@/lib/zona-horaria";
 import { COLOR_PRIMARIO_DEFECTO, esHex, textoSobre } from "@/lib/color";
 import { leer } from "@/lib/data/server";
 import { COLUMNAS_RESERVA_PANEL, type ReservaPanel } from "@/lib/data/columnas";
@@ -35,13 +36,13 @@ export default async function CalendarioPage({
   );
 
   const ahoraMs = Date.now();
-  const hoy = new Date(ahoraMs);
-  hoy.setHours(0, 0, 0, 0);
-
-  const inicio = new Date(hoy);
-  inicio.setDate(inicio.getDate() - inicio.getDay() + offset * 7);
-  const fin = new Date(inicio);
-  fin.setDate(inicio.getDate() + 7);
+  const hoyClave = hoyClaveCR(ahoraMs);
+  const hoy = new Date(`${hoyClave}T00:00:00-06:00`);
+  const { diaSemana } = partesCR(hoy.toISOString());
+  const inicioClave = desplazarClave(hoyClave, -diaSemana + offset * 7);
+  const finClave = desplazarClave(inicioClave, 7);
+  const inicio = new Date(`${inicioClave}T00:00:00-06:00`);
+  const fin = new Date(`${finClave}T00:00:00-06:00`);
 
   let servicios: Servicio[] = [];
   let horarios: Horario[] = [];
@@ -63,6 +64,12 @@ export default async function CalendarioPage({
       leer("bloqueos_excepcion", { eq: { negocio_id: negocio.id }, gte: { fecha_fin: desde }, lt: { fecha_inicio: hasta } }),
     ]);
   }
+
+  // Las ventas de ítems no tienen salida programada: no se dibujan en el calendario.
+  const idsItem = new Set(
+    servicios.filter((s) => s.unit_type === "item").map((s) => s.id),
+  );
+  reservas = reservas.filter((r) => !idsItem.has(r.servicio_id));
 
   const { dias, rangoSemana } = construirSemanaCalendario({
     inicio,
@@ -96,7 +103,9 @@ export default async function CalendarioPage({
       hrefReservas={rutaPanelEmpresa(negocio.slug, "reservas")}
       hrefServicios={rutaPanelEmpresa(negocio.slug, "servicios")}
       textoMarca={textoSobre(colorMarca)}
-      servicios={servicios.map((s) => ({ id: s.id, nombre: s.nombre }))}
+      servicios={servicios
+        .filter((s) => s.unit_type !== "item")
+        .map((s) => ({ id: s.id, nombre: s.nombre }))}
       dias={dias}
     />
   );

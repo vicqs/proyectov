@@ -5,6 +5,7 @@ import {
 import { revalidarAdmin } from "@/lib/admin/util";
 import { enviarCorreosConfirmacion } from "@/lib/email";
 import { revalidarEmpresa } from "@/lib/empresa";
+import { normalizarMoneda } from "@/lib/monedas";
 import { registrarSistema } from "@/lib/registro";
 import { DataError } from "@/lib/data/db";
 import { normalizarWebhookPago, type WebhookPagoNormalizado } from "@/lib/tilopay";
@@ -40,11 +41,15 @@ export async function POST(request: NextRequest) {
         const negocioEmail = reserva.negocio_email;
         const reference = reserva.trx_id;
         const amount = reserva.monto_usd;
+        const moneda = normalizarMoneda(
+          reserva.currency ?? reserva.servicio_currency ?? reserva.negocio_moneda,
+          "USD",
+        );
         after(async () => {
           const result = await enviarCorreosConfirmacion({
             negocioNombre: reserva.negocio_nombre, negocioLogoUrl: reserva.negocio_logo_url,
             negocioEmail, servicioNombre: reserva.servicio_nombre, fechaHora: reserva.fecha_hora,
-            montoUsd: amount, trxId: reference, emailCliente: reserva.email_cliente,
+            montoUsd: amount, moneda, trxId: reference, emailCliente: reserva.email_cliente,
             gestionUrl: reserva.token_gestion
               ? `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/reserva/${reserva.token_gestion}`
               : undefined,

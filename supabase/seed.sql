@@ -17,6 +17,7 @@ insert into vuki_seed_users values
   ('00000000-0000-4000-8000-000000000001', 'demo@vuki.cr', null, 1692),
   ('00000000-0000-4000-8000-000000000002', 'kayak@vuki.cr', null, 4715),
   ('00000000-0000-4000-8000-000000000003', 'cafe@vuki.cr', null, 7865),
+  ('00000000-0000-4000-8000-000000000004', 'coraliasurfandbeachstyle@gmail.com', null, 120),
   ('00000000-0000-4000-8000-000000000101', 'admin@vuki.cr', 'superadmin', 14),
   ('00000000-0000-4000-8000-000000000102', 'finanzas@vuki.cr', 'finanzas', 198),
   ('00000000-0000-4000-8000-000000000103', 'soporte@vuki.cr', 'soporte', 42);
@@ -63,21 +64,31 @@ values ('55555555-5555-4555-8555-555555555555', 'Plan vuki', 15, null, true, tru
 on conflict (id) do nothing;
 
 insert into public.businesses (
-  id, owner_id, name, slug, whatsapp, iban, contact_email, description, primary_color, created_at
+  id, owner_id, name, slug, whatsapp, iban, contact_email, description, primary_color, secondary_color, logo_url, cover_url, currency, created_at
 )
 select '11111111-1111-4111-8111-111111111111'::uuid, '00000000-0000-4000-8000-000000000001'::uuid,
   'Escuela de Surf Pura Vida', 'surf-tamarindo', '50688887777', 'CR00000000000000000000', 'demo@vuki.cr',
-  'Clases de surf para todos los niveles frente a la playa. ¡Reserva tu cupo!', '#0284c7', anchor - interval '20 days'
+  'Clases de surf para todos los niveles frente a la playa. ¡Reserva tu cupo!', '#0284c7', '#0284c7', null, null, 'USD', anchor - interval '20 days'
 from vuki_seed_clock
 union all
 select '11111111-1111-4111-8111-111111111112'::uuid, '00000000-0000-4000-8000-000000000002'::uuid,
   'Kayak Manglar Tours', 'kayak-manglar', '50688887777', 'CR11111111111111111111', 'kayak@vuki.cr',
-  'Paseos en kayak por el manglar al amanecer.', '#059669', anchor - interval '60 days'
+  'Paseos en kayak por el manglar al amanecer.', '#059669', '#059669', null, null, 'USD', anchor - interval '60 days'
 from vuki_seed_clock
 union all
 select '11111111-1111-4111-8111-111111111113'::uuid, '00000000-0000-4000-8000-000000000003'::uuid,
   'Tour de Café Monteverde', 'cafe-monteverde', '50688887777', 'CR22222222222222222222', 'cafe@vuki.cr',
-  'Del grano a la taza: recorrido por una finca cafetalera.', '#b45309', anchor - interval '90 days'
+  'Del grano a la taza: recorrido por una finca cafetalera.', '#b45309', null, null, null, 'USD', anchor - interval '90 days'
+from vuki_seed_clock
+union all
+select '11111111-1111-4111-8111-111111111114'::uuid, '00000000-0000-4000-8000-000000000004'::uuid,
+  'Coralia CR', 'coralia', '50685667363', 'CR28015202001327568368', 'coraliasurfandbeachstyle@gmail.com',
+  E'Emprendimiento costarricense desde la Costa Pacífica de Guanacaste 🪸🌴🌊🧜🏽‍♀️\n\n🪸 Por favor ingresa la dirección completa con número de teléfono, provincia, cantón y distrito.\n🐚 También se puede enviar directamente a una sucursal de Correos de Costa Rica.\n🌊 Los envíos se hacen los viernes por medio de Correos de Costa Rica. El tiempo estimado de entrega es de 2-5 días hábiles. 🧜🏽‍♀️',
+  '#1ba39c', '#10625e',
+  'https://voxfysjdqaixmzegvmds.supabase.co/storage/v1/object/public/negocios-media/11111111-1111-4111-8111-111111111114/logo-coralia.jpg',
+  'https://voxfysjdqaixmzegvmds.supabase.co/storage/v1/object/public/negocios-media/11111111-1111-4111-8111-111111111114/portada-playa-guanacaste.jpg',
+  'CRC',
+  anchor - interval '10 days'
 from vuki_seed_clock
 on conflict (id) do nothing;
 
@@ -90,13 +101,25 @@ select '99999999-9999-4999-8999-999999999992'::uuid, '11111111-1111-4111-8111-11
 union all
 select '99999999-9999-4999-8999-999999999993'::uuid, '11111111-1111-4111-8111-111111111113'::uuid,
   'inactiva', null, null, null from vuki_seed_clock
+union all
+select '99999999-9999-4999-8999-999999999994'::uuid, '11111111-1111-4111-8111-111111111114'::uuid,
+  'activa', 'mock_cus_coralia', null, '2026-12-06T12:00:00Z'::timestamptz from vuki_seed_clock
 on conflict (business_id) do nothing;
 
-insert into public.services (id, business_id, name, price_usd, duration_min, cabys_code, iva_rate) values
-  ('22222222-2222-4222-8222-222222222221', '11111111-1111-4111-8111-111111111111', 'Clase de surf 1h', 45, 60, '9291200000000', 0.13),
-  ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111', 'Alquiler de tabla (día completo)', 20, 480, '7324001000000', 0.13),
-  ('22222222-2222-4222-8222-222222222223', '11111111-1111-4111-8111-111111111112', 'Kayak al amanecer', 35, 120, '8554000000000', 0.04),
-  ('22222222-2222-4222-8222-222222222224', '11111111-1111-4111-8111-111111111113', 'Tour de café', 30, 150, '8554000000000', 0.04)
+insert into public.services (id, business_id, name, description, image_url, price_usd, currency, exchange_rate_bccr, duration_min, cabys_code, iva_rate, unit_type, stock) values
+  ('22222222-2222-4222-8222-222222222221', '11111111-1111-4111-8111-111111111111', 'Clase de surf 1h', null, null, 45, 'USD', 515, 60, '9291200000000', 0.13, 'cupo', null),
+  ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111', 'Alquiler de tabla (día completo)', null, null, 20, 'USD', 515, 480, '7324001000000', 0.13, 'cupo', null),
+  ('22222222-2222-4222-8222-222222222223', '11111111-1111-4111-8111-111111111112', 'Kayak al amanecer', null, null, 35, 'USD', 515, 120, '8554000000000', 0.04, 'cupo', null),
+  ('22222222-2222-4222-8222-222222222224', '11111111-1111-4111-8111-111111111113', 'Tour de café', null, null, 30, 'USD', 515, 150, '8554000000000', 0.04, 'cupo', null),
+  ('22222222-2222-4222-8222-222222222231', '11111111-1111-4111-8111-111111111114', 'Arete circular de Mimbre trenzado', 'Fibra Natural (mimbre) · Arete circular mediano. Material: mimbre. Color: Fibra natural.', 'https://voxfysjdqaixmzegvmds.supabase.co/storage/v1/object/public/negocios-media/11111111-1111-4111-8111-111111111114/servicio-arete-mimbre.jpg', 2000, 'CRC', 1, 0, '9291200000000', 0.13, 'item', 12),
+  ('22222222-2222-4222-8222-222222222232', '11111111-1111-4111-8111-111111111114', 'Aretes Coralia', 'Arete artesanal Coralia · Forma: Espiral boho. Color: Dorado.', 'https://voxfysjdqaixmzegvmds.supabase.co/storage/v1/object/public/negocios-media/11111111-1111-4111-8111-111111111114/servicio-aretes-coralia.jpg', 1600, 'CRC', 1, 0, '9291200000000', 0.13, 'item', 12),
+  ('22222222-2222-4222-8222-222222222233', '11111111-1111-4111-8111-111111111114', 'Aretes Coralito Serpiente', 'Un par · Aretes tipo Stud. Color: Dorado. Material: Acero inoxidable.', 'https://voxfysjdqaixmzegvmds.supabase.co/storage/v1/object/public/negocios-media/11111111-1111-4111-8111-111111111114/servicio-aretes-coralito-serpiente.jpg', 2500, 'CRC', 1, 0, '9291200000000', 0.13, 'item', 12),
+  ('22222222-2222-4222-8222-222222222234', '11111111-1111-4111-8111-111111111114', 'Pulsera Costa Rica', 'Unisex · Pulsera artesanal. Materiales: Fibra natural de Caña Flecha.', 'https://voxfysjdqaixmzegvmds.supabase.co/storage/v1/object/public/negocios-media/11111111-1111-4111-8111-111111111114/servicio-pulsera-costa-rica.jpg', 2500, 'CRC', 1, 0, '9291200000000', 0.13, 'item', 12),
+  ('22222222-2222-4222-8222-222222222235', '11111111-1111-4111-8111-111111111114', 'Pulsera Espiral', 'Unisex · Pulsera color café con detalles en naranja, verde y amarillo. Fibra natural de Caña Flecha.', 'https://voxfysjdqaixmzegvmds.supabase.co/storage/v1/object/public/negocios-media/11111111-1111-4111-8111-111111111114/servicio-pulsera-espiral.jpg', 2500, 'CRC', 1, 0, '9291200000000', 0.13, 'item', 12),
+  ('22222222-2222-4222-8222-222222222236', '11111111-1111-4111-8111-111111111114', 'Pulsera Rasta', 'Unisex · Pulsera artesanal en fibra natural de Caña Flecha.', 'https://voxfysjdqaixmzegvmds.supabase.co/storage/v1/object/public/negocios-media/11111111-1111-4111-8111-111111111114/servicio-pulsera-rasta.jpg', 3000, 'CRC', 1, 0, '9291200000000', 0.13, 'item', 12),
+  ('22222222-2222-4222-8222-222222222237', '11111111-1111-4111-8111-111111111114', 'Pulsera Surfista', 'Pulsera Surfista de Mujer · Pulsera colorida elaborada con concha de coco.', 'https://voxfysjdqaixmzegvmds.supabase.co/storage/v1/object/public/negocios-media/11111111-1111-4111-8111-111111111114/servicio-pulsera-surfista.jpg', 2500, 'CRC', 1, 0, '9291200000000', 0.13, 'item', 12),
+  ('22222222-2222-4222-8222-222222222238', '11111111-1111-4111-8111-111111111114', 'Triángulo minimalista', 'Un par · Arete triangular tipo Stud. Color: Dorado. Material: Acero inoxidable.', 'https://voxfysjdqaixmzegvmds.supabase.co/storage/v1/object/public/negocios-media/11111111-1111-4111-8111-111111111114/servicio-triangulo-minimalista.jpg', 2500, 'CRC', 1, 0, '9291200000000', 0.13, 'item', 12),
+  ('22222222-2222-4222-8222-222222222239', '11111111-1111-4111-8111-111111111114', 'Arete Lunar (cachito de luna) studs', 'Un par · Tipo Stud. Color: Dorado. Material: Acero inoxidable.', 'https://voxfysjdqaixmzegvmds.supabase.co/storage/v1/object/public/negocios-media/11111111-1111-4111-8111-111111111114/servicio-arete-lunar-studs.jpg', 2500, 'CRC', 1, 0, '9291200000000', 0.13, 'item', 12)
 on conflict (id) do nothing;
 
 insert into public.schedules (id, business_id, service_id, starts_at, capacity)
@@ -162,7 +185,7 @@ select '77777777-7777-4777-8777-777777777771'::uuid, '11111111-1111-4111-8111-11
 on conflict (id) do nothing;
 
 update public.platform_settings set simulated_payments_enabled = true
-where id = 1 and (select first_seed from vuki_seed_clock);
+where id = 1;
 
 -- Los mocks de blocks, announcements, email_broadcasts, audit_logs,
 -- internal_notes, system_logs y refunds estan vacios: no se inventan filas.

@@ -24,6 +24,9 @@ export function PlanesAdminSection({
 
   useEffect(() => {
     setPlanes(planesIniciales);
+    setPlanSeleccionado((prev) =>
+      prev ? (planesIniciales.find((p) => p.id === prev.id) ?? prev) : null,
+    );
   }, [planesIniciales]);
 
   function abrirCrear() {
@@ -128,7 +131,7 @@ export function PlanesAdminSection({
                       <p className="flex items-baseline gap-1 text-2xl font-black tracking-tight text-slate-900">
                         {usd(p.precio_usd)}
                         <span className="text-xs font-normal text-slate-500">
-                          USD / mes
+                          / mes
                         </span>
                       </p>
                     </div>

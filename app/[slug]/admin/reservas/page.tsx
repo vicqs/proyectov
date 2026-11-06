@@ -1,14 +1,14 @@
 import { requerirEmpresa, type EmpresaPageProps } from "@/lib/empresa";
 import type { BloqueoExcepcion, Horario, Servicio } from "@/types/database";
 import { construirHorarios, etiquetaHorario } from "@/lib/horarios";
-import { montoEfectivoReserva } from "@/lib/pagos";
+import { convertirMoneda, normalizarMoneda } from "@/lib/monedas";
 import { hoyClaveCR } from "@/lib/zona-horaria";
 import ReservasEmpresaClient from "./ReservasEmpresaClient";
 import { leer } from "@/lib/data/server";
 import { COLUMNAS_RESERVA_PANEL, type ReservaPanel } from "@/lib/data/columnas";
 
 type ReservaConServicio = ReservaPanel & {
-  servicio: Pick<Servicio, "nombre" | "precio_usd"> | null;
+  servicio: Pick<Servicio, "nombre" | "precio_usd" | "currency" | "unit_type"> | null;
 };
 
 /**
@@ -58,38 +58,41 @@ export default async function ReservasPage({
   }
 
   const servicioPorId = new Map(servicios.map((s) => [s.id, s]));
+  const monedaNegocio = normalizarMoneda(negocio.moneda, "USD");
 
   return (
     <ReservasEmpresaClient
       slug={negocio.slug}
+      monedaNegocio={monedaNegocio}
       hoyClave={hoyClave}
       ahoraMs={ahoraMs}
       abrirManualInicial={nueva === "1" || nuevo === "1"}
       reservas={reservas.map((r) => {
         const cupos = r.cupos ?? 1;
-        const tarifa =
-          r.servicio?.precio_usd ??
-          servicioPorId.get(r.servicio_id)?.precio_usd;
+        const srv = r.servicio ?? servicioPorId.get(r.servicio_id);
+        const tarifa = srv?.precio_usd;
+        const monedaSrv = normalizarMoneda(srv?.currency, monedaNegocio);
+        const monedaRes = normalizarMoneda(r.currency, monedaSrv);
         const calculado =
-          r.monto_usd !== null && r.monto_usd !== undefined
-            ? r.monto_usd
-            : tarifa !== undefined
-              ? montoEfectivoReserva(r, tarifa)
-              : undefined;
+          r.monto_usd ??
+          r.gross_amount ??
+          (tarifa !== undefined
+            ? convertirMoneda(tarifa * cupos, monedaSrv, monedaRes)
+            : undefined);
 
         return {
           id: r.id,
           fechaIso: r.fecha_hora,
           cliente: r.nombre_cliente || r.email_cliente,
           email: r.nombre_cliente ? r.email_cliente : undefined,
-          servicio:
-            r.servicio?.nombre ??
-            servicioPorId.get(r.servicio_id)?.nombre ??
-            "—",
+          servicio: srv?.nombre ?? "—",
           horario: etiquetaHorario(r.fecha_hora),
           cupos,
+          esItem: srv?.unit_type === "item",
           monto: r.estado === "pagada" ? calculado : undefined,
           montoEstimado: calculado,
+          moneda: monedaRes,
+          tipoCambioBccr: r.exchange_rate_bccr,
           estado: r.estado,
           trxId: r.trx_id,
         };
@@ -98,15 +101,25 @@ export default async function ReservasPage({
         const srv = servicioPorId.get(h.servicioId);
         return {
           id: h.id,
-          servicio: srv?.nombre ?? "Servicio",
+          servicioNombre: srv?.nombre ?? "Servicio",
           label: h.label,
           cuposDisponibles: h.cuposDisponibles,
           cuposTotales: h.cuposTotales,
           precioUsd: srv?.precio_usd,
+          moneda: normalizarMoneda(srv?.currency, monedaNegocio),
           fechaHora: h.fechaHora,
           duracionMin: srv?.duracion_min ?? 60,
         };
       })}
+      items={servicios
+        .filter((s) => s.unit_type === "item")
+        .map((s) => ({
+          servicioId: s.id,
+          nombre: s.nombre,
+          stock: s.stock ?? 0,
+          precioUsd: s.precio_usd,
+          moneda: normalizarMoneda(s.currency, monedaNegocio),
+        }))}
     />
   );
 }

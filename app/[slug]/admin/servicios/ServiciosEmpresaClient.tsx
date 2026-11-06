@@ -6,6 +6,7 @@ import {
   editarServicioAction,
   eliminarServicioAction,
 } from "@/actions/servicios";
+import type { CodigoMoneda } from "@/lib/monedas";
 import { rutaPanelEmpresa } from "@/lib/rutas-empresa";
 import ServiciosView, {
   type VistaServicio,
@@ -17,10 +18,12 @@ import ServiciosView, {
  */
 export default function ServiciosEmpresaClient({
   slug,
+  monedaNegocio = "USD",
   servicios,
   abrirInicial = false,
 }: {
   slug: string;
+  monedaNegocio?: CodigoMoneda;
   servicios: VistaServicio[];
   abrirInicial?: boolean;
 }) {
@@ -47,6 +50,7 @@ export default function ServiciosEmpresaClient({
   return (
     <ServiciosView
       servicios={servicios}
+      monedaNegocio={monedaNegocio}
       conDetalle
       abrirInicial={abrirInicial}
       hrefPublico={`/${encodeURIComponent(slug)}`}
@@ -57,6 +61,9 @@ export default function ServiciosEmpresaClient({
         const payload = {
           nombre: datos.nombre,
           precio_usd: datos.precioUsd,
+          currency: datos.moneda,
+          unit_type: datos.tipoUnidad,
+          stock: datos.stock,
           duracion_min: datos.duracionMin,
           descripcion: datos.descripcion,
           imagen_url: datos.imagenUrl,
@@ -68,6 +75,13 @@ export default function ServiciosEmpresaClient({
           const formData = new FormData();
           formData.set("nombre", payload.nombre);
           formData.set("precio_usd", String(payload.precio_usd));
+          if (payload.currency) {
+            formData.set("currency", payload.currency);
+          }
+          formData.set("unit_type", payload.unit_type);
+          if (payload.stock !== null) {
+            formData.set("stock", String(payload.stock));
+          }
           formData.set("duracion_min", String(payload.duracion_min));
           formData.set("descripcion", payload.descripcion);
           formData.set("imagen_url", payload.imagen_url);

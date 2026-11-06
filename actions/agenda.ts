@@ -60,7 +60,7 @@ export async function crearBloqueoAction(
     async ({ supabase, negocio }) => {
       const { data: reservasRango, error: countError } = await supabase
         .from("reservas")
-        .select("estado, trx_id")
+        .select("estado, trx_id, horario_id")
         .eq("negocio_id", negocio.id)
         .neq("estado", "cancelada")
         .gte("fecha_hora", parsed.data.fecha_inicio)
@@ -68,8 +68,9 @@ export async function crearBloqueoAction(
       if (countError) {
         return { error: "No se pudo verificar la disponibilidad del rango." };
       }
-      const afectadas = (reservasRango ?? []).filter((r) =>
-        reservaOcupaCupo(r),
+      // Las ventas de ítems (sin horario) no bloquean excepciones de agenda.
+      const afectadas = (reservasRango ?? []).filter(
+        (r) => r.horario_id !== null && reservaOcupaCupo(r),
       ).length;
       if (afectadas > 0) {
         return {

@@ -25,6 +25,11 @@ import { toast } from "@/components/Toast";
 import ParColoresMarca from "@/components/empresa/ParColoresMarca";
 import { COLOR_PRIMARIO_DEFECTO, esHex } from "@/lib/color";
 import { conResilienciaRed } from "@/lib/errores";
+import {
+  LISTA_MONEDAS,
+  normalizarMoneda,
+  type CodigoMoneda,
+} from "@/lib/monedas";
 import { LOGO_POR_DEFECTO, PORTADA_POR_DEFECTO } from "@/lib/tipos-publicos";
 import {
   PAISES_TELEFONO,
@@ -115,6 +120,7 @@ export type NegocioPersonalizacion = Pick<
   | "nombre"
   | "descripcion"
   | "cuenta_iban"
+  | "moneda"
   | "whatsapp"
   | "color_tema"
   | "color_secundario"
@@ -143,11 +149,13 @@ export default function PersonalizacionForm({
 
   const inicialTelefono = descomponerTelefono(negocio.whatsapp);
 
+  const monedaInicial = normalizarMoneda(negocio.moneda, "USD");
   const [nombre, setNombre] = useState(negocio.nombre);
   const [descripcion, setDescripcion] = useState(negocio.descripcion ?? "");
   const [ibanLimpio, setIbanLimpio] = useState(
     limpiarIban(negocio.cuenta_iban ?? ""),
   );
+  const [moneda, setMoneda] = useState<CodigoMoneda>(monedaInicial);
   const [paisIso, setPaisIso] = useState(inicialTelefono.pais.iso);
   const [digitosWhatsApp, setDigitosWhatsApp] = useState(
     inicialTelefono.digitosLocales,
@@ -204,6 +212,7 @@ export default function PersonalizacionForm({
     nombre: negocio.nombre,
     descripcion: negocio.descripcion ?? "",
     iban: limpiarIban(negocio.cuenta_iban ?? ""),
+    moneda: monedaInicial,
     whatsapp: negocio.whatsapp ?? "",
     primario: colorPrimarioBase,
     secundario: colorSecundarioBase,
@@ -226,6 +235,7 @@ export default function PersonalizacionForm({
           nombre: String(formData.get("nombre") ?? "").trim() || nombre,
           descripcion: String(formData.get("descripcion") ?? "").trim(),
           iban: limpiarIban(String(formData.get("cuenta_iban") ?? "")),
+          moneda: normalizarMoneda(formData.get("moneda"), moneda),
           whatsapp: String(formData.get("whatsapp") ?? "").trim(),
           primario: String(formData.get("color_tema") ?? colores.primario),
           secundario: String(
@@ -271,6 +281,7 @@ export default function PersonalizacionForm({
     setNombre(baseGuardada.nombre);
     setDescripcion(baseGuardada.descripcion);
     setIbanLimpio(baseGuardada.iban);
+    setMoneda(baseGuardada.moneda);
     setPaisIso(tel.pais.iso);
     setDigitosWhatsApp(tel.digitosLocales);
     setColores({
@@ -308,6 +319,7 @@ export default function PersonalizacionForm({
     nombre !== baseGuardada.nombre ||
     descripcion !== baseGuardada.descripcion ||
     ibanLimpio !== baseGuardada.iban ||
+    moneda !== baseGuardada.moneda ||
     whatsappCompleto !== baseGuardada.whatsapp ||
     colores.primario !== baseGuardada.primario ||
     colores.secundario !== baseGuardada.secundario;
@@ -565,6 +577,7 @@ export default function PersonalizacionForm({
               key={resetKey}
               primarioInicial={baseGuardada.primario}
               secundarioInicial={baseGuardada.secundario}
+              moneda={moneda}
               onChange={setColores}
             />
 
@@ -597,7 +610,7 @@ export default function PersonalizacionForm({
             />
           </section>
 
-          {/* Bloque 3: Datos bancarios (IBAN) */}
+          {/* Bloque 3: Moneda operativa y datos bancarios (IBAN) */}
           <section
             id="liquidacion"
             className="scroll-mt-24 space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
@@ -608,11 +621,38 @@ export default function PersonalizacionForm({
                   className="h-4 w-4 text-slate-500"
                   aria-hidden="true"
                 />
-                Datos bancarios de referencia
+                Moneda operativa y datos bancarios
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">
-                Cuenta IBAN registrada en tu negocio para control financiero y
-                liquidaciones.
+                Elige la moneda principal de tu negocio y registra tu cuenta IBAN
+                para control financiero y liquidaciones.
+              </p>
+            </div>
+
+            <div>
+              <label
+                htmlFor="moneda"
+                className="mb-1.5 block text-sm font-medium text-slate-700"
+              >
+                Moneda predeterminada del negocio
+              </label>
+              <select
+                id="moneda"
+                name="moneda"
+                value={moneda}
+                onChange={(e) => setMoneda(normalizarMoneda(e.target.value, "USD"))}
+                className="vuki-select min-h-11 w-full"
+              >
+                {LISTA_MONEDAS.map((m) => (
+                  <option key={m.codigo} value={m.codigo}>
+                    {m.codigo} ({m.simbolo}) — {m.nombreEs}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-xs text-slate-500">
+                Se usará por defecto al crear servicios, resumir métricas del panel
+                y mostrar precios iniciales en tu enlace público (donde tus clientes
+                también pueden cambiar entre USD, CRC, CAD, EUR y GBP).
               </p>
             </div>
 
@@ -654,6 +694,7 @@ export default function PersonalizacionForm({
             colorPrimario={colores.primario}
             nombre={nombre}
             descripcion={descripcion}
+            moneda={moneda}
             tieneWhatsApp={digitosWhatsApp.length > 0}
             codigoPaisWhatsApp={paisActual.codigo}
           />

@@ -1,4 +1,5 @@
 import { requerirEmpresa, type EmpresaPageProps } from "@/lib/empresa";
+import { normalizarMoneda } from "@/lib/monedas";
 import type { Horario, Reserva, Servicio } from "@/types/database";
 import ServiciosEmpresaClient from "./ServiciosEmpresaClient";
 import { leer } from "@/lib/data/server";
@@ -21,9 +22,7 @@ export default async function ServiciosPage({
   let horarios: Pick<Horario, "servicio_id">[] = [];
   let reservas: Pick<Reserva, "servicio_id">[] = [];
 
-  const ahora = new Date();
-  const inicioHoy = new Date(ahora);
-  inicioHoy.setHours(0, 0, 0, 0);
+  const ahoraIso = new Date().toISOString();
 
   if (negocio) {
     // Horarios y reservas solo se cuentan por servicio: una columna basta.
@@ -31,7 +30,7 @@ export default async function ServiciosPage({
       leer("servicios", { eq: { negocio_id: negocio.id }, orden: ["nombre", true] }),
       leer("horarios", {
         eq: { negocio_id: negocio.id },
-        gte: { fecha_hora: inicioHoy.toISOString() },
+        gte: { fecha_hora: ahoraIso },
         columnas: ["servicio_id"],
       }),
       leer("reservas", { eq: { negocio_id: negocio.id }, columnas: ["servicio_id"] }),
@@ -54,15 +53,21 @@ export default async function ServiciosPage({
     );
   }
 
+  const monedaNegocio = normalizarMoneda(negocio.moneda, "USD");
+
   return (
     <ServiciosEmpresaClient
       slug={negocio.slug}
+      monedaNegocio={monedaNegocio}
       abrirInicial={nuevo === "1"}
       servicios={servicios.map((s) => ({
         id: s.id,
         nombre: s.nombre,
         precioUsd: s.precio_usd,
+        moneda: normalizarMoneda(s.currency, monedaNegocio),
         duracionMin: s.duracion_min,
+        tipoUnidad: s.unit_type ?? "cupo",
+        stock: s.stock ?? null,
         descripcion: s.descripcion ?? "",
         imagenUrl: s.imagen_url ?? "",
         horariosActivos: horariosPorServicio.get(s.id) ?? 0,

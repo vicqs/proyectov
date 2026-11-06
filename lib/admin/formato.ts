@@ -1,7 +1,15 @@
-import { formatearPrecioUsd } from "../formato";
+import { formatearMoneda, formatearPrecioUsd } from "../formato";
+import type { CodigoMoneda } from "../monedas";
 
 export function usd(n: number | null | undefined): string {
   return formatearPrecioUsd(n);
+}
+
+export function moneda(
+  n: number | null | undefined,
+  codigo?: CodigoMoneda | string | null,
+): string {
+  return formatearMoneda(n, codigo ?? "USD");
 }
 
 export function fechaCorta(iso: string | null | undefined): string {

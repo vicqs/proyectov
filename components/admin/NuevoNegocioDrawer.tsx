@@ -8,9 +8,10 @@ import {
   extraerContrasenaTemporal,
   mostrarContrasenaTemporal,
 } from "./ContrasenaTemporalModal";
-import { CLASE_INPUT, Campo } from "./ui";
+import { CLASE_INPUT, CLASE_SELECT, Campo } from "./ui";
 import { crearNegocioAction } from "../../actions/admin/negocios";
 import { conResilienciaRed } from "../../lib/errores";
+import { LISTA_MONEDAS } from "../../lib/monedas";
 import type { ResultadoAccion } from "../../lib/admin/auth";
 import type { NegocioListado } from "../../lib/data/columnas";
 
@@ -161,6 +162,24 @@ export function NuevoNegocioDrawer({
               className={CLASE_INPUT}
               disabled={pendiente}
             />
+          </Campo>
+
+          <Campo
+            etiqueta="Moneda operativa"
+            ayuda="Moneda predeterminada para precios y reportes del negocio."
+          >
+            <select
+              name="moneda"
+              defaultValue="USD"
+              className={CLASE_SELECT}
+              disabled={pendiente}
+            >
+              {LISTA_MONEDAS.map((m) => (
+                <option key={m.codigo} value={m.codigo}>
+                  {m.codigo} ({m.simbolo}) · {m.nombreEs}
+                </option>
+              ))}
+            </select>
           </Campo>
 
           <Campo etiqueta="Cuenta IBAN (opcional)">

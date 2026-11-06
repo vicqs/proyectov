@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import type { NegocioListado } from "../../lib/data/columnas";
+import { normalizarMoneda } from "../../lib/monedas";
 import { estadoEfectivo } from "../../lib/negocio-estado";
 import { fechaCorta, paginar } from "../../lib/admin/formato";
 import {
@@ -208,6 +209,10 @@ export function NegociosAdminClient({
               </Link>
               <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 <span>/{n.slug}</span>
+                <span>·</span>
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-600">
+                  {normalizarMoneda(n.moneda, "USD")}
+                </span>
                 {!n.eliminado_en && (
                   <>
                     <span>·</span>

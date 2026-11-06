@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "../lib/supabase/server";
 import { accionEmpresa, revalidarEmpresa } from "../lib/empresa";
 import type { Negocio } from "../types/database";
 import { obtenerConfiguracion } from "../lib/plataforma";
+import { MONEDA_SCHEMA } from "../lib/monedas";
 import { obtenerPaisPorIso, totalDigitosPais } from "../lib/telefono";
 import { mensajeErrorUsuario } from "../lib/errores";
 import {
@@ -38,6 +39,7 @@ const personalizacionSchema = z
       .max(1000, "La biografía debe tener menos de 1000 caracteres"),
     color_tema: HEX_COLOR_SCHEMA,
     color_secundario: HEX_COLOR_SCHEMA,
+    moneda: MONEDA_SCHEMA.optional(),
   })
   .superRefine((datos, ctx) => {
     if (datos.cuenta_iban && !IBAN_REGEX.test(datos.cuenta_iban)) {
@@ -107,6 +109,7 @@ export async function actualizarPersonalizacionAction(
     cuenta_iban: formData.has("cuenta_iban")
       ? (campoTexto(formData, "cuenta_iban") ?? "")
       : undefined,
+    moneda: campoTexto(formData, "moneda") || undefined,
   });
 
   if (!parsed.success) {
@@ -133,6 +136,9 @@ export async function actualizarPersonalizacionAction(
         whatsapp: parsed.data.whatsapp || null,
         ...(parsed.data.cuenta_iban !== undefined
           ? { cuenta_iban: parsed.data.cuenta_iban }
+          : {}),
+        ...(parsed.data.moneda !== undefined
+          ? { moneda: parsed.data.moneda }
           : {}),
       };
 

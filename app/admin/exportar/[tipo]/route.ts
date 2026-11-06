@@ -3,8 +3,14 @@ import { z } from "zod";
 import { obtenerAdminAutenticado, rolEfectivo } from "../../../../lib/admin/auth";
 import { registrarAuditoria } from "../../../../lib/admin/auditoria";
 import { leer, listarUsuariosAuth } from "../../../../lib/admin/db";
-import { indexar, montoReserva } from "../../../../lib/admin/datos";
+import {
+  indexar,
+  monedaReserva,
+  montoReserva,
+  montoReservaUsd,
+} from "../../../../lib/admin/datos";
 import { celdaCsv } from "../../../../lib/admin/formato";
+import { normalizarMoneda } from "../../../../lib/monedas";
 import { estadoEfectivo } from "../../../../lib/negocio-estado";
 import { esCobroPasarela } from "../../../../lib/pagos";
 import { tienePermiso, type Permiso } from "../../../../lib/roles";
@@ -58,6 +64,7 @@ export async function GET(
         "id",
         "nombre",
         "slug",
+        "moneda",
         "estado",
         "suspendido",
         "eliminado_en",
@@ -67,6 +74,7 @@ export async function GET(
         n.id,
         n.nombre,
         n.slug,
+        normalizarMoneda(n.moneda, "USD"),
         estadoEfectivo(n),
         n.suspendido ? "si" : "no",
         n.eliminado_en ?? "",
@@ -80,6 +88,7 @@ export async function GET(
       leer("negocios"),
     ]);
     const idxS = indexar(servicios);
+    const idxN = indexar(negocios);
     const nombre = new Map(negocios.map((n) => [n.id, n.nombre]));
     const lista =
       tipo === "finanzas"
@@ -94,7 +103,9 @@ export async function GET(
         "cliente",
         "estado",
         "trx_id",
-        "monto_usd",
+        "monto",
+        "moneda",
+        "monto_usd_equiv",
       ],
       lista.map((r) => [
         r.id,
@@ -104,7 +115,9 @@ export async function GET(
         r.email_cliente,
         r.estado,
         r.trx_id ?? "",
-        montoReserva(r, idxS),
+        montoReserva(r, idxS, idxN),
+        monedaReserva(r, idxS, idxN),
+        montoReservaUsd(r, idxS, idxN),
       ]),
     );
   } else if (tipo === "auditoria") {

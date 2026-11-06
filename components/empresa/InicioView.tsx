@@ -11,6 +11,7 @@ import {
   ExternalLink,
   ListChecks,
   Mail,
+  Package,
   Plus,
   TrendingUp,
   User,
@@ -18,7 +19,8 @@ import {
 } from "lucide-react";
 import EmpresaPage, { ItemLista, KpiCard, Lista } from "../EmpresaPage";
 import { BotonCopiarEnlacePublico } from "./BotonCopiarEnlacePublico";
-import { formatearPrecioUsd } from "@/lib/formato";
+import { formatearMoneda } from "@/lib/formato";
+import type { CodigoMoneda } from "@/lib/monedas";
 import { formatearFechaReservaCR } from "@/lib/zona-horaria";
 
 export interface InicioPrueba {
@@ -41,7 +43,11 @@ export interface InicioServicio {
   nombre: string;
   duracionMin: number;
   precioUsd: number;
+  moneda?: CodigoMoneda;
   horariosActivos?: number;
+  /** `item`: venta directa que descuenta stock (sin horarios). */
+  tipoUnidad?: "cupo" | "item";
+  stock?: number | null;
 }
 
 export interface InicioReserva {
@@ -51,7 +57,10 @@ export interface InicioReserva {
   email?: string;
   servicio?: string;
   cupos?: number;
+  /** La reserva corresponde a un ítem de venta directa. */
+  esItem?: boolean;
   monto?: number;
+  moneda?: CodigoMoneda;
   esManual?: boolean;
   estado: string;
 }
@@ -69,6 +78,7 @@ export interface InicioRutas {
 interface InicioViewProps {
   nombre: string;
   descripcion: string;
+  monedaNegocio?: CodigoMoneda;
   totalReservas: number;
   totalCobrado: number;
   servicios: InicioServicio[];
@@ -92,7 +102,12 @@ interface InicioViewProps {
   /** Presente solo si el negocio está en período de prueba. */
   prueba?: InicioPrueba;
   /** Suscripción activa: fecha legible del próximo cobro mensual. */
-  proximoCobro?: { fecha: string; dias: number; automatico: boolean };
+  proximoCobro?: {
+    fecha: string;
+    dias: number;
+    automatico: boolean;
+    simulado?: boolean;
+  };
 }
 
 const ESTADO_STYLES: Record<string, string> = {
@@ -122,6 +137,7 @@ function formatearDuracion(minutos: number): string {
 export default function InicioView({
   nombre,
   descripcion,
+  monedaNegocio = "USD",
   totalReservas,
   totalCobrado,
   servicios,
@@ -141,8 +157,17 @@ export default function InicioView({
   const urgente = prueba ? prueba.dias <= 3 : false;
 
   const sinServicios = servicios.length === 0;
+  const hayServiciosPorCupo = servicios.some((s) => s.tipoUnidad !== "item");
+  const hayItemsConStock = servicios.some(
+    (s) => s.tipoUnidad === "item" && (s.stock ?? 0) > 0,
+  );
+  const itemsPorAgotarse = servicios.filter(
+    (s) => s.tipoUnidad === "item" && (s.stock ?? 0) <= 5,
+  );
   const sinHorariosFuturos =
     !sinServicios &&
+    hayServiciosPorCupo &&
+    !hayItemsConStock &&
     totalHorariosFuturos !== undefined &&
     totalHorariosFuturos === 0;
 
@@ -160,7 +185,7 @@ export default function InicioView({
 
   const notaCobrado =
     cobrosManualesUsd > 0
-      ? `Pasarela · +${formatearPrecioUsd(cobrosManualesUsd)} cobro directo`
+      ? `Pasarela · +${formatearMoneda(cobrosManualesUsd, monedaNegocio)} cobro directo`
       : "Procesado por pasarela";
 
   return (
@@ -230,9 +255,11 @@ export default function InicioView({
                     : ` (en ${proximoCobro.dias} ${proximoCobro.dias === 1 ? "día" : "días"})`
                   : ""
               }`}
-          {proximoCobro.automatico
-            ? " · Se cobra automáticamente a tu tarjeta."
-            : ""}
+          {proximoCobro.simulado
+            ? " · Suscripción en modo simulado (demo · sin cargo real)."
+            : proximoCobro.automatico
+              ? " · Se cobra automáticamente a tu tarjeta."
+              : ""}
         </p>
       )}
 
@@ -280,7 +307,7 @@ export default function InicioView({
           <span className="mr-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
             Acciones rápidas:
           </span>
-          {!sinHorariosFuturos && !sinServicios && (
+          {!sinHorariosFuturos && !sinServicios && hayServiciosPorCupo && (
             <Link
               href={`${rutas.horarios}?nuevo=1`}
               className="vuki-focus inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-(--marca-fondo) px-3 py-1.5 text-xs font-semibold text-(--marca-texto) ring-1 ring-(--marca-borde) transition hover:brightness-95"
@@ -294,7 +321,7 @@ export default function InicioView({
             className="vuki-focus inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
           >
             <CalendarCheck className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
-            Reserva manual
+            Reserva / venta manual
           </Link>
           <Link
             href={rutas.calendario}
@@ -334,7 +361,7 @@ export default function InicioView({
           <KpiCard
             icono={<TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />}
             titulo="Cobrado (7 días)"
-            valor={formatearPrecioUsd(ingresosSemana)}
+            valor={formatearMoneda(ingresosSemana, monedaNegocio)}
             nota="Últimos 7 días y próximos"
             acento
             href={rutas?.finanzas}
@@ -343,7 +370,7 @@ export default function InicioView({
         <KpiCard
           icono={<DollarSign className="h-3.5 w-3.5" aria-hidden="true" />}
           titulo="Total cobrado"
-          valor={formatearPrecioUsd(totalCobrado)}
+          valor={formatearMoneda(totalCobrado, monedaNegocio)}
           nota={notaCobrado}
           acento
           href={rutas?.finanzas}
@@ -405,6 +432,36 @@ export default function InicioView({
                     </Link>
                   )}
                 </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {itemsPorAgotarse.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-amber-700">
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+            Ítems con poco stock
+          </h2>
+          <ul className="space-y-2">
+            {itemsPorAgotarse.map((s) => (
+              <li
+                key={s.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm"
+              >
+                <span className="font-semibold text-slate-900">{s.nombre}</span>
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                    (s.stock ?? 0) <= 0
+                      ? "bg-red-100 text-red-700"
+                      : "bg-amber-100 text-amber-800"
+                  }`}
+                >
+                  {(s.stock ?? 0) <= 0
+                    ? "Agotado"
+                    : `${s.stock} ${s.stock === 1 ? "disponible" : "disponibles"}`}
+                </span>
               </li>
             ))}
           </ul>
@@ -498,7 +555,13 @@ export default function InicioView({
                         <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
                           <Users className="h-3 w-3" aria-hidden="true" />
                           {reserva.cupos}{" "}
-                          {reserva.cupos === 1 ? "persona" : "personas"}
+                          {reserva.esItem
+                            ? reserva.cupos === 1
+                              ? "ítem"
+                              : "ítems"
+                            : reserva.cupos === 1
+                              ? "persona"
+                              : "personas"}
                         </span>
                       )}
                     </div>
@@ -533,7 +596,15 @@ export default function InicioView({
                   <div className="flex items-center gap-2.5">
                     {reserva.monto !== undefined && (
                       <span className="font-display text-sm font-bold text-vuki-ink">
-                        {formatearPrecioUsd(reserva.monto)}
+                        {formatearMoneda(
+                          reserva.monto,
+                          reserva.moneda ?? monedaNegocio,
+                          {
+                            mostrarCodigo:
+                              Boolean(reserva.moneda) &&
+                              reserva.moneda !== monedaNegocio,
+                          },
+                        )}
                       </span>
                     )}
                     <span
@@ -588,7 +659,10 @@ export default function InicioView({
         ) : (
           <Lista className="grid gap-3 sm:grid-cols-2">
             {servicios.map((servicio) => {
+              const esItem = servicio.tipoUnidad === "item";
+              const stockActual = servicio.stock ?? 0;
               const sinHorarios =
+                !esItem &&
                 servicio.horariosActivos !== undefined &&
                 servicio.horariosActivos === 0;
 
@@ -602,43 +676,84 @@ export default function InicioView({
                       {servicio.nombre}
                     </p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 font-medium text-slate-700">
-                        <Clock className="h-3 w-3 text-slate-500" aria-hidden="true" />
-                        {formatearDuracion(servicio.duracionMin)}
-                      </span>
-                      {servicio.horariosActivos !== undefined && (
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 font-semibold ${
-                            sinHorarios
-                              ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200/80"
-                              : "bg-emerald-50 text-emerald-800"
-                          }`}
-                        >
-                          {sinHorarios
-                            ? "Sin horarios"
-                            : `${servicio.horariosActivos} ${servicio.horariosActivos === 1 ? "horario" : "horarios"}`}
-                        </span>
+                      {esItem ? (
+                        <>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-0.5 font-medium text-sky-800">
+                            <Package className="h-3 w-3 text-sky-600" aria-hidden="true" />
+                            Venta directa
+                          </span>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 font-semibold ${
+                              stockActual <= 0
+                                ? "bg-red-50 text-red-700 ring-1 ring-red-200/80"
+                                : stockActual <= 5
+                                  ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200/80"
+                                  : "bg-emerald-50 text-emerald-800"
+                            }`}
+                          >
+                            {stockActual <= 0
+                              ? "Agotado"
+                              : `${stockActual} ${stockActual === 1 ? "disponible" : "disponibles"}`}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 font-medium text-slate-700">
+                            <Clock className="h-3 w-3 text-slate-500" aria-hidden="true" />
+                            {formatearDuracion(servicio.duracionMin)}
+                          </span>
+                          {servicio.horariosActivos !== undefined && (
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 font-semibold ${
+                                sinHorarios
+                                  ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200/80"
+                                  : "bg-emerald-50 text-emerald-800"
+                              }`}
+                            >
+                              {sinHorarios
+                                ? "Sin horarios"
+                                : `${servicio.horariosActivos} ${servicio.horariosActivos === 1 ? "horario" : "horarios"}`}
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center rounded-full bg-(--marca-2-fondo) px-3 py-1 font-display text-sm font-bold text-(--marca-2-texto)">
-                      {formatearPrecioUsd(servicio.precioUsd)}
+                      {formatearMoneda(
+                        servicio.precioUsd,
+                        servicio.moneda ?? monedaNegocio,
+                        {
+                          mostrarCodigo:
+                            Boolean(servicio.moneda) &&
+                            servicio.moneda !== monedaNegocio,
+                        },
+                      )}
                     </span>
-                    {rutas && (
-                      <Link
-                        href={`${rutas.horarios}?nuevo=1&servicio=${encodeURIComponent(servicio.id)}`}
-                        className={`vuki-focus inline-flex min-h-9 items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition ${
-                          sinHorarios
-                            ? "bg-vuki-ink text-white hover:bg-slate-800"
-                            : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                        }`}
-                      >
-                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                        Horario
-                      </Link>
-                    )}
+                    {rutas &&
+                      (esItem ? (
+                        <Link
+                          href={`${rutas.reservas}?nueva=1`}
+                          className="vuki-focus inline-flex min-h-9 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                        >
+                          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                          Vender
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`${rutas.horarios}?nuevo=1&servicio=${encodeURIComponent(servicio.id)}`}
+                          className={`vuki-focus inline-flex min-h-9 items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition ${
+                            sinHorarios
+                              ? "bg-vuki-ink text-white hover:bg-slate-800"
+                              : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                          }`}
+                        >
+                          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                          Horario
+                        </Link>
+                      ))}
                   </div>
                 </ItemLista>
               );

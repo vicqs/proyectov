@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, Loader2, Mail, Users, XCircle } from "lucide-react";
+import { Check, Copy, Loader2, Mail, Package, Users, XCircle } from "lucide-react";
 import { ItemLista, Lista } from "../../EmpresaPage";
 import { toast } from "../../Toast";
 import { esPagoManual, esTrxPasarela } from "@/lib/pagos";
-import { formatearPrecioUsd } from "@/lib/formato";
+import { esTransaccionSimulada, formatearMoneda } from "@/lib/formato";
+import type { CodigoMoneda } from "@/lib/monedas";
 import { desplazarClave, diaCR, fechaHoraCR } from "@/lib/zona-horaria";
 import type { VistaReserva } from "../ReservasView";
 
@@ -74,6 +75,29 @@ export function contextoTemporal(
   };
 }
 
+/** Contexto temporal de una reserva; las ventas de ítems no tienen salida programada. */
+function contextoReserva(
+  reserva: VistaReserva,
+  hoyClave: string,
+  ahoraMs: number,
+): { etiqueta: string; clase: string; esPasada: boolean } {
+  if (reserva.esItem) {
+    return {
+      etiqueta: "Venta directa",
+      clase: "bg-sky-50 text-sky-800 border-sky-200",
+      esPasada: false,
+    };
+  }
+  return contextoTemporal(reserva.fechaIso, hoyClave, ahoraMs);
+}
+
+/** Texto de cantidad: ítems en ventas directas, personas en reservas por cupo. */
+function textoCantidad(reserva: VistaReserva): string {
+  const n = reserva.cupos ?? 1;
+  if (reserva.esItem) return `${n} ${n === 1 ? "ítem" : "ítems"}`;
+  return `${n} ${n === 1 ? "persona" : "personas"}`;
+}
+
 function BadgeEstado({ estado }: { estado: VistaReserva["estado"] }) {
   return (
     <span
@@ -97,8 +121,9 @@ function etiquetaCanal(
   esPasarela: boolean;
 } {
   if (esTrxPasarela(trxId)) {
+    const simulada = esTransaccionSimulada(trxId);
     return {
-      etiqueta: "Pasarela Vualá",
+      etiqueta: simulada ? "Pasarela simulada (demo)" : "Pasarela Vualá",
       detalle: trxId ?? undefined,
       esPasarela: true,
     };
@@ -117,25 +142,34 @@ function etiquetaCanal(
 
 function CeldaCobro({
   reserva,
+  monedaNegocio,
   confirmandoId,
   onMarcarPagada,
 }: {
   reserva: VistaReserva;
+  monedaNegocio: CodigoMoneda;
   confirmandoId: string | null;
   onMarcarPagada?: (id: string) => void;
 }) {
   const canal = etiquetaCanal(reserva.trxId, reserva.estado);
   const monto = reserva.monto ?? reserva.montoEstimado;
+  const moneda = reserva.moneda ?? monedaNegocio;
   const esEstimado =
     reserva.monto === undefined && reserva.montoEstimado !== undefined;
   const confirmando = confirmandoId === reserva.id;
+  const montoFormateado =
+    monto !== undefined
+      ? formatearMoneda(monto, moneda, {
+          mostrarCodigo: moneda !== monedaNegocio,
+        })
+      : "—";
 
   if (reserva.estado === "cancelada") {
     const tuvoPasarela = esTrxPasarela(reserva.trxId);
     return (
       <div className="space-y-0.5">
         <p className="font-mono text-sm font-semibold text-slate-400 line-through">
-          {monto !== undefined ? formatearPrecioUsd(monto) : "—"}
+          {montoFormateado}
         </p>
         <p
           className={`text-[11px] font-medium ${
@@ -156,7 +190,7 @@ function CeldaCobro({
             reserva.estado === "pagada" ? "text-vuki-ink" : "text-amber-800"
           }`}
         >
-          {monto !== undefined ? formatearPrecioUsd(monto) : "—"}
+          {montoFormateado}
         </span>
         {esEstimado && reserva.estado === "pendiente" && (
           <span className="text-[11px] font-medium text-amber-700">
@@ -202,6 +236,7 @@ function iniciales(nombre: string): string {
 
 interface TablaReservasEmpresaProps {
   reservasFiltradas: VistaReserva[];
+  monedaNegocio?: CodigoMoneda;
   hoyClave: string;
   ahoraMs: number;
   confirmandoPagoId: string | null;
@@ -212,6 +247,7 @@ interface TablaReservasEmpresaProps {
 
 export default function TablaReservasEmpresa({
   reservasFiltradas,
+  monedaNegocio = "USD",
   hoyClave,
   ahoraMs,
   confirmandoPagoId,
@@ -237,7 +273,7 @@ export default function TablaReservasEmpresa({
   const botonCancelar = (reserva: VistaReserva) => {
     if (!onCancelar || reserva.estado === "cancelada") return null;
 
-    const ctx = contextoTemporal(reserva.fechaIso, hoyClave, ahoraMs);
+    const ctx = contextoReserva(reserva, hoyClave, ahoraMs);
     const esPasada = ctx.etiqueta === "Pasada";
 
     if (esPasada) {
@@ -302,7 +338,7 @@ export default function TablaReservasEmpresa({
           </thead>
           <tbody className="divide-y divide-slate-200">
             {reservasFiltradas.map((reserva) => {
-              const ctx = contextoTemporal(reserva.fechaIso, hoyClave, ahoraMs);
+              const ctx = contextoReserva(reserva, hoyClave, ahoraMs);
               const atenuada =
                 reserva.estado === "cancelada" || ctx.etiqueta === "Pasada";
               return (
@@ -376,14 +412,18 @@ export default function TablaReservasEmpresa({
                       {reserva.servicio}
                     </div>
                     <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-slate-500">
-                      <Users className="h-3 w-3" aria-hidden="true" />
-                      {reserva.cupos ?? 1}{" "}
-                      {(reserva.cupos ?? 1) === 1 ? "persona" : "personas"}
+                      {reserva.esItem ? (
+                        <Package className="h-3 w-3" aria-hidden="true" />
+                      ) : (
+                        <Users className="h-3 w-3" aria-hidden="true" />
+                      )}
+                      {textoCantidad(reserva)}
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-4 py-3.5">
                     <CeldaCobro
                       reserva={reserva}
+                      monedaNegocio={monedaNegocio}
                       confirmandoId={confirmandoPagoId}
                       onMarcarPagada={onMarcarPagada}
                     />
@@ -406,7 +446,7 @@ export default function TablaReservasEmpresa({
       {/* Tarjetas en móvil y tablet (< lg) */}
       <Lista className="lg:hidden">
         {reservasFiltradas.map((reserva) => {
-          const ctx = contextoTemporal(reserva.fechaIso, hoyClave, ahoraMs);
+          const ctx = contextoReserva(reserva, hoyClave, ahoraMs);
           return (
             <ItemLista key={reserva.id}>
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -464,9 +504,12 @@ export default function TablaReservasEmpresa({
                 </span>
                 <span>· {fechaHoraCR(reserva.fechaIso)}</span>
                 <span className="inline-flex items-center gap-1">
-                  · <Users className="h-3 w-3" aria-hidden="true" />
-                  {reserva.cupos ?? 1}{" "}
-                  {(reserva.cupos ?? 1) === 1 ? "persona" : "personas"}
+                  · {reserva.esItem ? (
+                    <Package className="h-3 w-3" aria-hidden="true" />
+                  ) : (
+                    <Users className="h-3 w-3" aria-hidden="true" />
+                  )}
+                  {textoCantidad(reserva)}
                 </span>
                 {ctx.etiqueta && reserva.estado !== "cancelada" && (
                   <span
@@ -480,6 +523,7 @@ export default function TablaReservasEmpresa({
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
                 <CeldaCobro
                   reserva={reserva}
+                  monedaNegocio={monedaNegocio}
                   confirmandoId={confirmandoPagoId}
                   onMarcarPagada={onMarcarPagada}
                 />
